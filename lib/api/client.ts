@@ -594,6 +594,41 @@ export async function cancelRun(
   return { ok: true, runId: String(raw.id ?? runId), status: String(raw.status ?? 'cancelled') };
 }
 
+/**
+ * Suspend (pause) a running run — macp-proto 0.1.3 (RFC-MACP-0001 §7.5).
+ * Calls the control-plane `POST /runs/:id/suspend`; the run enters the
+ * non-terminal `suspended` state with its TTL banked.
+ */
+export async function suspendRun(
+  runId: string,
+  demoMode: boolean,
+  reason?: string
+): Promise<{ ok: boolean; runId: string; status: string }> {
+  if (demoMode) return maybeDelay({ ok: true, runId, status: 'suspended' });
+  const raw = await fetchJson<Record<string, unknown>>('control-plane', `/runs/${runId}/suspend`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: reason ?? 'Suspended from MACP UI' })
+  });
+  return { ok: true, runId: String(raw.id ?? runId), status: String(raw.status ?? 'suspended') };
+}
+
+/**
+ * Resume a suspended run — macp-proto 0.1.3. Calls `POST /runs/:id/resume`;
+ * the banked TTL is restored and the run returns to `running`.
+ */
+export async function resumeRun(
+  runId: string,
+  demoMode: boolean,
+  reason?: string
+): Promise<{ ok: boolean; runId: string; status: string }> {
+  if (demoMode) return maybeDelay({ ok: true, runId, status: 'running' });
+  const raw = await fetchJson<Record<string, unknown>>('control-plane', `/runs/${runId}/resume`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: reason ?? 'Resumed from MACP UI' })
+  });
+  return { ok: true, runId: String(raw.id ?? runId), status: String(raw.status ?? 'running') };
+}
+
 export async function cloneRun(
   runId: string,
   demoMode: boolean,
@@ -824,6 +859,7 @@ export async function getDashboardOverview(
   const completedRuns = cpKpis.completedRuns ?? runs.filter((run) => run.status === 'completed').length;
   const failedRuns = cpKpis.failedRuns ?? runs.filter((run) => run.status === 'failed').length;
   const cancelledRuns = cpKpis.cancelledRuns ?? runs.filter((run) => run.status === 'cancelled').length;
+  const suspendedRuns = cpKpis.suspendedRuns ?? runs.filter((run) => run.status === 'suspended').length;
   const averageDurationMs = cpKpis.avgDurationMs ?? 0;
 
   const cpCharts = cpOverview.charts ?? {};
@@ -837,6 +873,7 @@ export async function getDashboardOverview(
       completedRuns,
       failedRuns,
       cancelledRuns,
+      suspendedRuns,
       averageDurationMs,
       totalSignals: cpKpis.totalSignals ?? 0,
       totalCostUsd: cpKpis.totalCostUsd ?? cpKpis.estimatedCostUsd ?? 0,

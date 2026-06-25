@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRightLeft, ExternalLink, RotateCcw, Search, Square, TimerReset } from 'lucide-react';
+import { ArrowRightLeft, ExternalLink, Pause, Play, RotateCcw, Search, Square, TimerReset } from 'lucide-react';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -24,6 +24,8 @@ export function RunOverviewCard({
   connectionStatus,
   reconnectAttempt,
   onCancel,
+  onSuspend,
+  onResume,
   onReplay,
   compareHref,
   traceId,
@@ -36,6 +38,10 @@ export function RunOverviewCard({
   connectionStatus?: string;
   reconnectAttempt?: number;
   onCancel?: () => void;
+  /** macp-proto 0.1.3 — pause a running run (control-plane suspend). */
+  onSuspend?: () => void;
+  /** macp-proto 0.1.3 — resume a suspended run. */
+  onResume?: () => void;
   onReplay?: () => void;
   compareHref?: string;
   traceId?: string;
@@ -99,7 +105,10 @@ export function RunOverviewCard({
                     ? 'info'
                     : metrics.sessionState === 'SESSION_STATE_RESOLVED'
                       ? 'success'
-                      : 'danger'
+                      : // SUSPENDED is a non-terminal pause (macp-proto 0.1.3) — warn, don't alarm.
+                        metrics.sessionState === 'SESSION_STATE_SUSPENDED'
+                        ? 'warning'
+                        : 'danger'
                 }
               />
             )}
@@ -153,7 +162,19 @@ export function RunOverviewCard({
         )}
 
         <div className="section-actions">
-          {run.status === 'running' && onCancel ? (
+          {run.status === 'running' && onSuspend ? (
+            <Button variant="secondary" onClick={onSuspend}>
+              <Pause size={16} />
+              Suspend
+            </Button>
+          ) : null}
+          {run.status === 'suspended' && onResume ? (
+            <Button variant="primary" onClick={onResume}>
+              <Play size={16} />
+              Resume
+            </Button>
+          ) : null}
+          {(run.status === 'running' || run.status === 'suspended') && onCancel ? (
             <Button variant="danger" onClick={onCancel}>
               <Square size={16} />
               Cancel run

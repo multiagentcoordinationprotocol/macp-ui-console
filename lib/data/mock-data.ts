@@ -694,6 +694,11 @@ const completedState: RunStateProjection = {
       prompt: 'Decide whether to approve, step_up, or decline the transaction.',
       resolvedAt: isoMinutesAgo(55),
       resolvedBy: 'risk-agent',
+      // macp-proto 0.1.3 (§7.3) — this commitment supersedes a prior cross-session one.
+      supersedes: {
+        sessionId: 'session-prior-fraud-000',
+        commitmentHash: 'sha256:9f2c1ab7e4d8c3061f5a2b9d7e0c4a18b6d35f92ac71e0d4b8f6a23c1e5079db'
+      },
       proposals: [
         {
           participantId: 'fraud-agent',
@@ -1764,6 +1769,7 @@ export function computeDashboardKpis(runs: RunRecord[] = MOCK_RUNS): DashboardKp
   const completedRuns = runs.filter((run) => run.status === 'completed').length;
   const failedRuns = runs.filter((run) => run.status === 'failed').length;
   const cancelledRuns = runs.filter((run) => run.status === 'cancelled').length;
+  const suspendedRuns = runs.filter((run) => run.status === 'suspended').length;
   const includedIds = new Set(runs.map((run) => run.id));
   const metricsForRuns = Object.entries(MOCK_RUN_METRICS).filter(([runId]) => includedIds.has(runId));
   const averageDurationMs =
@@ -1780,6 +1786,7 @@ export function computeDashboardKpis(runs: RunRecord[] = MOCK_RUNS): DashboardKp
     completedRuns,
     failedRuns,
     cancelledRuns,
+    suspendedRuns,
     averageDurationMs,
     totalSignals,
     totalCostUsd,

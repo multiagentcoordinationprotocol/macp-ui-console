@@ -212,6 +212,14 @@ describe('getStatusTone', () => {
     expect(getStatusTone('cancelled')).toBe('danger');
   });
 
+  it('maps expired to danger', () => {
+    expect(getStatusTone('expired')).toBe('danger');
+  });
+
+  it('maps suspended (non-terminal pause) to warning', () => {
+    expect(getStatusTone('suspended')).toBe('warning');
+  });
+
   it('maps unknown status to neutral', () => {
     expect(getStatusTone('something-else')).toBe('neutral');
   });

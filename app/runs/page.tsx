@@ -192,6 +192,7 @@ function RunHistoryContent() {
               <Select value={status} onChange={(event) => setFilter('status', event.target.value)}>
                 <option value="all">All statuses</option>
                 <option value="running">Running</option>
+                <option value="suspended">Suspended</option>
                 <option value="completed">Completed</option>
                 <option value="failed">Failed</option>
                 <option value="cancelled">Cancelled</option>

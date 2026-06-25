@@ -1,10 +1,23 @@
-export type RunStatus = 'queued' | 'starting' | 'binding_session' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type RunStatus =
+  | 'queued'
+  | 'starting'
+  | 'binding_session'
+  | 'running'
+  /** macp-proto 0.1.3 — non-terminal pause; the run can resume to `running`. */
+  | 'suspended'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 export type SessionState =
   | 'SESSION_STATE_UNSPECIFIED'
   | 'SESSION_STATE_OPEN'
   | 'SESSION_STATE_RESOLVED'
-  | 'SESSION_STATE_EXPIRED';
+  | 'SESSION_STATE_EXPIRED'
+  /** macp-proto 0.1.3 (RFC-MACP-0001 §7.5) — non-terminal pause with banked TTL. */
+  | 'SESSION_STATE_SUSPENDED'
+  /** macp-proto 0.1.3 — terminal state for a session ended by CancelSession. */
+  | 'SESSION_STATE_CANCELLED';
 
 /* ─── Policy governance (RFC-MACP-0012) ─── */
 
@@ -22,6 +35,16 @@ export interface PolicyHints {
   minimumConfidence?: number;
   designatedRoles?: string[];
   criticalSeverityVetoes?: boolean;
+}
+
+/**
+ * Cross-session commitment supersession (RFC-MACP-0001 §7.3, macp-proto 0.1.3).
+ * Points at the prior commitment this one replaces. Observed-only — surfaced by
+ * the control-plane on `decision.current.supersedes` for insight UIs.
+ */
+export interface CommitmentSupersedes {
+  sessionId: string;
+  commitmentHash: string;
 }
 
 export interface CommitmentEvaluation {
@@ -474,6 +497,12 @@ export interface RunStateProjection {
       resolvedBy?: string;
       /** BE-7 / §2.3 — scenario-provided decision prompt (not a reason). */
       prompt?: string;
+      /**
+       * macp-proto 0.1.3 (§7.3) — set when the finalized commitment supersedes
+       * a prior cross-session commitment. Surfaced by the control-plane for
+       * supersession-lineage display.
+       */
+      supersedes?: CommitmentSupersedes;
     };
   };
   signals: {
@@ -625,6 +654,8 @@ export interface DashboardKpis {
   completedRuns: number;
   failedRuns: number;
   cancelledRuns: number;
+  /** macp-proto 0.1.3 — runs currently in the non-terminal `suspended` state. */
+  suspendedRuns: number;
   averageDurationMs: number;
   totalSignals: number;
   totalCostUsd: number;

@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CanonicalEvent, RunRecord, RunStateProjection } from '@/lib/types';
-import { formatDateTime, formatPercent, titleCase } from '@/lib/utils/format';
+import { formatDateTime, formatPercent, titleCase, truncate } from '@/lib/utils/format';
 
 /**
  * PR-E1 / Findings #6a + #6b + #6c — Decision panel.
@@ -167,6 +167,18 @@ export function DecisionPanel({
             </div>
           ) : null}
         </div>
+
+        {/* Supersession lineage (macp-proto 0.1.3 §7.3) — the finalized commitment
+            replaced a prior cross-session commitment. Observed-only. */}
+        {current?.supersedes ? (
+          <div className="list-item">
+            <div className="list-item-title">Supersedes prior commitment</div>
+            <div className="muted small">
+              Replaces commitment <code>{truncate(current.supersedes.commitmentHash, 24)}</code> from session{' '}
+              <code>{current.supersedes.sessionId}</code>.
+            </div>
+          </div>
+        ) : null}
 
         {/* Decision prompt (from scenario) — labeled so it's distinct from reasons. */}
         {current?.prompt ? (

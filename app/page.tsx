@@ -127,7 +127,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid-3">
+      <div className="grid-4">
         <Card>
           <CardContent className="kpi-card">
             <div className="kpi-label">Completed</div>
@@ -135,6 +135,15 @@ export default function DashboardPage() {
               {formatNumber(kpis.completedRuns)}
             </div>
             <div className="kpi-meta">Successfully resolved runs</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="kpi-card">
+            <div className="kpi-label">Suspended</div>
+            <div className="kpi-value" style={{ color: 'var(--warning)' }}>
+              {formatNumber(kpis.suspendedRuns)}
+            </div>
+            <div className="kpi-meta">Paused runs with banked TTL</div>
           </CardContent>
         </Card>
         <Card>

@@ -14,7 +14,15 @@ export default function LiveRunsPage() {
   const demoMode = usePreferencesStore((state) => state.demoMode);
   const runsQuery = useQuery({
     queryKey: ['live-runs', demoMode],
-    queryFn: () => listRuns(demoMode, { status: 'running' })
+    // Non-terminal runs: actively streaming (`running`) plus paused-but-resumable
+    // (`suspended`, macp-proto 0.1.3). Both belong in the live workbench surface.
+    queryFn: async () => {
+      const [running, suspended] = await Promise.all([
+        listRuns(demoMode, { status: 'running' }),
+        listRuns(demoMode, { status: 'suspended' })
+      ]);
+      return [...running, ...suspended];
+    }
   });
 
   const activeRunIds = useMemo(() => (runsQuery.data ?? []).map((run) => run.id), [runsQuery.data]);

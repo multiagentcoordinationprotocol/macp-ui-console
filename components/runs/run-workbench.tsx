@@ -26,6 +26,8 @@ import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { LoadingPanel, ErrorPanel } from '@/components/ui/state-panels';
 import {
   cancelRun,
+  suspendRun,
+  resumeRun,
   cloneRun,
   createReplay,
   deleteRun,
@@ -144,6 +146,35 @@ export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveM
     },
     onError: (error) => {
       toast('error', `Failed to cancel run.${error instanceof Error ? ` ${error.message}` : ''}`);
+    }
+  });
+
+  const invalidateRun = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['run', runId] }),
+      queryClient.invalidateQueries({ queryKey: ['run-state', runId] })
+    ]);
+  };
+
+  const suspendMutation = useMutation({
+    mutationFn: () => suspendRun(runId, demoMode),
+    onSuccess: async () => {
+      await invalidateRun();
+      toast('success', 'Run suspended.');
+    },
+    onError: (error) => {
+      toast('error', `Failed to suspend run.${error instanceof Error ? ` ${error.message}` : ''}`);
+    }
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: () => resumeRun(runId, demoMode),
+    onSuccess: async () => {
+      await invalidateRun();
+      toast('success', 'Run resumed.');
+    },
+    onError: (error) => {
+      toast('error', `Failed to resume run.${error instanceof Error ? ` ${error.message}` : ''}`);
     }
   });
 
@@ -320,7 +351,9 @@ export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveM
         state={projectedState}
         connectionStatus={connectionStatus}
         reconnectAttempt={liveMode ? live.reconnectAttempt : undefined}
-        onCancel={run.status === 'running' ? () => cancelMutation.mutate() : undefined}
+        onCancel={run.status === 'running' || run.status === 'suspended' ? () => cancelMutation.mutate() : undefined}
+        onSuspend={run.status === 'running' ? () => suspendMutation.mutate() : undefined}
+        onResume={run.status === 'suspended' ? () => resumeMutation.mutate() : undefined}
         onReplay={() => replayMutation.mutate()}
         metrics={metricsQuery.data}
         compareHref={compareHref}

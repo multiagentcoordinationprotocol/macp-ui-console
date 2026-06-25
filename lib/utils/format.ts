@@ -73,7 +73,8 @@ export function formatChartLabel(label: string, timeZone?: string): string {
 export function getStatusTone(status: string): string {
   if (['completed', 'approved', 'healthy', 'ok', 'accepted'].includes(status)) return 'success';
   if (['running', 'starting', 'binding_session', 'active'].includes(status)) return 'info';
-  if (['queued', 'waiting', 'idle'].includes(status)) return 'warning';
-  if (['failed', 'cancelled', 'rejected', 'error'].includes(status)) return 'danger';
+  // `suspended`/`paused` are non-terminal pauses (macp-proto 0.1.3) — warn, don't alarm.
+  if (['queued', 'waiting', 'idle', 'suspended', 'paused'].includes(status)) return 'warning';
+  if (['failed', 'cancelled', 'expired', 'rejected', 'error'].includes(status)) return 'danger';
   return 'neutral';
 }
