@@ -31,7 +31,7 @@ describe('Scenarios Catalog (integration)', () => {
 
   describe('listPacks', () => {
     it('returns packs from example-service', async () => {
-      mocker.on('GET', '/api/proxy/example/packs', () => ({
+      mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({
         status: 200,
         body: packsList()
       }));
@@ -45,7 +45,7 @@ describe('Scenarios Catalog (integration)', () => {
     });
 
     it('returns empty array when no packs exist', async () => {
-      mocker.on('GET', '/api/proxy/example/packs', () => ({
+      mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({
         status: 200,
         body: []
       }));
@@ -59,7 +59,7 @@ describe('Scenarios Catalog (integration)', () => {
 
   describe('listScenarios', () => {
     it('returns scenarios for a specific pack', async () => {
-      mocker.on('GET', '/api/proxy/example/packs/fraud/scenarios', () => ({
+      mocker.on('GET', '/api/proxy/macp-playground/packs/fraud/scenarios', () => ({
         status: 200,
         body: scenariosList('fraud')
       }));
@@ -74,7 +74,7 @@ describe('Scenarios Catalog (integration)', () => {
     });
 
     it('returns scenarios with policyVersion when backend provides it', async () => {
-      mocker.on('GET', '/api/proxy/example/packs/fraud/scenarios', () => ({
+      mocker.on('GET', '/api/proxy/macp-playground/packs/fraud/scenarios', () => ({
         status: 200,
         body: scenariosList('fraud')
       }));
@@ -88,7 +88,7 @@ describe('Scenarios Catalog (integration)', () => {
     });
 
     it('returns different scenarios per pack', async () => {
-      mocker.on('GET', '/api/proxy/example/packs/lending/scenarios', () => ({
+      mocker.on('GET', '/api/proxy/macp-playground/packs/lending/scenarios', () => ({
         status: 200,
         body: scenariosList('lending')
       }));
@@ -104,7 +104,7 @@ describe('Scenarios Catalog (integration)', () => {
     it('returns form schema, agents, and launch summary', async () => {
       mocker.on(
         'GET',
-        '/api/proxy/example/packs/fraud/scenarios/high-value-new-device/versions/1.0.0/launch-schema',
+        '/api/proxy/macp-playground/packs/fraud/scenarios/high-value-new-device/versions/1.0.0/launch-schema',
         () => ({
           status: 200,
           body: launchSchema()
@@ -124,7 +124,7 @@ describe('Scenarios Catalog (integration)', () => {
     it('passes template as query parameter', async () => {
       mocker.on(
         'GET',
-        '/api/proxy/example/packs/fraud/scenarios/high-value-new-device/versions/1.0.0/launch-schema',
+        '/api/proxy/macp-playground/packs/fraud/scenarios/high-value-new-device/versions/1.0.0/launch-schema',
         () => ({
           status: 200,
           body: launchSchema()
@@ -141,7 +141,7 @@ describe('Scenarios Catalog (integration)', () => {
 
   describe('compileLaunch', () => {
     it('sends compile request and returns execution request + display', async () => {
-      mocker.on('POST', '/api/proxy/example/launch/compile', () => ({
+      mocker.on('POST', '/api/proxy/macp-playground/launch/compile', () => ({
         status: 200,
         body: compileLaunchResult()
       }));
@@ -169,7 +169,7 @@ describe('Scenarios Catalog (integration)', () => {
 
   describe('runExample', () => {
     it('sends run request to example-service', async () => {
-      mocker.on('POST', '/api/proxy/example/examples/run', () => ({
+      mocker.on('POST', '/api/proxy/macp-playground/examples/run', () => ({
         status: 200,
         body: {
           compiled: compileLaunchResult(),
@@ -195,7 +195,7 @@ describe('Scenarios Catalog (integration)', () => {
 
   describe('Agent profiles', () => {
     it('getAgentProfiles returns all agents', async () => {
-      mocker.on('GET', '/api/proxy/example/agents', () => ({
+      mocker.on('GET', '/api/proxy/macp-playground/agents', () => ({
         status: 200,
         body: agentProfiles()
       }));
@@ -210,7 +210,7 @@ describe('Scenarios Catalog (integration)', () => {
     });
 
     it('getAgentProfile returns single agent by ref', async () => {
-      mocker.on('GET', '/api/proxy/example/agents/fraud-detector', () => ({
+      mocker.on('GET', '/api/proxy/macp-playground/agents/fraud-detector', () => ({
         status: 200,
         body: agentProfiles()[0]
       }));
@@ -224,7 +224,7 @@ describe('Scenarios Catalog (integration)', () => {
     });
 
     it('getAgentProfile returns undefined for unknown agent', async () => {
-      mocker.on('GET', '/api/proxy/example/agents/unknown-agent', () => ({
+      mocker.on('GET', '/api/proxy/macp-playground/agents/unknown-agent', () => ({
         status: 404,
         body: { error: 'not found' }
       }));

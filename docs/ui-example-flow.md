@@ -375,7 +375,7 @@ Here is what the compiler produces for our fraud scenario with the majority-veto
         { "id": "risk-agent" }
       ],
       "metadata": {
-        "source": "examples-service",
+        "source": "macp-playground",
         "scenarioRef": "fraud/high-value-new-device@1.0.0",
         "templateId": "majority-veto",
         "cancelCallback": { "url": "http://risk-agent/cancel", "bearer": "…" }
@@ -530,8 +530,8 @@ The file is written to `/tmp/macp-bootstrap/{session_id}_{participant_id}_{times
 
 The SDK's `fromBootstrap()` / `from_bootstrap()` factory reads this file verbatim and wires up the MacpClient, session, and (for the initiator) the cancel-callback listener. See the SDK guides for field-by-field semantics:
 
-- Python: [`macp-sdk` agent framework](https://github.com/multiagentcoordinationprotocol/python-sdk/blob/main/docs/guides/agent-framework.md)
-- TypeScript: [`macp-sdk-typescript` agent framework](https://github.com/multiagentcoordinationprotocol/typescript-sdk/blob/main/docs/guides/agent-framework.md)
+- Python: [`macp-sdk` agent framework](https://github.com/multiagentcoordinationprotocol/macp-sdk-python/blob/main/docs/guides/agent-framework.md)
+- TypeScript: [`macp-sdk-typescript` agent framework](https://github.com/multiagentcoordinationprotocol/macp-sdk-typescript/blob/main/docs/guides/agent-framework.md)
 
 ---
 
@@ -705,7 +705,7 @@ sequenceDiagram
     participant Proxy as API Proxy
     participant CP as Control Plane
 
-    UI->>Proxy: EventSource<br/>/api/proxy/control-plane/runs/{runId}/stream?includeSnapshot=true&afterSeq=0
+    UI->>Proxy: EventSource<br/>/api/proxy/macp-control-plane/runs/{runId}/stream?includeSnapshot=true&afterSeq=0
     Proxy->>CP: Forward SSE connection
 
     CP-->>UI: event: snapshot<br/>data: RunStateProjection (full current state)

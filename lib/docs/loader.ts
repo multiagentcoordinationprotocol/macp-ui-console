@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-export type DocCollection = 'ui-console' | 'examples-service';
+export type DocCollection = 'macp-ui-console' | 'macp-playground';
 
 export interface DocEntry {
   slug: string;
@@ -13,13 +13,13 @@ export interface DocEntry {
 const REPO_ROOT = process.cwd();
 
 const COLLECTION_DIRS: Record<DocCollection, string> = {
-  'ui-console': path.join(REPO_ROOT, 'docs'),
-  'examples-service': path.join(REPO_ROOT, 'docs-content', 'examples-service')
+  'macp-ui-console': path.join(REPO_ROOT, 'docs'),
+  'macp-playground': path.join(REPO_ROOT, 'docs-content', 'macp-playground')
 };
 
 const COLLECTION_LABELS: Record<DocCollection, string> = {
-  'ui-console': 'UI Console',
-  'examples-service': 'Examples Service'
+  'macp-ui-console': 'UI Console',
+  'macp-playground': 'Examples Service'
 };
 
 export function getCollectionLabel(collection: DocCollection): string {

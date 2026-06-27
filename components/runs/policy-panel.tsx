@@ -24,7 +24,7 @@ import { formatDateTime, formatPercent } from '@/lib/utils/format';
  *  - Renders `voteTally[]` inline under each expected commitment.
  *  - Surfaces `quorumStatus` as a header badge.
  *  - Falls back gracefully to the legacy `commitmentEvaluations[]` when
- *    new fields aren't yet populated (e.g. against an older control-plane).
+ *    new fields aren't yet populated (e.g. against an older macp-control-plane).
  */
 
 function quorumTone(status?: QuorumStatus): 'success' | 'warning' | 'danger' | 'neutral' {

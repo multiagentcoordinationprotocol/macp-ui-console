@@ -24,19 +24,19 @@ describe('Dashboard (integration)', () => {
   });
 
   function setupAllEndpoints() {
-    mocker.on('GET', '/api/proxy/control-plane/dashboard/overview', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/overview', () => ({
       status: 200,
       body: dashboardOverview()
     }));
-    mocker.onPrefix('GET', '/api/proxy/control-plane/runs', () => ({
+    mocker.onPrefix('GET', '/api/proxy/macp-control-plane/runs', () => ({
       status: 200,
       body: runsListResponse(5)
     }));
-    mocker.on('GET', '/api/proxy/example/packs', () => ({
+    mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({
       status: 200,
       body: packsList()
     }));
-    mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
       status: 200,
       body: runtimeHealth()
     }));
@@ -63,19 +63,19 @@ describe('Dashboard (integration)', () => {
     // still populates runs by calling listRuns.
     const overviewWithoutRecentRuns = { ...dashboardOverview() } as Record<string, unknown>;
     delete overviewWithoutRecentRuns.recentRuns;
-    mocker.on('GET', '/api/proxy/control-plane/dashboard/overview', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/overview', () => ({
       status: 200,
       body: overviewWithoutRecentRuns
     }));
-    mocker.onPrefix('GET', '/api/proxy/control-plane/runs', () => ({
+    mocker.onPrefix('GET', '/api/proxy/macp-control-plane/runs', () => ({
       status: 200,
       body: runsListResponse(5)
     }));
-    mocker.on('GET', '/api/proxy/example/packs', () => ({
+    mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({
       status: 200,
       body: packsList()
     }));
-    mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
       status: 200,
       body: runtimeHealth()
     }));
@@ -126,19 +126,19 @@ describe('Dashboard (integration)', () => {
 
   it('handles CP overview failure gracefully', async () => {
     // CP overview fails but other endpoints succeed
-    mocker.on('GET', '/api/proxy/control-plane/dashboard/overview', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/overview', () => ({
       status: 500,
       body: { error: 'internal error' }
     }));
-    mocker.onPrefix('GET', '/api/proxy/control-plane/runs', () => ({
+    mocker.onPrefix('GET', '/api/proxy/macp-control-plane/runs', () => ({
       status: 200,
       body: runsListResponse(3)
     }));
-    mocker.on('GET', '/api/proxy/example/packs', () => ({
+    mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({
       status: 200,
       body: packsList()
     }));
-    mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
       status: 200,
       body: runtimeHealth()
     }));
@@ -155,11 +155,11 @@ describe('Dashboard (integration)', () => {
   });
 
   it('computes KPIs from runs when CP overview has no kpis', async () => {
-    mocker.on('GET', '/api/proxy/control-plane/dashboard/overview', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/overview', () => ({
       status: 200,
       body: {} // empty overview
     }));
-    mocker.onPrefix('GET', '/api/proxy/control-plane/runs', () => ({
+    mocker.onPrefix('GET', '/api/proxy/macp-control-plane/runs', () => ({
       status: 200,
       body: {
         data: [
@@ -170,11 +170,11 @@ describe('Dashboard (integration)', () => {
         total: 3
       }
     }));
-    mocker.on('GET', '/api/proxy/example/packs', () => ({
+    mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({
       status: 200,
       body: packsList()
     }));
-    mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
       status: 200,
       body: runtimeHealth()
     }));
@@ -198,7 +198,7 @@ describe('Dashboard (integration)', () => {
   });
 
   it('falls back to zero when CP kpis omit token/cost fields', async () => {
-    mocker.on('GET', '/api/proxy/control-plane/dashboard/overview', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/overview', () => ({
       status: 200,
       body: {
         kpis: { totalRuns: 10, activeRuns: 1, completedRuns: 8, failedRuns: 1, avgDurationMs: 5000, totalSignals: 20 },
@@ -206,15 +206,15 @@ describe('Dashboard (integration)', () => {
         runtimeHealth: { ok: true, runtimeKind: 'rust' }
       }
     }));
-    mocker.onPrefix('GET', '/api/proxy/control-plane/runs', () => ({
+    mocker.onPrefix('GET', '/api/proxy/macp-control-plane/runs', () => ({
       status: 200,
       body: runsListResponse(2)
     }));
-    mocker.on('GET', '/api/proxy/example/packs', () => ({
+    mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({
       status: 200,
       body: packsList()
     }));
-    mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
       status: 200,
       body: runtimeHealth()
     }));
@@ -227,19 +227,19 @@ describe('Dashboard (integration)', () => {
   });
 
   it('getDashboardOverview returns degraded flag when overview endpoint returns 500', async () => {
-    mocker.on('GET', '/api/proxy/control-plane/dashboard/overview', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/overview', () => ({
       status: 500,
       body: { error: 'internal server error' }
     }));
-    mocker.onPrefix('GET', '/api/proxy/control-plane/runs', () => ({
+    mocker.onPrefix('GET', '/api/proxy/macp-control-plane/runs', () => ({
       status: 200,
       body: runsListResponse(4)
     }));
-    mocker.on('GET', '/api/proxy/example/packs', () => ({
+    mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({
       status: 200,
       body: packsList()
     }));
-    mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
       status: 200,
       body: runtimeHealth()
     }));
@@ -254,11 +254,11 @@ describe('Dashboard (integration)', () => {
   });
 
   it('getDashboardOverview succeeds even when overview fails', async () => {
-    mocker.on('GET', '/api/proxy/control-plane/dashboard/overview', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/overview', () => ({
       status: 500,
       body: { error: 'internal server error' }
     }));
-    mocker.onPrefix('GET', '/api/proxy/control-plane/runs', () => ({
+    mocker.onPrefix('GET', '/api/proxy/macp-control-plane/runs', () => ({
       status: 200,
       body: {
         data: [
@@ -270,11 +270,11 @@ describe('Dashboard (integration)', () => {
         total: 4
       }
     }));
-    mocker.on('GET', '/api/proxy/example/packs', () => ({
+    mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({
       status: 200,
       body: packsList()
     }));
-    mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+    mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
       status: 200,
       body: runtimeHealth()
     }));

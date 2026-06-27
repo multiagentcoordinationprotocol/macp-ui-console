@@ -49,7 +49,7 @@ export default function RunComparePage() {
     return (
       <LoadingPanel
         title="Comparing runs"
-        description="Fetching both run records, states, and control-plane comparison results."
+        description="Fetching both run records, states, and macp-control-plane comparison results."
       />
     );
   }

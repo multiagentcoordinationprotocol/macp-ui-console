@@ -16,8 +16,8 @@ export type RouteHandler = (
 
 /**
  * Lightweight HTTP server that records incoming requests and serves
- * canned responses. Mirrors the mock-control-plane helper used in
- * the examples-service integration tests.
+ * canned responses. Mirrors the mock-macp-control-plane helper used in
+ * the macp-playground integration tests.
  */
 export class MockBackend {
   private server: http.Server | null = null;

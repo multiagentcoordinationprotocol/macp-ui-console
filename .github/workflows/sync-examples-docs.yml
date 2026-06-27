@@ -1,7 +1,7 @@
 name: Sync Examples Service Docs
 
 on:
-  # Triggered by the examples-service repo via repository_dispatch
+  # Triggered by the macp-playground repo via repository_dispatch
   repository_dispatch:
     types: [docs-updated]
 
@@ -20,38 +20,38 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Checkout ui-console
+      - name: Checkout macp-ui-console
         uses: actions/checkout@v5
 
-      - name: Checkout examples-service
+      - name: Checkout macp-playground
         uses: actions/checkout@v5
         with:
-          repository: multiagentcoordinationprotocol/examples-service
-          path: examples-service-repo
+          repository: multiagentcoordinationprotocol/macp-playground
+          path: macp-playground-repo
           sparse-checkout: |
             docs
             README.md
 
-      - name: Sync docs into docs-content/examples-service
+      - name: Sync docs into docs-content/macp-playground
         run: |
           chmod +x scripts/sync-examples-docs.sh
-          ./scripts/sync-examples-docs.sh examples-service-repo
+          ./scripts/sync-examples-docs.sh macp-playground-repo
 
       - name: Check for changes
         id: changes
         run: |
-          git diff --quiet docs-content/examples-service && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+          git diff --quiet docs-content/macp-playground && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
 
       - name: Create PR with updated docs
         if: steps.changes.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
-          commit-message: 'docs: sync examples-service docs'
-          title: 'docs: sync examples-service docs'
+          commit-message: 'docs: sync macp-playground docs'
+          title: 'docs: sync macp-playground docs'
           body: |
-            Automated sync from [multiagentcoordinationprotocol/examples-service](https://github.com/multiagentcoordinationprotocol/examples-service).
+            Automated sync from [multiagentcoordinationprotocol/macp-playground](https://github.com/multiagentcoordinationprotocol/macp-playground).
 
-            Updates `docs-content/examples-service/` from the upstream `docs/` directory and `README.md`.
+            Updates `docs-content/macp-playground/` from the upstream `docs/` directory and `README.md`.
 
             Triggered by: ${{ github.event_name }}
           branch: automated/sync-examples-docs

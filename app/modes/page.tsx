@@ -111,7 +111,7 @@ export default function ModesPage() {
           {modes.length === 0 ? (
             <div className="empty-state compact">
               <h4>No modes registered</h4>
-              <p>Register a runtime mode via the control-plane admin API to see it here.</p>
+              <p>Register a runtime mode via the macp-control-plane admin API to see it here.</p>
             </div>
           ) : (
             <div className="list">

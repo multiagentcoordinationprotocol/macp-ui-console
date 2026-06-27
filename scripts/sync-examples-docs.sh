@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Copy docs and README from a checked-out examples-service repo into
-# docs-content/examples-service/ for rendering by the /docs route.
+# Copy docs and README from a checked-out macp-playground repo into
+# docs-content/macp-playground/ for rendering by the /docs route.
 #
 # Usage:
 #   ./scripts/sync-examples-docs.sh [EXAMPLES_SERVICE_DIR]
 #
 # If EXAMPLES_SERVICE_DIR is not given, it defaults to the sibling directory
-# ../examples-service (relative to this script's repo root).
+# ../macp-playground (relative to this script's repo root).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SOURCE_DIR="${1:-$(cd "$REPO_ROOT/.." && pwd)/examples-service}"
-TARGET_DIR="$REPO_ROOT/docs-content/examples-service"
+SOURCE_DIR="${1:-$(cd "$REPO_ROOT/.." && pwd)/macp-playground}"
+TARGET_DIR="$REPO_ROOT/docs-content/macp-playground"
 
 if [ ! -d "$SOURCE_DIR" ]; then
   echo "Error: Examples Service directory not found at $SOURCE_DIR"

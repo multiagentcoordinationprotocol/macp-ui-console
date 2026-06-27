@@ -1,4 +1,4 @@
-export type ProxyService = 'example' | 'control-plane';
+export type ProxyService = 'macp-playground' | 'macp-control-plane';
 
 interface ServiceConfig {
   service: ProxyService;
@@ -31,20 +31,20 @@ function resolveAuthToken(envVar: string, service: ProxyService): string {
 }
 
 export function getIntegrationConfig(service: ProxyService): ServiceConfig {
-  if (service === 'example') {
+  if (service === 'macp-playground') {
     return {
       service,
-      baseUrl: resolveBaseUrl('EXAMPLE_SERVICE_BASE_URL', 'http://localhost:3000', service),
+      baseUrl: resolveBaseUrl('MACP_PLAYGROUND_BASE_URL', 'http://localhost:3000', service),
       authHeaderName: 'x-api-key',
-      authToken: resolveAuthToken('EXAMPLE_SERVICE_API_KEY', service)
+      authToken: resolveAuthToken('MACP_PLAYGROUND_API_KEY', service)
     };
   }
 
   return {
     service,
-    baseUrl: resolveBaseUrl('CONTROL_PLANE_BASE_URL', 'http://localhost:3001', service),
+    baseUrl: resolveBaseUrl('MACP_CONTROL_PLANE_BASE_URL', 'http://localhost:3001', service),
     authHeaderName: 'authorization',
-    authToken: resolveAuthToken('CONTROL_PLANE_API_KEY', service)
+    authToken: resolveAuthToken('MACP_CONTROL_PLANE_API_KEY', service)
   };
 }
 

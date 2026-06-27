@@ -8,8 +8,8 @@ export const metadata = {
 };
 
 export default async function UiConsoleDocsIndexPage() {
-  const entries = await listDocs('ui-console');
-  const label = getCollectionLabel('ui-console');
+  const entries = await listDocs('macp-ui-console');
+  const label = getCollectionLabel('macp-ui-console');
 
   return (
     <div className="stack">
@@ -40,7 +40,7 @@ export default async function UiConsoleDocsIndexPage() {
           <ul className="docs-index-list docs-index-list-spacious">
             {entries.map((entry) => (
               <li key={entry.slug}>
-                <Link href={`/docs/ui-console/${entry.slug}`} className="docs-index-item">
+                <Link href={`/docs/macp-ui-console/${entry.slug}`} className="docs-index-item">
                   <span className="docs-index-item-title">{entry.title}</span>
                   {entry.firstParagraph ? <span className="docs-index-item-blurb">{entry.firstParagraph}</span> : null}
                 </Link>

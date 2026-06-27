@@ -96,7 +96,7 @@ function normalizeEvent(raw: Record<string, unknown>): CanonicalEvent {
   };
   if (!event.source && (event.sourceKind || event.sourceName)) {
     event.source = {
-      kind: (event.sourceKind ?? 'control-plane') as CanonicalEvent['source']['kind'],
+      kind: (event.sourceKind ?? 'macp-control-plane') as CanonicalEvent['source']['kind'],
       name: event.sourceName ?? '',
       rawType: event.rawType
     };
@@ -132,12 +132,12 @@ function normalizeRun(raw: Record<string, unknown>): RunRecord {
 
 export async function listPacks(demoMode: boolean): Promise<PackSummary[]> {
   if (demoMode) return maybeDelay(MOCK_PACKS);
-  return fetchJson<PackSummary[]>('example', '/packs');
+  return fetchJson<PackSummary[]>('macp-playground', '/packs');
 }
 
 export async function listScenarios(packSlug: string, demoMode: boolean): Promise<ScenarioSummary[]> {
   if (demoMode) return maybeDelay(MOCK_SCENARIOS[packSlug] ?? []);
-  return fetchJson<ScenarioSummary[]>('example', `/packs/${packSlug}/scenarios`);
+  return fetchJson<ScenarioSummary[]>('macp-playground', `/packs/${packSlug}/scenarios`);
 }
 
 export async function getLaunchSchema(
@@ -155,7 +155,7 @@ export async function getLaunchSchema(
 
   const suffix = template ? `?template=${encodeURIComponent(template)}` : '';
   return fetchJson<LaunchSchemaResponse>(
-    'example',
+    'macp-playground',
     `/packs/${packSlug}/scenarios/${scenarioSlug}/versions/${version}/launch-schema${suffix}`
   );
 }
@@ -191,7 +191,7 @@ export async function compileLaunch(input: CompileLaunchRequest, demoMode: boole
     });
   }
 
-  return fetchJson<CompileLaunchResult>('example', '/launch/compile', {
+  return fetchJson<CompileLaunchResult>('macp-playground', '/launch/compile', {
     method: 'POST',
     body: JSON.stringify(input)
   });
@@ -214,7 +214,7 @@ export async function runExample(
     });
   }
 
-  return fetchJson<RunExampleResult>('example', '/examples/run', {
+  return fetchJson<RunExampleResult>('macp-playground', '/examples/run', {
     method: 'POST',
     body: JSON.stringify(input)
   });
@@ -234,7 +234,7 @@ export async function validateRun(body: Record<string, unknown>, demoMode: boole
     errors: string[];
     warnings: string[];
     runtime: { reachable: boolean; supportedModes: string[]; capabilities?: unknown };
-  }>('control-plane', '/runs/validate', {
+  }>('macp-control-plane', '/runs/validate', {
     method: 'POST',
     body: JSON.stringify(body)
   });
@@ -248,7 +248,7 @@ export async function validateRun(body: Record<string, unknown>, demoMode: boole
 
 export async function createRun(body: Record<string, unknown>, demoMode: boolean): Promise<CreateRunResponse> {
   if (demoMode) return maybeDelay(MOCK_CREATE_RUN_RESPONSE);
-  return fetchJson<CreateRunResponse>('control-plane', '/runs', {
+  return fetchJson<CreateRunResponse>('macp-control-plane', '/runs', {
     method: 'POST',
     body: JSON.stringify(body)
   });
@@ -298,7 +298,10 @@ export async function listRuns(demoMode: boolean, searchParams?: Partial<ListRun
   if (searchParams?.includeArchived) query.set('includeArchived', 'true');
   if (searchParams?.tags?.length) query.set('tags', searchParams.tags.join(','));
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  const res = await fetchJson<{ data: Record<string, unknown>[]; total: number }>('control-plane', `/runs${suffix}`);
+  const res = await fetchJson<{ data: Record<string, unknown>[]; total: number }>(
+    'macp-control-plane',
+    `/runs${suffix}`
+  );
   return res.data.map(normalizeRun);
 }
 
@@ -308,7 +311,7 @@ export async function getRun(runId: string, demoMode: boolean): Promise<RunRecor
     if (!run) throw new Error(`Unknown mock run: ${runId}`);
     return maybeDelay(run);
   }
-  const raw = await fetchJson<Record<string, unknown>>('control-plane', `/runs/${runId}`);
+  const raw = await fetchJson<Record<string, unknown>>('macp-control-plane', `/runs/${runId}`);
   return normalizeRun(raw);
 }
 
@@ -318,7 +321,7 @@ export async function getRunState(runId: string, demoMode: boolean): Promise<Run
     if (!state) throw new Error(`Unknown mock run state: ${runId}`);
     return maybeDelay(state);
   }
-  return fetchJson<RunStateProjection>('control-plane', `/runs/${runId}/state`);
+  return fetchJson<RunStateProjection>('macp-control-plane', `/runs/${runId}/state`);
 }
 
 /**
@@ -367,7 +370,7 @@ export async function getRunEvents(
   if (type) params.set('type', type);
 
   const raw = await fetchJson<Record<string, unknown>[] | { data: Record<string, unknown>[] }>(
-    'control-plane',
+    'macp-control-plane',
     `/runs/${runId}/events?${params.toString()}`
   );
   // Backend §4.2 returns `{data,total,limit,nextCursor}` when any of the new
@@ -435,7 +438,7 @@ export async function listEvents(
         data: Record<string, unknown>[];
         total: number;
         nextCursor?: number;
-      }>('control-plane', `/events?${params.toString()}`);
+      }>('macp-control-plane', `/events?${params.toString()}`);
       return {
         data: response.data.map(normalizeEvent),
         total: response.total,
@@ -457,7 +460,7 @@ export async function listEvents(
   }
 
   // Fallback path: fan out across per-run /runs/:id/events (which the
-  // older control-plane builds DO have). Limits the blast radius by
+  // older macp-control-plane builds DO have). Limits the blast radius by
   // capping the number of runs we fetch.
   return await listEventsFallback(query);
 }
@@ -529,12 +532,12 @@ async function listEventsFallback(
 
 export async function getRunMetrics(runId: string, demoMode: boolean): Promise<MetricsSummary> {
   if (demoMode) return maybeDelay(MOCK_RUN_METRICS[runId]);
-  return fetchJson<MetricsSummary>('control-plane', `/runs/${runId}/metrics`);
+  return fetchJson<MetricsSummary>('macp-control-plane', `/runs/${runId}/metrics`);
 }
 
 export async function getRunTraces(runId: string, demoMode: boolean): Promise<TraceSummary> {
   if (demoMode) return maybeDelay(MOCK_RUN_TRACES[runId]);
-  return fetchJson<TraceSummary>('control-plane', `/runs/${runId}/traces`);
+  return fetchJson<TraceSummary>('macp-control-plane', `/runs/${runId}/traces`);
 }
 
 export interface JaegerSpan {
@@ -579,7 +582,7 @@ export function getJaegerUiUrl(traceId: string): string {
 
 export async function getRunArtifacts(runId: string, demoMode: boolean): Promise<Artifact[]> {
   if (demoMode) return maybeDelay(MOCK_RUN_ARTIFACTS[runId] ?? []);
-  return fetchJson<Artifact[]>('control-plane', `/runs/${runId}/artifacts`);
+  return fetchJson<Artifact[]>('macp-control-plane', `/runs/${runId}/artifacts`);
 }
 
 export async function cancelRun(
@@ -587,7 +590,7 @@ export async function cancelRun(
   demoMode: boolean
 ): Promise<{ ok: boolean; runId: string; status: string }> {
   if (demoMode) return maybeDelay({ ok: true, runId, status: 'cancelled' });
-  const raw = await fetchJson<Record<string, unknown>>('control-plane', `/runs/${runId}/cancel`, {
+  const raw = await fetchJson<Record<string, unknown>>('macp-control-plane', `/runs/${runId}/cancel`, {
     method: 'POST',
     body: JSON.stringify({ reason: 'Cancelled from MACP UI' })
   });
@@ -596,7 +599,7 @@ export async function cancelRun(
 
 /**
  * Suspend (pause) a running run — macp-proto 0.1.3 (RFC-MACP-0001 §7.5).
- * Calls the control-plane `POST /runs/:id/suspend`; the run enters the
+ * Calls the macp-control-plane `POST /runs/:id/suspend`; the run enters the
  * non-terminal `suspended` state with its TTL banked.
  */
 export async function suspendRun(
@@ -605,7 +608,7 @@ export async function suspendRun(
   reason?: string
 ): Promise<{ ok: boolean; runId: string; status: string }> {
   if (demoMode) return maybeDelay({ ok: true, runId, status: 'suspended' });
-  const raw = await fetchJson<Record<string, unknown>>('control-plane', `/runs/${runId}/suspend`, {
+  const raw = await fetchJson<Record<string, unknown>>('macp-control-plane', `/runs/${runId}/suspend`, {
     method: 'POST',
     body: JSON.stringify({ reason: reason ?? 'Suspended from MACP UI' })
   });
@@ -622,7 +625,7 @@ export async function resumeRun(
   reason?: string
 ): Promise<{ ok: boolean; runId: string; status: string }> {
   if (demoMode) return maybeDelay({ ok: true, runId, status: 'running' });
-  const raw = await fetchJson<Record<string, unknown>>('control-plane', `/runs/${runId}/resume`, {
+  const raw = await fetchJson<Record<string, unknown>>('macp-control-plane', `/runs/${runId}/resume`, {
     method: 'POST',
     body: JSON.stringify({ reason: reason ?? 'Resumed from MACP UI' })
   });
@@ -635,7 +638,7 @@ export async function cloneRun(
   overrides?: { tags?: string[]; context?: Record<string, unknown> }
 ): Promise<CreateRunResponse> {
   if (demoMode) return maybeDelay({ runId: LIVE_RUN_ID, status: 'running', traceId: 'trace-live-fraud-001' });
-  return fetchJson<CreateRunResponse>('control-plane', `/runs/${runId}/clone`, {
+  return fetchJson<CreateRunResponse>('macp-control-plane', `/runs/${runId}/clone`, {
     method: 'POST',
     body: JSON.stringify(overrides ?? {})
   });
@@ -646,7 +649,7 @@ export async function archiveRun(
   demoMode: boolean
 ): Promise<{ ok: boolean; runId: string; archived: boolean }> {
   if (demoMode) return maybeDelay({ ok: true, runId, archived: true });
-  const raw = await fetchJson<Record<string, unknown>>('control-plane', `/runs/${runId}/archive`, {
+  const raw = await fetchJson<Record<string, unknown>>('macp-control-plane', `/runs/${runId}/archive`, {
     method: 'POST'
   });
   return { ok: true, runId: String(raw.id ?? runId), archived: true };
@@ -654,7 +657,7 @@ export async function archiveRun(
 
 export async function createReplay(runId: string, demoMode: boolean): Promise<ReplayDescriptor> {
   if (demoMode) return maybeDelay(MOCK_REPLAY_DESCRIPTORS[runId] ?? MOCK_REPLAY_DESCRIPTORS[COMPLETED_RUN_ID]);
-  return fetchJson<ReplayDescriptor>('control-plane', `/runs/${runId}/replay`, {
+  return fetchJson<ReplayDescriptor>('macp-control-plane', `/runs/${runId}/replay`, {
     method: 'POST',
     body: JSON.stringify({ mode: 'timed', speed: 1 })
   });
@@ -666,7 +669,7 @@ export async function compareRuns(
   demoMode: boolean
 ): Promise<RunComparisonResult> {
   if (demoMode) return maybeDelay(compareMockRuns(leftRunId, rightRunId));
-  return fetchJson<RunComparisonResult>('control-plane', '/runs/compare', {
+  return fetchJson<RunComparisonResult>('macp-control-plane', '/runs/compare', {
     method: 'POST',
     body: JSON.stringify({ leftRunId, rightRunId })
   });
@@ -674,7 +677,7 @@ export async function compareRuns(
 
 export async function getAgentProfiles(demoMode: boolean): Promise<AgentProfile[]> {
   if (demoMode) return maybeDelay(MOCK_AGENT_PROFILES);
-  return fetchJson<AgentProfile[]>('example', '/agents');
+  return fetchJson<AgentProfile[]>('macp-playground', '/agents');
 }
 
 export async function getAgentProfile(agentRef: string, demoMode: boolean): Promise<AgentProfile | undefined> {
@@ -683,7 +686,7 @@ export async function getAgentProfile(agentRef: string, demoMode: boolean): Prom
     return agents.find((agent) => agent.agentRef === agentRef);
   }
   try {
-    return await fetchJson<AgentProfile>('example', `/agents/${encodeURIComponent(agentRef)}`);
+    return await fetchJson<AgentProfile>('macp-playground', `/agents/${encodeURIComponent(agentRef)}`);
   } catch (error) {
     if (error instanceof ApiError && error.isNotFound) return undefined;
     throw error;
@@ -692,22 +695,22 @@ export async function getAgentProfile(agentRef: string, demoMode: boolean): Prom
 
 export async function getRuntimeManifest(demoMode: boolean): Promise<RuntimeManifestResult> {
   if (demoMode) return maybeDelay(MOCK_RUNTIME_MANIFEST);
-  return fetchJson<RuntimeManifestResult>('control-plane', '/runtime/manifest');
+  return fetchJson<RuntimeManifestResult>('macp-control-plane', '/runtime/manifest');
 }
 
 export async function getRuntimeModes(demoMode: boolean): Promise<RuntimeModeDescriptor[]> {
   if (demoMode) return maybeDelay(MOCK_RUNTIME_MODES);
-  return fetchJson<RuntimeModeDescriptor[]>('control-plane', '/runtime/modes');
+  return fetchJson<RuntimeModeDescriptor[]>('macp-control-plane', '/runtime/modes');
 }
 
 export async function getRuntimeRoots(demoMode: boolean): Promise<RuntimeRootDescriptor[]> {
   if (demoMode) return maybeDelay(MOCK_RUNTIME_ROOTS);
-  return fetchJson<RuntimeRootDescriptor[]>('control-plane', '/runtime/roots');
+  return fetchJson<RuntimeRootDescriptor[]>('macp-control-plane', '/runtime/roots');
 }
 
 export async function getRuntimeHealth(demoMode: boolean): Promise<RuntimeHealth> {
   if (demoMode) return maybeDelay(MOCK_RUNTIME_HEALTH);
-  return fetchJson<RuntimeHealth>('control-plane', '/runtime/health');
+  return fetchJson<RuntimeHealth>('macp-control-plane', '/runtime/health');
 }
 
 export async function getAuditLogs(demoMode: boolean, query?: Partial<ListAuditQuery>): Promise<AuditListResponse> {
@@ -728,12 +731,12 @@ export async function getAuditLogs(demoMode: boolean, query?: Partial<ListAuditQ
   if (query?.createdAfter) params.set('createdAfter', query.createdAfter);
   if (query?.createdBefore) params.set('createdBefore', query.createdBefore);
   const suffix = params.toString() ? `?${params.toString()}` : '?limit=100&offset=0';
-  return fetchJson<AuditListResponse>('control-plane', `/audit${suffix}`);
+  return fetchJson<AuditListResponse>('macp-control-plane', `/audit${suffix}`);
 }
 
 export async function getWebhooks(demoMode: boolean): Promise<WebhookSubscription[]> {
   if (demoMode) return maybeDelay(MOCK_WEBHOOKS);
-  return fetchJson<WebhookSubscription[]>('control-plane', '/webhooks');
+  return fetchJson<WebhookSubscription[]>('macp-control-plane', '/webhooks');
 }
 
 export async function createWebhook(
@@ -751,7 +754,7 @@ export async function createWebhook(
       updatedAt: new Date().toISOString()
     });
   }
-  return fetchJson<WebhookSubscription>('control-plane', '/webhooks', {
+  return fetchJson<WebhookSubscription>('macp-control-plane', '/webhooks', {
     method: 'POST',
     body: JSON.stringify(body)
   });
@@ -759,12 +762,12 @@ export async function createWebhook(
 
 export async function deleteWebhook(id: string, demoMode: boolean): Promise<void> {
   if (demoMode) return maybeDelay(undefined as unknown as void);
-  await fetchJson('control-plane', `/webhooks/${id}`, { method: 'DELETE' });
+  await fetchJson('macp-control-plane', `/webhooks/${id}`, { method: 'DELETE' });
 }
 
 export async function resetCircuitBreaker(demoMode: boolean): Promise<CircuitBreakerResult> {
   if (demoMode) return maybeDelay({ status: 'ok', state: 'CLOSED' });
-  return fetchJson<CircuitBreakerResult>('control-plane', '/admin/circuit-breaker/reset', { method: 'POST' });
+  return fetchJson<CircuitBreakerResult>('macp-control-plane', '/admin/circuit-breaker/reset', { method: 'POST' });
 }
 
 /** Backend §5.1 — query filters on `/dashboard/overview`. */
@@ -826,7 +829,7 @@ export async function getDashboardOverview(
 
   let overviewDegraded = false;
   const [cpOverview, packs, runtimeHealth] = await Promise.all([
-    fetchJson<CpOverview>('control-plane', `/dashboard/overview${suffix}`).catch((error): CpOverview => {
+    fetchJson<CpOverview>('macp-control-plane', `/dashboard/overview${suffix}`).catch((error): CpOverview => {
       console.warn(
         '[MACP UI] Dashboard overview endpoint unavailable:',
         error instanceof Error ? error.message : error
@@ -936,7 +939,7 @@ export async function getCircuitBreakerHistory(
     ]);
   }
   const suffix = window ? `?window=${window}` : '';
-  return fetchJson<CircuitBreakerHistoryEntry[]>('control-plane', `/admin/circuit-breaker/history${suffix}`);
+  return fetchJson<CircuitBreakerHistoryEntry[]>('macp-control-plane', `/admin/circuit-breaker/history${suffix}`);
 }
 
 export async function getLogsData(demoMode: boolean, runId?: string) {
@@ -959,7 +962,7 @@ export async function getTraceData(demoMode: boolean, runId?: string) {
 
 export async function getObservabilityRawMetrics(demoMode: boolean): Promise<string> {
   if (demoMode) return maybeDelay(MOCK_PROMETHEUS_METRICS);
-  const response = await fetch('/api/proxy/control-plane/metrics', { cache: 'no-store' });
+  const response = await fetch('/api/proxy/macp-control-plane/metrics', { cache: 'no-store' });
   return response.text();
 }
 
@@ -972,7 +975,7 @@ export async function getTimelineFrame(
     const frames = MOCK_RUN_FRAMES[runId] ?? [];
     return maybeDelay(frames.find((frame) => frame.seq === seq)?.snapshot);
   }
-  return fetchJson<RunStateProjection>('control-plane', `/runs/${runId}/replay/state?seq=${seq}`);
+  return fetchJson<RunStateProjection>('macp-control-plane', `/runs/${runId}/replay/state?seq=${seq}`);
 }
 
 export function getMockFrames(runId: string) {
@@ -992,7 +995,7 @@ export function listScenarioRefs(): string[] {
 
 export async function batchCancelRuns(runIds: string[], demoMode: boolean): Promise<BatchOperationResult> {
   if (demoMode) return maybeDelay({ results: runIds.map((id) => ({ runId: id, ok: true })) });
-  return fetchJson<BatchOperationResult>('control-plane', '/runs/batch/cancel', {
+  return fetchJson<BatchOperationResult>('macp-control-plane', '/runs/batch/cancel', {
     method: 'POST',
     body: JSON.stringify({ runIds })
   });
@@ -1000,7 +1003,7 @@ export async function batchCancelRuns(runIds: string[], demoMode: boolean): Prom
 
 export async function batchArchiveRuns(runIds: string[], demoMode: boolean): Promise<BatchOperationResult> {
   if (demoMode) return maybeDelay({ results: runIds.map((id) => ({ runId: id, ok: true })) });
-  return fetchJson<BatchOperationResult>('control-plane', '/runs/batch/archive', {
+  return fetchJson<BatchOperationResult>('macp-control-plane', '/runs/batch/archive', {
     method: 'POST',
     body: JSON.stringify({ runIds })
   });
@@ -1008,7 +1011,7 @@ export async function batchArchiveRuns(runIds: string[], demoMode: boolean): Pro
 
 export async function batchDeleteRuns(runIds: string[], demoMode: boolean): Promise<BatchOperationResult> {
   if (demoMode) return maybeDelay({ results: runIds.map((id) => ({ runId: id, ok: true })) });
-  return fetchJson<BatchOperationResult>('control-plane', '/runs/batch/delete', {
+  return fetchJson<BatchOperationResult>('macp-control-plane', '/runs/batch/delete', {
     method: 'POST',
     body: JSON.stringify({ runIds })
   });
@@ -1040,7 +1043,7 @@ export async function exportRunBundle(
   if (query?.eventLimit !== undefined) params.set('eventLimit', String(query.eventLimit));
   if (query?.format) params.set('format', query.format);
   const suffix = params.toString() ? `?${params.toString()}` : '';
-  return fetchJson<RunExportBundle>('control-plane', `/runs/${runId}/export${suffix}`);
+  return fetchJson<RunExportBundle>('macp-control-plane', `/runs/${runId}/export${suffix}`);
 }
 
 /* ─── Webhook update ─── */
@@ -1054,7 +1057,7 @@ export async function updateWebhook(
     const existing = MOCK_WEBHOOKS.find((w) => w.id === id);
     return maybeDelay({ ...(existing ?? {}), ...body } as WebhookSubscription);
   }
-  return fetchJson<WebhookSubscription>('control-plane', `/webhooks/${id}`, {
+  return fetchJson<WebhookSubscription>('macp-control-plane', `/webhooks/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body)
   });
@@ -1068,7 +1071,7 @@ export async function createArtifact(
   demoMode: boolean
 ): Promise<CreateArtifactResult> {
   if (demoMode) return maybeDelay({ id: 'demo-artifact', runId, ...body, createdAt: new Date().toISOString() });
-  return fetchJson<CreateArtifactResult>('control-plane', `/runs/${runId}/artifacts`, {
+  return fetchJson<CreateArtifactResult>('macp-control-plane', `/runs/${runId}/artifacts`, {
     method: 'POST',
     body: JSON.stringify(body)
   });
@@ -1078,7 +1081,9 @@ export async function createArtifact(
 
 export async function rebuildProjection(runId: string, demoMode: boolean): Promise<RebuildProjectionResult> {
   if (demoMode) return maybeDelay({ rebuilt: true, latestSeq: 42 });
-  return fetchJson<RebuildProjectionResult>('control-plane', `/runs/${runId}/projection/rebuild`, { method: 'POST' });
+  return fetchJson<RebuildProjectionResult>('macp-control-plane', `/runs/${runId}/projection/rebuild`, {
+    method: 'POST'
+  });
 }
 
 /* ─── Readiness probe ─── */
@@ -1092,7 +1097,7 @@ export async function getReadinessProbe(demoMode: boolean): Promise<ReadinessPro
       streamConsumer: 'ok',
       circuitBreaker: 'CLOSED'
     });
-  return fetchJson<ReadinessProbeResponse>('control-plane', '/readyz');
+  return fetchJson<ReadinessProbeResponse>('macp-control-plane', '/readyz');
 }
 
 /* ─── Agent metrics from control plane ─── */
@@ -1121,7 +1126,7 @@ export async function getAgentMetrics(demoMode: boolean): Promise<AgentMetricsEn
     );
   }
   try {
-    const raw = await fetchJson<CpAgentMetricsEntry[]>('control-plane', '/dashboard/agents/metrics');
+    const raw = await fetchJson<CpAgentMetricsEntry[]>('macp-control-plane', '/dashboard/agents/metrics');
     return raw.map((entry) => ({
       agentRef: entry.participantId,
       runs: entry.runs,
@@ -1155,7 +1160,7 @@ export async function batchExportRuns(runIds: string[], demoMode: boolean): Prom
     });
     return maybeDelay(bundles);
   }
-  return fetchJson<RunExportBundle[]>('control-plane', '/runs/batch/export', {
+  return fetchJson<RunExportBundle[]>('macp-control-plane', '/runs/batch/export', {
     method: 'POST',
     body: JSON.stringify({ runIds })
   });
@@ -1165,7 +1170,7 @@ export async function batchExportRuns(runIds: string[], demoMode: boolean): Prom
 
 export async function deleteRun(runId: string, demoMode: boolean): Promise<void> {
   if (demoMode) return maybeDelay(undefined as unknown as void);
-  await fetchJson('control-plane', `/runs/${runId}`, { method: 'DELETE' });
+  await fetchJson('macp-control-plane', `/runs/${runId}`, { method: 'DELETE' });
 }
 
 /* ─── Runtime policy CRUD ─── */
@@ -1177,7 +1182,7 @@ export async function listRuntimePolicies(demoMode: boolean, mode?: string): Pro
     return maybeDelay(policies);
   }
   const suffix = mode ? `?mode=${encodeURIComponent(mode)}` : '';
-  return fetchJson<RuntimePolicyDescriptor[]>('control-plane', `/runtime/policies${suffix}`);
+  return fetchJson<RuntimePolicyDescriptor[]>('macp-control-plane', `/runtime/policies${suffix}`);
 }
 
 export async function getRuntimePolicy(policyId: string, demoMode: boolean): Promise<RuntimePolicyDescriptor> {
@@ -1186,7 +1191,7 @@ export async function getRuntimePolicy(policyId: string, demoMode: boolean): Pro
     if (!policy) throw new Error(`Unknown mock policy: ${policyId}`);
     return maybeDelay(policy);
   }
-  return fetchJson<RuntimePolicyDescriptor>('control-plane', `/runtime/policies/${encodeURIComponent(policyId)}`);
+  return fetchJson<RuntimePolicyDescriptor>('macp-control-plane', `/runtime/policies/${encodeURIComponent(policyId)}`);
 }
 
 export async function registerRuntimePolicy(
@@ -1194,7 +1199,7 @@ export async function registerRuntimePolicy(
   demoMode: boolean
 ): Promise<{ ok: boolean; error?: string }> {
   if (demoMode) return maybeDelay({ ok: true });
-  return fetchJson<{ ok: boolean; error?: string }>('control-plane', '/runtime/policies', {
+  return fetchJson<{ ok: boolean; error?: string }>('macp-control-plane', '/runtime/policies', {
     method: 'POST',
     body: JSON.stringify(body)
   });
@@ -1206,7 +1211,7 @@ export async function unregisterRuntimePolicy(
 ): Promise<{ ok: boolean; error?: string }> {
   if (demoMode) return maybeDelay({ ok: true });
   return fetchJson<{ ok: boolean; error?: string }>(
-    'control-plane',
+    'macp-control-plane',
     `/runtime/policies/${encodeURIComponent(policyId)}`,
     { method: 'DELETE' }
   );

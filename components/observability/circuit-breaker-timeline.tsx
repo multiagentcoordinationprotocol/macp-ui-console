@@ -59,7 +59,7 @@ export function CircuitBreakerTimeline({ entries }: { entries: CircuitBreakerHis
       <CardHeader>
         <CardTitle>Circuit breaker history</CardTitle>
         <CardDescription>
-          Recent state transitions of the control-plane circuit breaker. Hover a band for the reason.
+          Recent state transitions of the macp-control-plane circuit breaker. Hover a band for the reason.
         </CardDescription>
       </CardHeader>
       <CardContent className="stack">

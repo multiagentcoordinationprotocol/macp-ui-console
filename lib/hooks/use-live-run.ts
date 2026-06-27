@@ -19,7 +19,7 @@ function normalizeEvent(raw: Record<string, unknown>): CanonicalEvent {
   };
   if (!event.source && (event.sourceKind || event.sourceName)) {
     event.source = {
-      kind: (event.sourceKind ?? 'control-plane') as CanonicalEvent['source']['kind'],
+      kind: (event.sourceKind ?? 'macp-control-plane') as CanonicalEvent['source']['kind'],
       name: event.sourceName ?? '',
       rawType: event.rawType
     };
@@ -103,7 +103,7 @@ export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoS
 
     const seq = lastSeqRef.current;
     const source = new EventSource(
-      `/api/proxy/control-plane/runs/${runId}/stream?includeSnapshot=true&afterSeq=${seq}`
+      `/api/proxy/macp-control-plane/runs/${runId}/stream?includeSnapshot=true&afterSeq=${seq}`
     );
     eventSourceRef.current = source;
 

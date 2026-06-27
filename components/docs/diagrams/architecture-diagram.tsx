@@ -69,7 +69,7 @@ export function ArchitectureDiagram() {
           Next.js Route-Handler Proxy
         </text>
         <text x="280" y="152" textAnchor="middle" className="docs-diagram-mono">
-          /api/proxy/{'{'}example,control-plane{'}'}
+          /api/proxy/{'{'}example,macp-control-plane{'}'}
         </text>
       </g>
 

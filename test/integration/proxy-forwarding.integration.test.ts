@@ -5,7 +5,7 @@ import { runsListResponse, runRecord, RUN_ID_1 } from './fixtures/backend-respon
 /**
  * Integration tests for the Next.js API proxy route handler.
  *
- * Spins up a MockBackend to simulate the control-plane and example-service,
+ * Spins up a MockBackend to simulate the macp-control-plane and example-service,
  * sets env vars so the proxy forwards to it, then calls the route handler
  * with constructed NextRequest objects.
  */
@@ -19,19 +19,19 @@ describe('Proxy Forwarding (integration)', () => {
     await cpBackend.start();
     await exBackend.start();
 
-    process.env.CONTROL_PLANE_BASE_URL = cpBackend.url;
-    process.env.CONTROL_PLANE_API_KEY = 'test-cp-key';
-    process.env.EXAMPLE_SERVICE_BASE_URL = exBackend.url;
-    process.env.EXAMPLE_SERVICE_API_KEY = 'test-ex-key';
+    process.env.MACP_CONTROL_PLANE_BASE_URL = cpBackend.url;
+    process.env.MACP_CONTROL_PLANE_API_KEY = 'test-cp-key';
+    process.env.MACP_PLAYGROUND_BASE_URL = exBackend.url;
+    process.env.MACP_PLAYGROUND_API_KEY = 'test-ex-key';
   });
 
   afterAll(async () => {
     await cpBackend.stop();
     await exBackend.stop();
-    delete process.env.CONTROL_PLANE_BASE_URL;
-    delete process.env.CONTROL_PLANE_API_KEY;
-    delete process.env.EXAMPLE_SERVICE_BASE_URL;
-    delete process.env.EXAMPLE_SERVICE_API_KEY;
+    delete process.env.MACP_CONTROL_PLANE_BASE_URL;
+    delete process.env.MACP_CONTROL_PLANE_API_KEY;
+    delete process.env.MACP_PLAYGROUND_BASE_URL;
+    delete process.env.MACP_PLAYGROUND_API_KEY;
   });
 
   beforeEach(() => {
@@ -47,9 +47,9 @@ describe('Proxy Forwarding (integration)', () => {
     // Dynamically import to pick up fresh env vars
     const { buildUpstreamUrl, getIntegrationConfig } = await import('@/lib/server/integrations');
 
-    const config = getIntegrationConfig(service as 'example' | 'control-plane');
+    const config = getIntegrationConfig(service as 'macp-playground' | 'macp-control-plane');
     const upstreamUrl = buildUpstreamUrl(
-      service as 'example' | 'control-plane',
+      service as 'macp-playground' | 'macp-control-plane',
       path,
       options.query ? `?${options.query}` : ''
     );
@@ -73,13 +73,13 @@ describe('Proxy Forwarding (integration)', () => {
   }
 
   describe('GET requests', () => {
-    it('forwards GET /runs to control-plane and returns response', async () => {
+    it('forwards GET /runs to macp-control-plane and returns response', async () => {
       cpBackend.on('GET', '/runs', () => ({
         status: 200,
         body: runsListResponse()
       }));
 
-      const res = await callProxy('control-plane', '/runs');
+      const res = await callProxy('macp-control-plane', '/runs');
       const body = await res.json();
 
       expect(res.status).toBe(200);
@@ -93,7 +93,7 @@ describe('Proxy Forwarding (integration)', () => {
         body: runsListResponse(1)
       }));
 
-      await callProxy('control-plane', '/runs', { query: 'status=running&limit=10' });
+      await callProxy('macp-control-plane', '/runs', { query: 'status=running&limit=10' });
 
       expect(cpBackend.requests).toHaveLength(1);
       expect(cpBackend.requests[0].query).toContain('status=running');
@@ -109,7 +109,7 @@ describe('Proxy Forwarding (integration)', () => {
         ]
       }));
 
-      const res = await callProxy('example', '/packs');
+      const res = await callProxy('macp-playground', '/packs');
       const body = await res.json();
 
       expect(res.status).toBe(200);
@@ -119,7 +119,7 @@ describe('Proxy Forwarding (integration)', () => {
   });
 
   describe('POST requests', () => {
-    it('forwards POST body to control-plane /runs', async () => {
+    it('forwards POST body to macp-control-plane /runs', async () => {
       const requestBody = { mode: 'live', session: { modeName: 'macp.mode.decision.v1' } };
 
       cpBackend.on('POST', '/runs', (req) => ({
@@ -127,7 +127,7 @@ describe('Proxy Forwarding (integration)', () => {
         body: { runId: RUN_ID_1, status: 'queued', traceId: 'trace-001' }
       }));
 
-      const res = await callProxy('control-plane', '/runs', {
+      const res = await callProxy('macp-control-plane', '/runs', {
         method: 'POST',
         body: requestBody
       });
@@ -144,10 +144,10 @@ describe('Proxy Forwarding (integration)', () => {
   });
 
   describe('Auth header injection', () => {
-    it('sends Bearer token for control-plane requests', async () => {
+    it('sends Bearer token for macp-control-plane requests', async () => {
       cpBackend.on('GET', '/healthz', () => ({ status: 200, body: { ok: true } }));
 
-      await callProxy('control-plane', '/healthz');
+      await callProxy('macp-control-plane', '/healthz');
 
       expect(cpBackend.requests).toHaveLength(1);
       const authHeader = cpBackend.requests[0].headers['authorization'];
@@ -157,7 +157,7 @@ describe('Proxy Forwarding (integration)', () => {
     it('sends X-API-Key for example-service requests', async () => {
       exBackend.on('GET', '/agents', () => ({ status: 200, body: [] }));
 
-      await callProxy('example', '/agents');
+      await callProxy('macp-playground', '/agents');
 
       expect(exBackend.requests).toHaveLength(1);
       const apiKey = exBackend.requests[0].headers['x-api-key'];
@@ -172,7 +172,7 @@ describe('Proxy Forwarding (integration)', () => {
         body: { error: 'Run not found' }
       }));
 
-      const res = await callProxy('control-plane', '/runs/nonexistent');
+      const res = await callProxy('macp-control-plane', '/runs/nonexistent');
       expect(res.status).toBe(404);
     });
 
@@ -182,7 +182,7 @@ describe('Proxy Forwarding (integration)', () => {
         body: { error: 'Internal server error' }
       }));
 
-      const res = await callProxy('control-plane', '/runs/validate', { method: 'POST', body: {} });
+      const res = await callProxy('macp-control-plane', '/runs/validate', { method: 'POST', body: {} });
       expect(res.status).toBe(500);
     });
 
@@ -192,7 +192,7 @@ describe('Proxy Forwarding (integration)', () => {
         body: { error: 'VALIDATION_ERROR', message: 'Missing required field: session' }
       }));
 
-      const res = await callProxy('control-plane', '/runs', { method: 'POST', body: {} });
+      const res = await callProxy('macp-control-plane', '/runs', { method: 'POST', body: {} });
       const body = await res.json();
 
       expect(res.status).toBe(400);
@@ -207,7 +207,7 @@ describe('Proxy Forwarding (integration)', () => {
         body: { id: 'wh-001', active: false }
       }));
 
-      const res = await callProxy('control-plane', '/webhooks/wh-001', {
+      const res = await callProxy('macp-control-plane', '/webhooks/wh-001', {
         method: 'PATCH',
         body: { active: false }
       });
@@ -221,7 +221,7 @@ describe('Proxy Forwarding (integration)', () => {
         status: 204
       }));
 
-      const res = await callProxy('control-plane', `/runs/${RUN_ID_1}`, { method: 'DELETE' });
+      const res = await callProxy('macp-control-plane', `/runs/${RUN_ID_1}`, { method: 'DELETE' });
       expect(res.status).toBe(204);
     });
   });

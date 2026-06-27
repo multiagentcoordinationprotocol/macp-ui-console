@@ -1,6 +1,6 @@
 # MACP UI Console
 
-[![CI](https://github.com/multiagentcoordinationprotocol/ui-console/actions/workflows/ci.yml/badge.svg)](https://github.com/multiagentcoordinationprotocol/ui-console/actions/workflows/ci.yml)
+[![CI](https://github.com/multiagentcoordinationprotocol/macp-ui-console/actions/workflows/ci.yml/badge.svg)](https://github.com/multiagentcoordinationprotocol/macp-ui-console/actions/workflows/ci.yml)
 
 Feature-rich Next.js orchestration and observability console for MACP.
 
@@ -74,10 +74,10 @@ Set:
 
 ```bash
 NEXT_PUBLIC_MACP_UI_DEMO_MODE=false
-EXAMPLE_SERVICE_BASE_URL=http://localhost:3000
-CONTROL_PLANE_BASE_URL=http://localhost:3001
-EXAMPLE_SERVICE_API_KEY=
-CONTROL_PLANE_API_KEY=
+MACP_PLAYGROUND_BASE_URL=http://localhost:3000
+MACP_CONTROL_PLANE_BASE_URL=http://localhost:3001
+MACP_PLAYGROUND_API_KEY=
+MACP_CONTROL_PLANE_API_KEY=
 ```
 
 Then run the Examples Service and Control Plane locally. For a single-command full stack (PostgreSQL + Runtime + Control Plane + Examples Service + UI) see [Local full-stack development](#local-full-stack-development) below.
@@ -120,10 +120,10 @@ See `.env.example`.
 Important values:
 
 - `NEXT_PUBLIC_MACP_UI_DEMO_MODE`
-- `EXAMPLE_SERVICE_BASE_URL`
-- `EXAMPLE_SERVICE_API_KEY`
-- `CONTROL_PLANE_BASE_URL`
-- `CONTROL_PLANE_API_KEY`
+- `MACP_PLAYGROUND_BASE_URL`
+- `MACP_PLAYGROUND_API_KEY`
+- `MACP_CONTROL_PLANE_BASE_URL`
+- `MACP_CONTROL_PLANE_API_KEY`
 - `NEXT_PUBLIC_MACP_ENVIRONMENT_LABEL`
 
 ## Route map
@@ -180,11 +180,11 @@ The UI references — but does not duplicate — the docs from the backend repos
 
 | Repo | Role | Docs |
 |---|---|---|
-| [examples-service](https://github.com/multiagentcoordinationprotocol/examples-service) | Scenario catalog + launch compiler + example-agent bootstrap | [`docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/architecture.md), [`docs/api-reference.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/api-reference.md) |
-| [control-plane](https://github.com/multiagentcoordinationprotocol/control-plane) | Observer-only run lifecycle + projections + SSE | [`docs/API.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/API.md), [`docs/ARCHITECTURE.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/ARCHITECTURE.md), [`docs/INTEGRATION.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/INTEGRATION.md) |
-| [runtime](https://github.com/multiagentcoordinationprotocol/runtime) | Rust coordination kernel; gRPC source of truth | [`docs/README.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/README.md), [`docs/API.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/API.md), [`docs/modes.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/modes.md), [`docs/policy.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/policy.md) |
-| [python-sdk](https://github.com/multiagentcoordinationprotocol/python-sdk) | Agent SDK (direct-agent-auth clients) | [`docs/index.md`](https://github.com/multiagentcoordinationprotocol/python-sdk/blob/main/docs/index.md) |
-| [typescript-sdk](https://github.com/multiagentcoordinationprotocol/typescript-sdk) | Agent SDK (direct-agent-auth clients) | [`docs/index.md`](https://github.com/multiagentcoordinationprotocol/typescript-sdk/blob/main/docs/index.md) |
+| [macp-playground](https://github.com/multiagentcoordinationprotocol/macp-playground) | Scenario catalog + launch compiler + example-agent bootstrap | [`docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/architecture.md), [`docs/api-reference.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/api-reference.md) |
+| [macp-control-plane](https://github.com/multiagentcoordinationprotocol/macp-control-plane) | Observer-only run lifecycle + projections + SSE | [`docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md), [`docs/ARCHITECTURE.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/ARCHITECTURE.md), [`docs/INTEGRATION.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/INTEGRATION.md) |
+| [macp-runtime](https://github.com/multiagentcoordinationprotocol/macp-runtime) | Rust coordination kernel; gRPC source of truth | [`docs/README.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/README.md), [`docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md), [`docs/modes.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/modes.md), [`docs/policy.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/policy.md) |
+| [macp-sdk-python](https://github.com/multiagentcoordinationprotocol/macp-sdk-python) | Agent SDK (direct-agent-auth clients) | [`docs/index.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-python/blob/main/docs/index.md) |
+| [macp-sdk-typescript](https://github.com/multiagentcoordinationprotocol/macp-sdk-typescript) | Agent SDK (direct-agent-auth clients) | [`docs/index.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-typescript/blob/main/docs/index.md) |
 
 ## Docs
 

@@ -5,13 +5,13 @@ import { MarkdownRenderer } from '@/components/docs/markdown-renderer';
 import { listDocs, loadDoc } from '@/lib/docs/loader';
 
 export async function generateStaticParams() {
-  const entries = await listDocs('ui-console');
+  const entries = await listDocs('macp-ui-console');
   return entries.map((entry) => ({ slug: entry.slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const doc = await loadDoc('ui-console', slug);
+  const doc = await loadDoc('macp-ui-console', slug);
   if (!doc) return { title: 'Not found · MACP Console' };
   return {
     title: `${doc.title} · MACP Console`,
@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function UiConsoleDocSlugPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const doc = await loadDoc('ui-console', slug);
+  const doc = await loadDoc('macp-ui-console', slug);
   if (!doc) notFound();
 
   return (
@@ -32,11 +32,11 @@ export default async function UiConsoleDocSlugPage({ params }: { params: Promise
           Docs home
         </Link>
         <span aria-hidden>·</span>
-        <Link href="/docs/ui-console" className="docs-back-link">
+        <Link href="/docs/macp-ui-console" className="docs-back-link">
           UI Console
         </Link>
       </div>
-      <MarkdownRenderer content={doc.content} collection="ui-console" />
+      <MarkdownRenderer content={doc.content} collection="macp-ui-console" />
     </div>
   );
 }

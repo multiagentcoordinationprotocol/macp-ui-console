@@ -43,9 +43,9 @@ describe('real mode API client', () => {
   /* ─── listRuns ─── */
 
   describe('listRuns', () => {
-    it('calls GET /api/proxy/control-plane/runs and unwraps { data, total }', async () => {
+    it('calls GET /api/proxy/macp-control-plane/runs and unwraps { data, total }', async () => {
       const payload = runsListResponse(2);
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({ status: 200, body: payload }));
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({ status: 200, body: payload }));
 
       const { listRuns } = await import('@/lib/api/client');
       const result = await listRuns(REAL);
@@ -57,7 +57,7 @@ describe('real mode API client', () => {
 
     it('normalizes runs from the response', async () => {
       const payload = runsListResponse(1);
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({ status: 200, body: payload }));
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({ status: 200, body: payload }));
 
       const { listRuns } = await import('@/lib/api/client');
       const result = await listRuns(REAL);
@@ -67,7 +67,7 @@ describe('real mode API client', () => {
     });
 
     it('passes query params to the endpoint', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({
         status: 200,
         body: runsListResponse(1)
       }));
@@ -85,9 +85,9 @@ describe('real mode API client', () => {
   /* ─── getRun ─── */
 
   describe('getRun', () => {
-    it('calls GET /api/proxy/control-plane/runs/:id and normalizes response', async () => {
+    it('calls GET /api/proxy/macp-control-plane/runs/:id and normalizes response', async () => {
       const record = runRecord(RUN_ID_1);
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}`, () => ({ status: 200, body: record }));
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}`, () => ({ status: 200, body: record }));
 
       const { getRun } = await import('@/lib/api/client');
       const result = await getRun(RUN_ID_1, REAL);
@@ -101,9 +101,9 @@ describe('real mode API client', () => {
   /* ─── getRunState ─── */
 
   describe('getRunState', () => {
-    it('calls GET /api/proxy/control-plane/runs/:id/state', async () => {
+    it('calls GET /api/proxy/macp-control-plane/runs/:id/state', async () => {
       const projection = runStateProjection(RUN_ID_1);
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/state`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/state`, () => ({
         status: 200,
         body: projection
       }));
@@ -121,9 +121,9 @@ describe('real mode API client', () => {
   /* ─── getRunEvents ─── */
 
   describe('getRunEvents', () => {
-    it('calls GET /api/proxy/control-plane/runs/:id/events?afterSeq=0&limit=500 by default', async () => {
+    it('calls GET /api/proxy/macp-control-plane/runs/:id/events?afterSeq=0&limit=500 by default', async () => {
       const events = canonicalEvents(RUN_ID_1, 3);
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/events`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/events`, () => ({
         status: 200,
         body: events
       }));
@@ -139,7 +139,7 @@ describe('real mode API client', () => {
 
     it('uses custom limit when provided', async () => {
       const events = canonicalEvents(RUN_ID_1, 2);
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/events`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/events`, () => ({
         status: 200,
         body: events
       }));
@@ -155,8 +155,8 @@ describe('real mode API client', () => {
   /* ─── cancelRun ─── */
 
   describe('cancelRun', () => {
-    it('calls POST /api/proxy/control-plane/runs/:id/cancel with body', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/cancel`, () => ({
+    it('calls POST /api/proxy/macp-control-plane/runs/:id/cancel with body', async () => {
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/cancel`, () => ({
         status: 200,
         body: { id: RUN_ID_1, status: 'cancelled' }
       }));
@@ -175,9 +175,9 @@ describe('real mode API client', () => {
   /* ─── cloneRun ─── */
 
   describe('cloneRun', () => {
-    it('calls POST /api/proxy/control-plane/runs/:id/clone with overrides and returns CreateRunResponse', async () => {
+    it('calls POST /api/proxy/macp-control-plane/runs/:id/clone with overrides and returns CreateRunResponse', async () => {
       const response = createRunResponse(RUN_ID_2);
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/clone`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/clone`, () => ({
         status: 200,
         body: response
       }));
@@ -195,7 +195,7 @@ describe('real mode API client', () => {
     });
 
     it('sends empty object when no overrides provided', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/clone`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/clone`, () => ({
         status: 200,
         body: createRunResponse()
       }));
@@ -211,9 +211,9 @@ describe('real mode API client', () => {
   /* ─── createRun ─── */
 
   describe('createRun', () => {
-    it('calls POST /api/proxy/control-plane/runs and returns CreateRunResponse', async () => {
+    it('calls POST /api/proxy/macp-control-plane/runs and returns CreateRunResponse', async () => {
       const response = createRunResponse();
-      mocker.on('POST', '/api/proxy/control-plane/runs', () => ({ status: 200, body: response }));
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs', () => ({ status: 200, body: response }));
 
       const { createRun } = await import('@/lib/api/client');
       const body = { mode: 'live', session: { modeName: 'macp.mode.decision.v1' } };
@@ -233,7 +233,7 @@ describe('real mode API client', () => {
   describe('validateRun', () => {
     it('calls POST and maps valid -> ok', async () => {
       const cpResponse = validateRunResponse(true);
-      mocker.on('POST', '/api/proxy/control-plane/runs/validate', () => ({ status: 200, body: cpResponse }));
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs/validate', () => ({ status: 200, body: cpResponse }));
 
       const { validateRun } = await import('@/lib/api/client');
       const result = await validateRun({ session: {} }, REAL);
@@ -246,7 +246,7 @@ describe('real mode API client', () => {
 
     it('returns ok=false when response has errors', async () => {
       const cpResponse = validateRunResponse(false);
-      mocker.on('POST', '/api/proxy/control-plane/runs/validate', () => ({ status: 200, body: cpResponse }));
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs/validate', () => ({ status: 200, body: cpResponse }));
 
       const { validateRun } = await import('@/lib/api/client');
       const result = await validateRun({ session: {} }, REAL);
@@ -259,8 +259,8 @@ describe('real mode API client', () => {
   /* ─── deleteRun ─── */
 
   describe('deleteRun', () => {
-    it('calls DELETE /api/proxy/control-plane/runs/:id and returns void', async () => {
-      mocker.on('DELETE', `/api/proxy/control-plane/runs/${RUN_ID_1}`, () => ({ status: 204 }));
+    it('calls DELETE /api/proxy/macp-control-plane/runs/:id and returns void', async () => {
+      mocker.on('DELETE', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}`, () => ({ status: 204 }));
 
       const { deleteRun } = await import('@/lib/api/client');
       const result = await deleteRun(RUN_ID_1, REAL);
@@ -276,7 +276,7 @@ describe('real mode API client', () => {
 
   describe('deleteWebhook', () => {
     it('calls DELETE and returns void (204)', async () => {
-      mocker.on('DELETE', '/api/proxy/control-plane/webhooks/wh-001', () => ({ status: 204 }));
+      mocker.on('DELETE', '/api/proxy/macp-control-plane/webhooks/wh-001', () => ({ status: 204 }));
 
       const { deleteWebhook } = await import('@/lib/api/client');
       const result = await deleteWebhook('wh-001', REAL);
@@ -291,9 +291,9 @@ describe('real mode API client', () => {
   /* ─── batchCancelRuns ─── */
 
   describe('batchCancelRuns', () => {
-    it('calls POST /api/proxy/control-plane/runs/batch/cancel with runIds', async () => {
+    it('calls POST /api/proxy/macp-control-plane/runs/batch/cancel with runIds', async () => {
       const ids = [RUN_ID_1, RUN_ID_2];
-      mocker.on('POST', '/api/proxy/control-plane/runs/batch/cancel', () => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs/batch/cancel', () => ({
         status: 200,
         body: { results: ids.map((id) => ({ runId: id, ok: true })) }
       }));
@@ -313,7 +313,7 @@ describe('real mode API client', () => {
 
   describe('rebuildProjection', () => {
     it('calls POST and returns typed result', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/projection/rebuild`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/projection/rebuild`, () => ({
         status: 200,
         body: { rebuilt: true, latestSeq: 42 }
       }));
@@ -330,7 +330,7 @@ describe('real mode API client', () => {
   describe('getAgentProfile', () => {
     it('returns profile for known agent', async () => {
       const profile = agentProfiles()[0];
-      mocker.on('GET', `/api/proxy/example/agents/${encodeURIComponent('fraud-detector')}`, () => ({
+      mocker.on('GET', `/api/proxy/macp-playground/agents/${encodeURIComponent('fraud-detector')}`, () => ({
         status: 200,
         body: profile
       }));
@@ -343,7 +343,7 @@ describe('real mode API client', () => {
     });
 
     it('returns undefined on 404', async () => {
-      mocker.on('GET', `/api/proxy/example/agents/unknown-agent`, () => ({
+      mocker.on('GET', `/api/proxy/macp-playground/agents/unknown-agent`, () => ({
         status: 404,
         body: { error: 'not found' }
       }));
@@ -355,7 +355,7 @@ describe('real mode API client', () => {
     });
 
     it('throws on 500', async () => {
-      mocker.on('GET', `/api/proxy/example/agents/broken-agent`, () => ({
+      mocker.on('GET', `/api/proxy/macp-playground/agents/broken-agent`, () => ({
         status: 500,
         body: { error: 'internal error' }
       }));
@@ -372,13 +372,13 @@ describe('real mode API client', () => {
       const overview = dashboardOverview();
       const runsList = runsListResponse(2);
 
-      mocker.on('GET', '/api/proxy/control-plane/dashboard/overview', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/overview', () => ({
         status: 200,
         body: overview
       }));
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({ status: 200, body: runsList }));
-      mocker.on('GET', '/api/proxy/example/packs', () => ({ status: 200, body: packsList() }));
-      mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({ status: 200, body: runsList }));
+      mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({ status: 200, body: packsList() }));
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
         status: 200,
         body: runtimeHealth()
       }));
@@ -400,13 +400,13 @@ describe('real mode API client', () => {
     it('sets degraded flag when overview endpoint fails', async () => {
       const runsList = runsListResponse(1);
 
-      mocker.on('GET', '/api/proxy/control-plane/dashboard/overview', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/overview', () => ({
         status: 500,
         body: { error: 'unavailable' }
       }));
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({ status: 200, body: runsList }));
-      mocker.on('GET', '/api/proxy/example/packs', () => ({ status: 200, body: packsList() }));
-      mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({ status: 200, body: runsList }));
+      mocker.on('GET', '/api/proxy/macp-playground/packs', () => ({ status: 200, body: packsList() }));
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
         status: 200,
         body: runtimeHealth()
       }));
@@ -425,7 +425,7 @@ describe('real mode API client', () => {
   describe('getAgentMetrics', () => {
     it('maps from CP shape (participantId -> agentRef)', async () => {
       const cpMetrics = agentMetrics();
-      mocker.on('GET', '/api/proxy/control-plane/dashboard/agents/metrics', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/agents/metrics', () => ({
         status: 200,
         body: cpMetrics
       }));
@@ -442,7 +442,7 @@ describe('real mode API client', () => {
     });
 
     it('returns empty array on failure', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/dashboard/agents/metrics', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/agents/metrics', () => ({
         status: 500,
         body: { error: 'unavailable' }
       }));
@@ -459,7 +459,7 @@ describe('real mode API client', () => {
   describe('normalizeRun', () => {
     // normalizeRun is not exported, so we test it indirectly via getRun
     it('throws on missing id', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs/bad-id', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs/bad-id', () => ({
         status: 200,
         body: { status: 'running', runtimeKind: 'rust' }
       }));
@@ -469,7 +469,7 @@ describe('real mode API client', () => {
     });
 
     it('throws on missing status', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs/no-status', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs/no-status', () => ({
         status: 200,
         body: { id: 'no-status', runtimeKind: 'rust' }
       }));
@@ -479,7 +479,7 @@ describe('real mode API client', () => {
     });
 
     it('throws on missing runtimeKind', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs/no-kind', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs/no-kind', () => ({
         status: 200,
         body: { id: 'no-kind', status: 'running' }
       }));
@@ -492,9 +492,9 @@ describe('real mode API client', () => {
   /* ─── getObservabilityRawMetrics ─── */
 
   describe('getObservabilityRawMetrics', () => {
-    it('calls GET /api/proxy/control-plane/metrics and returns text', async () => {
+    it('calls GET /api/proxy/macp-control-plane/metrics and returns text', async () => {
       const metricsText = '# HELP macp_runs_total Total runs\nmacp_runs_total 42';
-      mocker.on('GET', '/api/proxy/control-plane/metrics', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/metrics', () => ({
         status: 200,
         body: metricsText
       }));
@@ -510,15 +510,15 @@ describe('real mode API client', () => {
   /* ─── createReplay ─── */
 
   describe('createReplay', () => {
-    it('calls POST /api/proxy/control-plane/runs/:id/replay and returns ReplayDescriptor', async () => {
+    it('calls POST /api/proxy/macp-control-plane/runs/:id/replay and returns ReplayDescriptor', async () => {
       const descriptor = {
         runId: RUN_ID_1,
         mode: 'timed',
         speed: 1,
-        streamUrl: `/api/proxy/control-plane/runs/${RUN_ID_1}/replay/stream`,
-        stateUrl: `/api/proxy/control-plane/runs/${RUN_ID_1}/replay/state`
+        streamUrl: `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/replay/stream`,
+        stateUrl: `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/replay/state`
       };
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/replay`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/replay`, () => ({
         status: 200,
         body: descriptor
       }));
@@ -540,9 +540,9 @@ describe('real mode API client', () => {
   /* ─── getRuntimeManifest ─── */
 
   describe('getRuntimeManifest', () => {
-    it('calls GET /api/proxy/control-plane/runtime/manifest', async () => {
+    it('calls GET /api/proxy/macp-control-plane/runtime/manifest', async () => {
       const manifest = runtimeManifest();
-      mocker.on('GET', '/api/proxy/control-plane/runtime/manifest', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/manifest', () => ({
         status: 200,
         body: manifest
       }));
@@ -558,9 +558,9 @@ describe('real mode API client', () => {
   /* ─── getRuntimeModes ─── */
 
   describe('getRuntimeModes', () => {
-    it('calls GET /api/proxy/control-plane/runtime/modes', async () => {
+    it('calls GET /api/proxy/macp-control-plane/runtime/modes', async () => {
       const modes = runtimeModes();
-      mocker.on('GET', '/api/proxy/control-plane/runtime/modes', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/modes', () => ({
         status: 200,
         body: modes
       }));
@@ -577,9 +577,9 @@ describe('real mode API client', () => {
   /* ─── getRuntimeRoots ─── */
 
   describe('getRuntimeRoots', () => {
-    it('calls GET /api/proxy/control-plane/runtime/roots', async () => {
+    it('calls GET /api/proxy/macp-control-plane/runtime/roots', async () => {
       const roots = runtimeRoots();
-      mocker.on('GET', '/api/proxy/control-plane/runtime/roots', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/roots', () => ({
         status: 200,
         body: roots
       }));
@@ -596,9 +596,9 @@ describe('real mode API client', () => {
   /* ─── getRuntimeHealth ─── */
 
   describe('getRuntimeHealth', () => {
-    it('calls GET /api/proxy/control-plane/runtime/health', async () => {
+    it('calls GET /api/proxy/macp-control-plane/runtime/health', async () => {
       const health = runtimeHealth();
-      mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
         status: 200,
         body: health
       }));
@@ -614,9 +614,9 @@ describe('real mode API client', () => {
   /* ─── getReadinessProbe ─── */
 
   describe('getReadinessProbe', () => {
-    it('calls GET /api/proxy/control-plane/readyz', async () => {
+    it('calls GET /api/proxy/macp-control-plane/readyz', async () => {
       const probe = readinessProbe();
-      mocker.on('GET', '/api/proxy/control-plane/readyz', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/readyz', () => ({
         status: 200,
         body: probe
       }));
@@ -635,7 +635,7 @@ describe('real mode API client', () => {
   describe('getAuditLogs', () => {
     it('passes pagination params in URL', async () => {
       const logs = auditLogs();
-      mocker.on('GET', '/api/proxy/control-plane/audit', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/audit', () => ({
         status: 200,
         body: logs
       }));
@@ -657,7 +657,7 @@ describe('real mode API client', () => {
   describe('getRunEvents custom limit', () => {
     it('includes custom limit in URL', async () => {
       const events = canonicalEvents(RUN_ID_1, 2);
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/events`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/events`, () => ({
         status: 200,
         body: events
       }));
@@ -674,7 +674,7 @@ describe('real mode API client', () => {
 
   describe('error handling', () => {
     it('throws ApiError with correct status and message for non-OK responses', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}`, () => ({
         status: 422,
         body: { error: 'Validation failed' }
       }));
@@ -688,13 +688,13 @@ describe('real mode API client', () => {
         expect(err).toBeInstanceOf(ApiError);
         const apiErr = err as ApiError;
         expect(apiErr.status).toBe(422);
-        expect(apiErr.service).toBe('control-plane');
+        expect(apiErr.service).toBe('macp-control-plane');
         expect(apiErr.path).toBe(`/runs/${RUN_ID_1}`);
       }
     });
 
     it('throws ApiError with 500 status for server errors', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({
         status: 500,
         body: { error: 'Internal server error' }
       }));

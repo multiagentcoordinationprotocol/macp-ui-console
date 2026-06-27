@@ -38,7 +38,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('listRuns', () => {
     it('returns normalized RunRecord array', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({
         status: 200,
         body: runsListResponse(3)
       }));
@@ -53,7 +53,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('passes search params as query string', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({
         status: 200,
         body: runsListResponse(1)
       }));
@@ -67,7 +67,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('normalizes sourceKind/sourceRef into source object', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({
         status: 200,
         body: {
           data: [runRecord(RUN_ID_1, { sourceKind: 'api', sourceRef: 'test-suite' })],
@@ -82,7 +82,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('listRuns handles empty result', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({
         status: 200,
         body: { data: [], total: 0 }
       }));
@@ -95,7 +95,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('passes through archivedAt from CP directly', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({
         status: 200,
         body: {
           data: [
@@ -114,7 +114,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('returns null archivedAt when CP does not set it', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({
         status: 200,
         body: {
           data: [runRecord(RUN_ID_1)],
@@ -131,7 +131,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('getRun', () => {
     it('returns a single normalized run', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}`, () => ({
         status: 200,
         body: runRecord(RUN_ID_1)
       }));
@@ -145,7 +145,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('throws on 404', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs/nonexistent', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs/nonexistent', () => ({
         status: 404,
         body: { error: 'not found' }
       }));
@@ -155,7 +155,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('getRun returns ApiError on 500', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}`, () => ({
         status: 500,
         body: { error: 'internal server error' }
       }));
@@ -174,7 +174,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('getRunState', () => {
     it('returns run state projection', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/state`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/state`, () => ({
         status: 200,
         body: runStateProjection(RUN_ID_1)
       }));
@@ -190,7 +190,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('returns policy field with commitmentEvaluations', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/state`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/state`, () => ({
         status: 200,
         body: runStateProjection(RUN_ID_1)
       }));
@@ -211,7 +211,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('createRun', () => {
     it('sends POST and returns runId + status', async () => {
-      mocker.on('POST', '/api/proxy/control-plane/runs', () => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs', () => ({
         status: 201,
         body: createRunResponse()
       }));
@@ -232,7 +232,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('validateRun', () => {
     it('maps valid response to ok: true', async () => {
-      mocker.on('POST', '/api/proxy/control-plane/runs/validate', () => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs/validate', () => ({
         status: 200,
         body: validateRunResponse(true)
       }));
@@ -246,7 +246,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('maps invalid response to ok: false with errors', async () => {
-      mocker.on('POST', '/api/proxy/control-plane/runs/validate', () => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs/validate', () => ({
         status: 200,
         body: validateRunResponse(false)
       }));
@@ -261,7 +261,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('cancelRun', () => {
     it('sends POST with cancellation reason', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/cancel`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/cancel`, () => ({
         status: 200,
         body: { id: RUN_ID_1, status: 'cancelled' }
       }));
@@ -277,7 +277,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('cancelRun propagates ApiError on 422', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/cancel`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/cancel`, () => ({
         status: 422,
         body: { error: 'Run is not in a cancellable state' }
       }));
@@ -296,7 +296,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('archiveRun', () => {
     it('sends POST and returns archived flag', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/archive`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/archive`, () => ({
         status: 200,
         body: { id: RUN_ID_1, status: 'completed' }
       }));
@@ -311,7 +311,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('cloneRun', () => {
     it('creates a new run from an existing one', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/clone`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/clone`, () => ({
         status: 201,
         body: { runId: RUN_ID_2, status: 'queued', traceId: 'trace-002' }
       }));
@@ -325,7 +325,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('deleteRun', () => {
     it('sends DELETE request', async () => {
-      mocker.on('DELETE', `/api/proxy/control-plane/runs/${RUN_ID_1}`, () => ({
+      mocker.on('DELETE', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}`, () => ({
         status: 204
       }));
 
@@ -342,7 +342,7 @@ describe('Runs Lifecycle (integration)', () => {
     const ids = [RUN_ID_1, RUN_ID_2];
 
     it('batchCancelRuns sends all IDs', async () => {
-      mocker.on('POST', '/api/proxy/control-plane/runs/batch/cancel', (url, init) => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs/batch/cancel', (url, init) => ({
         status: 200,
         body: { results: ids.map((id) => ({ runId: id, ok: true })) }
       }));
@@ -357,7 +357,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('batchArchiveRuns sends all IDs', async () => {
-      mocker.on('POST', '/api/proxy/control-plane/runs/batch/archive', () => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs/batch/archive', () => ({
         status: 200,
         body: { results: ids.map((id) => ({ runId: id, ok: true })) }
       }));
@@ -369,7 +369,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('batchDeleteRuns sends all IDs', async () => {
-      mocker.on('POST', '/api/proxy/control-plane/runs/batch/delete', () => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs/batch/delete', () => ({
         status: 200,
         body: { results: ids.map((id) => ({ runId: id, ok: true })) }
       }));
@@ -383,7 +383,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('Run export', () => {
     it('exportRunBundle returns full bundle', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/export`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/export`, () => ({
         status: 200,
         body: {
           run: runRecord(RUN_ID_1),
@@ -407,7 +407,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('Projection rebuild', () => {
     it('sends POST and returns rebuild result', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/projection/rebuild`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/projection/rebuild`, () => ({
         status: 200,
         body: { rebuilt: true, latestSeq: 42 }
       }));
@@ -421,7 +421,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('compareRuns', () => {
     it('sends both run IDs and returns comparison', async () => {
-      mocker.on('POST', '/api/proxy/control-plane/runs/compare', () => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs/compare', () => ({
         status: 200,
         body: {
           left: { runId: RUN_ID_1, status: 'completed', modeName: 'decision', durationMs: 8000 },
@@ -444,7 +444,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('cloneRun with overrides', () => {
     it('sends tags and context overrides in POST body', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/clone`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/clone`, () => ({
         status: 201,
         body: { runId: RUN_ID_2, status: 'queued', traceId: 'trace-clone-001' }
       }));
@@ -463,7 +463,7 @@ describe('Runs Lifecycle (integration)', () => {
     });
 
     it('sends empty body when no overrides provided', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/clone`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/clone`, () => ({
         status: 201,
         body: { runId: RUN_ID_2, status: 'queued', traceId: 'trace-clone-002' }
       }));
@@ -479,7 +479,7 @@ describe('Runs Lifecycle (integration)', () => {
   describe('batchExportRuns', () => {
     it('sends run IDs and returns export bundles', async () => {
       const ids = [RUN_ID_1, RUN_ID_2];
-      mocker.on('POST', '/api/proxy/control-plane/runs/batch/export', () => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/runs/batch/export', () => ({
         status: 200,
         body: batchExportResponse(ids)
       }));
@@ -500,7 +500,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('getRunEvents with custom limit', () => {
     it('getRunEvents respects custom limit parameter', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/events`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/events`, () => ({
         status: 200,
         body: canonicalEvents(RUN_ID_1, 3)
       }));
@@ -516,7 +516,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('getAuditLogs with pagination', () => {
     it('getAuditLogs passes pagination parameters', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/audit', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/audit', () => ({
         status: 200,
         body: auditLogs()
       }));
@@ -532,7 +532,7 @@ describe('Runs Lifecycle (integration)', () => {
 
   describe('Server-side filters', () => {
     it('passes environment and search params to GET /runs', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runs', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runs', () => ({
         status: 200,
         body: runsListResponse(1)
       }));

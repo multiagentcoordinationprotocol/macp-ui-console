@@ -432,7 +432,7 @@ function TracesPageContent() {
             </div>
             <div>
               <div className="muted small" style={{ marginBottom: 6 }}>
-                Raw control-plane trace summary payload
+                Raw macp-control-plane trace summary payload
               </div>
               <JsonViewer value={tracesQuery.data} />
             </div>

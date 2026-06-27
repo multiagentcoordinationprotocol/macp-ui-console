@@ -1,6 +1,6 @@
 /**
  * Canned backend responses matching the shapes returned by
- * the control-plane and example-service APIs.
+ * the macp-control-plane and example-service APIs.
  */
 
 /* ─── IDs ─── */

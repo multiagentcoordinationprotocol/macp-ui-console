@@ -8,19 +8,19 @@ the UI needs to know to consume those services correctly.
 ## Integration topology
 
 ```
-ui-console (this repo) ──HTTP──► /api/proxy/{example,control-plane}
+macp-ui-console (this repo) ──HTTP──► /api/proxy/{example,macp-control-plane}
                                         │
-                                        ├──► examples-service  (catalog, compile, bootstrap)
-                                        └──► control-plane      (run lifecycle, state, SSE)
+                                        ├──► macp-playground  (catalog, compile, bootstrap)
+                                        └──► macp-control-plane      (run lifecycle, state, SSE)
 
-                    control-plane ──gRPC──► runtime (Rust)
+                    macp-control-plane ──gRPC──► runtime (Rust)
                     agents        ──gRPC──► runtime (direct-agent-auth, RFC-MACP-0004 §4)
 ```
 
-Under the observer-only control-plane model, **agents never go through the control-plane**
+Under the observer-only macp-control-plane model, **agents never go through the macp-control-plane**
 to emit envelopes. They authenticate to the runtime directly via `macp-sdk-python` /
 `macp-sdk-typescript` using per-agent Bearer tokens handed to them via their bootstrap
-file. The control-plane observes the resulting envelopes through a read-only
+file. The macp-control-plane observes the resulting envelopes through a read-only
 `StreamSession` subscription.
 
 ---
@@ -31,12 +31,12 @@ file. The control-plane observes the resulting envelopes through a read-only
 agent profile catalog, and optional one-shot bootstrap + spawn of example agents.
 
 - **Canonical docs**
-  - Architecture: [`examples-service/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/architecture.md)
-  - API reference: [`examples-service/docs/api-reference.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/api-reference.md)
-  - Scenario authoring: [`examples-service/docs/scenario-authoring.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/scenario-authoring.md)
-  - Direct-agent-auth (how the service mints per-agent JWTs + spawns workers): [`examples-service/docs/direct-agent-auth.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/direct-agent-auth.md)
-  - Worker bootstrap contract: [`examples-service/docs/worker-bootstrap-contract.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/worker-bootstrap-contract.md)
-  - Policy authoring: [`examples-service/docs/policy-authoring.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/policy-authoring.md)
+  - Architecture: [`macp-playground/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/architecture.md)
+  - API reference: [`macp-playground/docs/api-reference.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/api-reference.md)
+  - Scenario authoring: [`macp-playground/docs/scenario-authoring.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/scenario-authoring.md)
+  - Direct-agent-auth (how the service mints per-agent JWTs + spawns workers): [`macp-playground/docs/direct-agent-auth.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/direct-agent-auth.md)
+  - Worker bootstrap contract: [`macp-playground/docs/worker-bootstrap-contract.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/worker-bootstrap-contract.md)
+  - Policy authoring: [`macp-playground/docs/policy-authoring.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/policy-authoring.md)
 
 - **Endpoints the UI calls** — see [`api-integration.md`](./api-integration.md#example-service-endpoints-used-by-the-ui)
 - **Observed characteristics**
@@ -56,15 +56,15 @@ artifacts, audit log, runtime metadata pass-through, runtime policy registry, we
 and admin operations.
 
 - **Canonical docs**
-  - API reference: [`control-plane/docs/API.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/API.md)
-  - Architecture: [`control-plane/docs/ARCHITECTURE.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/ARCHITECTURE.md)
-  - Integration guide (add a runtime provider, consume SSE, policy registry): [`control-plane/docs/INTEGRATION.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/INTEGRATION.md)
-  - Troubleshooting: [`control-plane/docs/TROUBLESHOOTING.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/TROUBLESHOOTING.md)
+  - API reference: [`macp-control-plane/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md)
+  - Architecture: [`macp-control-plane/docs/ARCHITECTURE.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/ARCHITECTURE.md)
+  - Integration guide (add a runtime provider, consume SSE, policy registry): [`macp-control-plane/docs/INTEGRATION.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/INTEGRATION.md)
+  - Troubleshooting: [`macp-control-plane/docs/TROUBLESHOOTING.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/TROUBLESHOOTING.md)
 
-- **Endpoints the UI calls** — see [`api-integration.md`](./api-integration.md#control-plane-endpoints-used-by-the-ui)
+- **Endpoints the UI calls** — see [`api-integration.md`](./api-integration.md#macp-control-plane-endpoints-used-by-the-ui)
 
 - **Observer-only authority model (what the UI must respect)**
-  - `POST /runs` accepts a **scenario-agnostic `RunDescriptor` only**. A request containing `kickoff[]`, `participants[].role`, `commitments[]`, `policyHints`, or `initiatorParticipantId` is rejected with 400 (`forbidNonWhitelisted: true`). The UI only posts compiled descriptors from the examples-service, which are whitelisted-safe by construction.
+  - `POST /runs` accepts a **scenario-agnostic `RunDescriptor` only**. A request containing `kickoff[]`, `participants[].role`, `commitments[]`, `policyHints`, or `initiatorParticipantId` is rejected with 400 (`forbidNonWhitelisted: true`). The UI only posts compiled descriptors from the macp-playground, which are whitelisted-safe by construction.
   - `POST /runs/:id/messages`, `POST /runs/:id/signal`, and `POST /runs/:id/context` are **removed** and return `410 Gone` with `errorCode: ENDPOINT_REMOVED`. The UI does not render forms that target these endpoints.
   - `POST /runs/:id/cancel` has two flows, chosen by `metadata.cancelCallback` / `metadata.cancellationDelegated`. The UI treats the endpoint as opaque — it posts and re-renders from the returned record.
   - `POST /runs/:id/clone` rejects non-empty `context` overrides. The clone form surfaces this error directly.
@@ -84,19 +84,19 @@ and admin operations.
 
 **Role from the UI's perspective:** the runtime is not called directly by the UI. Its
 manifest, modes, roots, health, and policy registry are all surfaced **through the
-control-plane** at `/runtime/*` endpoints. The UI never opens a gRPC channel.
+macp-control-plane** at `/runtime/*` endpoints. The UI never opens a gRPC channel.
 
 - **Canonical docs** (useful for understanding what the CP passes through)
-  - Overview: [`runtime/docs/README.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/README.md)
-  - Architecture: [`runtime/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/architecture.md)
-  - API (22 gRPC RPCs): [`runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/API.md)
-  - Modes (Decision / Proposal / Task / Handoff / Quorum + extensions): [`runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/modes.md)
-  - Policy (RFC-MACP-0012 rule schemas + evaluator internals): [`runtime/docs/policy.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/policy.md)
-  - Deployment: [`runtime/docs/deployment.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/deployment.md)
+  - Overview: [`macp-runtime/docs/README.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/README.md)
+  - Architecture: [`macp-runtime/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/architecture.md)
+  - API (22 gRPC RPCs): [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md)
+  - Modes (Decision / Proposal / Task / Handoff / Quorum + extensions): [`macp-runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/modes.md)
+  - Policy (RFC-MACP-0012 rule schemas + evaluator internals): [`macp-runtime/docs/policy.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/policy.md)
+  - Deployment: [`macp-runtime/docs/deployment.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/deployment.md)
 
 - **Observed characteristics**
   - Rust implementation, single binary; local default port `50051`
-  - JWT bearer + static bearer + dev header resolver chain (see [`runtime/docs/getting-started.md#authentication`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/getting-started.md#authentication))
+  - JWT bearer + static bearer + dev header resolver chain (see [`macp-runtime/docs/getting-started.md#authentication`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/getting-started.md#authentication))
   - Append-only session history; passive subscribe for observer streams (RFC-MACP-0006 §3.2)
 
 ---
@@ -108,14 +108,14 @@ are relevant because every envelope the UI displays was emitted by an agent proc
 on one of these SDKs. The `agentRef` ↔ `framework` mapping in the agent catalog and the
 direct-agent-auth flow referenced in the run workbench trace back to the SDKs.
 
-- **Python SDK** — [`python-sdk/docs/index.md`](https://github.com/multiagentcoordinationprotocol/python-sdk/blob/main/docs/index.md)
-  - Agent framework (`Participant`, `from_bootstrap`, handler dispatch): [`guides/agent-framework.md`](https://github.com/multiagentcoordinationprotocol/python-sdk/blob/main/docs/guides/agent-framework.md)
-  - Direct-agent-auth bootstrap shape: [`guides/direct-agent-auth.md`](https://github.com/multiagentcoordinationprotocol/python-sdk/blob/main/docs/guides/direct-agent-auth.md)
-  - Protocol primer (envelopes, sessions, two-plane): [`protocol.md`](https://github.com/multiagentcoordinationprotocol/python-sdk/blob/main/docs/protocol.md)
+- **Python SDK** — [`macp-sdk-python/docs/index.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-python/blob/main/docs/index.md)
+  - Agent framework (`Participant`, `from_bootstrap`, handler dispatch): [`guides/agent-framework.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-python/blob/main/docs/guides/agent-framework.md)
+  - Direct-agent-auth bootstrap shape: [`guides/direct-agent-auth.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-python/blob/main/docs/guides/direct-agent-auth.md)
+  - Protocol primer (envelopes, sessions, two-plane): [`protocol.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-python/blob/main/docs/protocol.md)
 
-- **TypeScript SDK** — [`typescript-sdk/docs/index.md`](https://github.com/multiagentcoordinationprotocol/typescript-sdk/blob/main/docs/index.md)
-  - Agent framework (`fromBootstrap()`, strategies): [`guides/agent-framework.md`](https://github.com/multiagentcoordinationprotocol/typescript-sdk/blob/main/docs/guides/agent-framework.md)
-  - Authentication: [`guides/authentication.md`](https://github.com/multiagentcoordinationprotocol/typescript-sdk/blob/main/docs/guides/authentication.md)
+- **TypeScript SDK** — [`macp-sdk-typescript/docs/index.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-typescript/blob/main/docs/index.md)
+  - Agent framework (`fromBootstrap()`, strategies): [`guides/agent-framework.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-typescript/blob/main/docs/guides/agent-framework.md)
+  - Authentication: [`guides/authentication.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-typescript/blob/main/docs/guides/authentication.md)
 
 ---
 
@@ -130,8 +130,8 @@ to the CP `TraceSummary`. Jaeger has no bearing on the rest of the UI.
 
 ## How the UI uses this information
 
-- The **examples-service** drives every catalog, launch, and agent-profile surface.
+- The **macp-playground** drives every catalog, launch, and agent-profile surface.
 - The **control plane** drives every live execution, history, observability, runtime metadata / policy, and admin surface.
-- Runtime metadata and policy are exposed **through** control-plane `/runtime/*` endpoints — the UI never talks to the runtime directly.
+- Runtime metadata and policy are exposed **through** macp-control-plane `/runtime/*` endpoints — the UI never talks to the runtime directly.
 - SDK docs are background reading for understanding envelope contents and the direct-agent-auth bootstrap lifecycle, not a runtime dependency of the UI.
 - Jaeger is consulted only when configured and only for trace detail.

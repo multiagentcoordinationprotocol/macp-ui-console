@@ -13,7 +13,7 @@ export const metadata = {
 };
 
 export default async function DocsLandingPage() {
-  const [uiDocs, esDocs] = await Promise.all([listDocs('ui-console'), listDocs('examples-service')]);
+  const [uiDocs, esDocs] = await Promise.all([listDocs('macp-ui-console'), listDocs('macp-playground')]);
 
   return (
     <div className="stack docs-landing">
@@ -223,12 +223,12 @@ export default async function DocsLandingPage() {
         <CardContent>
           <div className="docs-index-grid">
             <DocCollectionCard
-              collection="ui-console"
+              collection="macp-ui-console"
               entries={uiDocs}
               description="Architecture, API integration, feature matrix, changelog, and backend repo notes for this app."
             />
             <DocCollectionCard
-              collection="examples-service"
+              collection="macp-playground"
               entries={esDocs}
               description="Scenario authoring, launch compilation, agent hosting, and the worker bootstrap contract."
             />
@@ -244,7 +244,7 @@ function DocCollectionCard({
   entries,
   description
 }: {
-  collection: 'ui-console' | 'examples-service';
+  collection: 'macp-ui-console' | 'macp-playground';
   entries: Awaited<ReturnType<typeof listDocs>>;
   description: string;
 }) {
@@ -261,7 +261,7 @@ function DocCollectionCard({
       {entries.length === 0 ? (
         <p className="muted">
           No docs synced yet.
-          {collection === 'examples-service' ? ' The next sync PR will populate this list.' : null}
+          {collection === 'macp-playground' ? ' The next sync PR will populate this list.' : null}
         </p>
       ) : (
         <ul className="docs-index-list">

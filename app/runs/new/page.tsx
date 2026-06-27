@@ -543,7 +543,9 @@ function NewRunPageContent() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <JsonViewer value={compileResult ?? { hint: 'Compile to preview the control-plane execution request.' }} />
+            <JsonViewer
+              value={compileResult ?? { hint: 'Compile to preview the macp-control-plane execution request.' }}
+            />
           </CardContent>
         </Card>
 
@@ -551,7 +553,7 @@ function NewRunPageContent() {
           <CardHeader>
             <CardTitle>Validation and bootstrap output</CardTitle>
             <CardDescription>
-              Review control-plane validation warnings or the example end-to-end bootstrap response.
+              Review macp-control-plane validation warnings or the example end-to-end bootstrap response.
             </CardDescription>
           </CardHeader>
           <CardContent className="stack">

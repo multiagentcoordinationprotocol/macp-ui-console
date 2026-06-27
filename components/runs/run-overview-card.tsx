@@ -38,7 +38,7 @@ export function RunOverviewCard({
   connectionStatus?: string;
   reconnectAttempt?: number;
   onCancel?: () => void;
-  /** macp-proto 0.1.3 — pause a running run (control-plane suspend). */
+  /** macp-proto 0.1.3 — pause a running run (macp-control-plane suspend). */
   onSuspend?: () => void;
   /** macp-proto 0.1.3 — resume a suspended run. */
   onResume?: () => void;

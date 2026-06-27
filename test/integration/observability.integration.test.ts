@@ -44,7 +44,7 @@ describe('Observability (integration)', () => {
 
   describe('Run events', () => {
     it('getRunEvents returns canonical events for a run', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/events`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/events`, () => ({
         status: 200,
         body: canonicalEvents(RUN_ID_1, 5)
       }));
@@ -62,7 +62,7 @@ describe('Observability (integration)', () => {
     });
 
     it('requests events with limit=500', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/events`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/events`, () => ({
         status: 200,
         body: canonicalEvents(RUN_ID_1)
       }));
@@ -77,7 +77,7 @@ describe('Observability (integration)', () => {
 
   describe('Run metrics', () => {
     it('getRunMetrics returns metrics summary', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/metrics`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/metrics`, () => ({
         status: 200,
         body: metricsSummary(RUN_ID_1)
       }));
@@ -93,7 +93,7 @@ describe('Observability (integration)', () => {
     });
 
     it('getRunMetrics returns token usage fields', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/metrics`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/metrics`, () => ({
         status: 200,
         body: metricsSummary(RUN_ID_1)
       }));
@@ -110,7 +110,7 @@ describe('Observability (integration)', () => {
 
   describe('Run traces', () => {
     it('getRunTraces returns trace summary', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/traces`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/traces`, () => ({
         status: 200,
         body: traceSummary()
       }));
@@ -126,7 +126,7 @@ describe('Observability (integration)', () => {
 
   describe('Run artifacts', () => {
     it('getRunArtifacts returns artifacts list', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/artifacts`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/artifacts`, () => ({
         status: 200,
         body: artifactsList(RUN_ID_1)
       }));
@@ -141,7 +141,7 @@ describe('Observability (integration)', () => {
     });
 
     it('returns empty array when no artifacts', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/artifacts`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/artifacts`, () => ({
         status: 200,
         body: []
       }));
@@ -155,7 +155,7 @@ describe('Observability (integration)', () => {
 
   describe('Audit logs', () => {
     it('getAuditLogs returns paginated audit entries', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/audit', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/audit', () => ({
         status: 200,
         body: auditLogs()
       }));
@@ -172,7 +172,7 @@ describe('Observability (integration)', () => {
 
   describe('Webhooks', () => {
     it('getWebhooks returns subscription list', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/webhooks', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/webhooks', () => ({
         status: 200,
         body: webhooksList()
       }));
@@ -186,7 +186,7 @@ describe('Observability (integration)', () => {
     });
 
     it('createWebhook sends POST with url, secret, events', async () => {
-      mocker.on('POST', '/api/proxy/control-plane/webhooks', () => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/webhooks', () => ({
         status: 201,
         body: {
           id: 'wh-new',
@@ -214,7 +214,7 @@ describe('Observability (integration)', () => {
     });
 
     it('updateWebhook sends PATCH', async () => {
-      mocker.on('PATCH', '/api/proxy/control-plane/webhooks/wh-001', () => ({
+      mocker.on('PATCH', '/api/proxy/macp-control-plane/webhooks/wh-001', () => ({
         status: 200,
         body: { ...webhooksList()[0], active: false }
       }));
@@ -227,7 +227,7 @@ describe('Observability (integration)', () => {
     });
 
     it('deleteWebhook sends DELETE', async () => {
-      mocker.on('DELETE', '/api/proxy/control-plane/webhooks/wh-001', () => ({
+      mocker.on('DELETE', '/api/proxy/macp-control-plane/webhooks/wh-001', () => ({
         status: 204
       }));
 
@@ -240,7 +240,7 @@ describe('Observability (integration)', () => {
 
   describe('Runtime endpoints', () => {
     it('getRuntimeHealth returns health status', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runtime/health', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/health', () => ({
         status: 200,
         body: runtimeHealth()
       }));
@@ -253,7 +253,7 @@ describe('Observability (integration)', () => {
     });
 
     it('getRuntimeManifest returns manifest', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runtime/manifest', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/manifest', () => ({
         status: 200,
         body: runtimeManifest()
       }));
@@ -266,7 +266,7 @@ describe('Observability (integration)', () => {
     });
 
     it('getRuntimeModes returns mode descriptors', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runtime/modes', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/modes', () => ({
         status: 200,
         body: runtimeModes()
       }));
@@ -280,7 +280,7 @@ describe('Observability (integration)', () => {
     });
 
     it('getRuntimeRoots returns root descriptors', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runtime/roots', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/roots', () => ({
         status: 200,
         body: runtimeRoots()
       }));
@@ -295,7 +295,7 @@ describe('Observability (integration)', () => {
 
   describe('Readiness and admin', () => {
     it('getReadinessProbe returns health checks', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/readyz', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/readyz', () => ({
         status: 200,
         body: readinessProbe()
       }));
@@ -310,7 +310,7 @@ describe('Observability (integration)', () => {
     });
 
     it('resetCircuitBreaker sends POST', async () => {
-      mocker.on('POST', '/api/proxy/control-plane/admin/circuit-breaker/reset', () => ({
+      mocker.on('POST', '/api/proxy/macp-control-plane/admin/circuit-breaker/reset', () => ({
         status: 200,
         body: { status: 'ok', state: 'CLOSED' }
       }));
@@ -324,7 +324,7 @@ describe('Observability (integration)', () => {
 
   describe('Artifacts (write)', () => {
     it('createArtifact sends artifact payload', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/artifacts`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/artifacts`, () => ({
         status: 201,
         body: { id: 'artifact-new', runId: RUN_ID_1, kind: 'json', label: 'Result' }
       }));
@@ -338,7 +338,7 @@ describe('Observability (integration)', () => {
 
   describe('Agent metrics', () => {
     it('getAgentMetrics returns per-agent metrics from CP', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/dashboard/agents/metrics', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/agents/metrics', () => ({
         status: 200,
         body: agentMetrics()
       }));
@@ -356,7 +356,7 @@ describe('Observability (integration)', () => {
     });
 
     it('returns empty array when endpoint fails', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/dashboard/agents/metrics', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/dashboard/agents/metrics', () => ({
         status: 500,
         body: { error: 'internal error' }
       }));
@@ -370,7 +370,7 @@ describe('Observability (integration)', () => {
 
   describe('Observability raw metrics', () => {
     it('getObservabilityRawMetrics returns prometheus text', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/metrics', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/metrics', () => ({
         status: 200,
         body: prometheusMetrics()
       }));
@@ -386,7 +386,7 @@ describe('Observability (integration)', () => {
 
   describe('Readiness probe (extended)', () => {
     it('getReadinessProbe returns health checks with messageQueue', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/readyz', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/readyz', () => ({
         status: 200,
         body: readinessProbeResponse()
       }));
@@ -403,7 +403,7 @@ describe('Observability (integration)', () => {
 
   describe('Runtime endpoints (extended)', () => {
     it('getRuntimeManifest returns manifest with full fields', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runtime/manifest', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/manifest', () => ({
         status: 200,
         body: runtimeManifestResponse()
       }));
@@ -419,7 +419,7 @@ describe('Observability (integration)', () => {
     });
 
     it('getRuntimeModes returns mode descriptors', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runtime/modes', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/modes', () => ({
         status: 200,
         body: runtimeModesResponse()
       }));
@@ -435,7 +435,7 @@ describe('Observability (integration)', () => {
     });
 
     it('getRuntimeRoots returns root descriptors', async () => {
-      mocker.on('GET', '/api/proxy/control-plane/runtime/roots', () => ({
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/roots', () => ({
         status: 200,
         body: runtimeRootsResponse()
       }));
@@ -451,7 +451,7 @@ describe('Observability (integration)', () => {
 
   describe('Replay', () => {
     it('createReplay sends POST with mode and speed', async () => {
-      mocker.on('POST', `/api/proxy/control-plane/runs/${RUN_ID_1}/replay`, () => ({
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/replay`, () => ({
         status: 200,
         body: {
           runId: RUN_ID_1,
@@ -471,7 +471,7 @@ describe('Observability (integration)', () => {
     });
 
     it('getTimelineFrame fetches state at specific seq', async () => {
-      mocker.on('GET', `/api/proxy/control-plane/runs/${RUN_ID_1}/replay/state`, () => ({
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/replay/state`, () => ({
         status: 200,
         body: {
           run: { runId: RUN_ID_1, status: 'running' },

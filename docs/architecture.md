@@ -33,11 +33,11 @@ architecture docs, referenced rather than duplicated here:
 
 | Service | Canonical architecture doc |
 |---|---|
-| Examples Service | [`examples-service/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/architecture.md) |
-| Control Plane | [`control-plane/docs/ARCHITECTURE.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/ARCHITECTURE.md) |
-| Runtime | [`runtime/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/architecture.md) |
-| Python SDK (agent framework) | [`python-sdk/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/python-sdk/blob/main/docs/architecture.md) · [`guides/agent-framework.md`](https://github.com/multiagentcoordinationprotocol/python-sdk/blob/main/docs/guides/agent-framework.md) |
-| TypeScript SDK (agent framework) | [`typescript-sdk/docs/index.md`](https://github.com/multiagentcoordinationprotocol/typescript-sdk/blob/main/docs/index.md) · [`guides/agent-framework.md`](https://github.com/multiagentcoordinationprotocol/typescript-sdk/blob/main/docs/guides/agent-framework.md) |
+| Examples Service | [`macp-playground/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/architecture.md) |
+| Control Plane | [`macp-control-plane/docs/ARCHITECTURE.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/ARCHITECTURE.md) |
+| Runtime | [`macp-runtime/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/architecture.md) |
+| Python SDK (agent framework) | [`macp-sdk-python/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-python/blob/main/docs/architecture.md) · [`guides/agent-framework.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-python/blob/main/docs/guides/agent-framework.md) |
+| TypeScript SDK (agent framework) | [`macp-sdk-typescript/docs/index.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-typescript/blob/main/docs/index.md) · [`guides/agent-framework.md`](https://github.com/multiagentcoordinationprotocol/macp-sdk-typescript/blob/main/docs/guides/agent-framework.md) |
 
 For the endpoint surface the UI actually consumes, see [`api-integration.md`](./api-integration.md)
 and [`backend-repo-notes.md`](./backend-repo-notes.md).
@@ -152,13 +152,13 @@ The browser only calls:
 
 ```text
 /api/proxy/example/...
-/api/proxy/control-plane/...
+/api/proxy/macp-control-plane/...
 /api/jaeger/...                 # optional, trace-detail deep-dives only
 ```
 
 The generic proxy handler (`app/api/proxy/[service]/[...path]/route.ts`):
 
-- maps `example` and `control-plane` to upstream base URLs
+- maps `example` and `macp-control-plane` to upstream base URLs
 - forwards method, headers (minus `host` / `connection` / `content-length`), query string, and body
 - injects auth when configured (`x-api-key` for Examples Service, `authorization: Bearer` for Control Plane)
 - strips `content-encoding` on the response and streams the body unchanged

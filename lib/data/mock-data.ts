@@ -1144,7 +1144,7 @@ export const MOCK_RUN_EVENTS: Record<string, CanonicalEvent[]> = {
       ts: isoMinutesAgo(56),
       type: 'llm.call.completed',
       subject: { kind: 'participant', id: 'risk-agent' },
-      source: { kind: 'control-plane', name: 'macp-control-plane' },
+      source: { kind: 'macp-control-plane', name: 'macp-control-plane' },
       data: {
         model: 'claude-sonnet-4-6',
         provider: 'anthropic',
@@ -1169,7 +1169,7 @@ export const MOCK_RUN_EVENTS: Record<string, CanonicalEvent[]> = {
       ts: isoMinutesAgo(57),
       type: 'llm.call.completed',
       subject: { kind: 'participant', id: 'fraud-agent' },
-      source: { kind: 'control-plane', name: 'macp-control-plane' },
+      source: { kind: 'macp-control-plane', name: 'macp-control-plane' },
       data: {
         model: 'gpt-4o-mini',
         provider: 'openai',
@@ -1472,8 +1472,8 @@ export const MOCK_REPLAY_DESCRIPTORS: Record<string, ReplayDescriptor> = {
     runId: COMPLETED_RUN_ID,
     mode: 'timed',
     speed: 1,
-    streamUrl: `/api/proxy/control-plane/runs/${COMPLETED_RUN_ID}/replay/stream`,
-    stateUrl: `/api/proxy/control-plane/runs/${COMPLETED_RUN_ID}/replay/state`
+    streamUrl: `/api/proxy/macp-control-plane/runs/${COMPLETED_RUN_ID}/replay/stream`,
+    stateUrl: `/api/proxy/macp-control-plane/runs/${COMPLETED_RUN_ID}/replay/state`
   }
 };
 

@@ -40,7 +40,7 @@ export interface PolicyHints {
 /**
  * Cross-session commitment supersession (RFC-MACP-0001 §7.3, macp-proto 0.1.3).
  * Points at the prior commitment this one replaces. Observed-only — surfaced by
- * the control-plane on `decision.current.supersedes` for insight UIs.
+ * the macp-control-plane on `decision.current.supersedes` for insight UIs.
  */
 export interface CommitmentSupersedes {
   sessionId: string;
@@ -207,8 +207,8 @@ export interface ParticipantBinding {
 
 /**
  * Scenario-agnostic run descriptor — the sole wire contract accepted by the
- * control-plane's `POST /runs` and `POST /runs/validate` (whitelisted via
- * `forbidNonWhitelisted: true`). Mirrors `examples-service/src/contracts/
+ * macp-control-plane's `POST /runs` and `POST /runs/validate` (whitelisted via
+ * `forbidNonWhitelisted: true`). Mirrors `macp-playground/src/contracts/
  * run-descriptor.ts`. Participants are bare `{id}` objects: identity is
  * enforced by the runtime via auth tokens, not derived from this list.
  */
@@ -347,7 +347,7 @@ export interface CanonicalEvent {
     id: string;
   };
   source: {
-    kind: 'runtime' | 'control-plane' | 'replay';
+    kind: 'runtime' | 'macp-control-plane' | 'replay';
     name: string;
     rawType?: string;
   };
@@ -499,7 +499,7 @@ export interface RunStateProjection {
       prompt?: string;
       /**
        * macp-proto 0.1.3 (§7.3) — set when the finalized commitment supersedes
-       * a prior cross-session commitment. Surfaced by the control-plane for
+       * a prior cross-session commitment. Surfaced by the macp-control-plane for
        * supersession-lineage display.
        */
       supersedes?: CommitmentSupersedes;

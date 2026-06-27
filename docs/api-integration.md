@@ -7,8 +7,8 @@ rather than duplicated here.
 > **Endpoint references** — the UI integrates against two HTTP services. For full
 > endpoint schemas, error shapes, and semantics see the upstream docs:
 >
-> - **Control Plane** — [`control-plane/docs/API.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/API.md), [`control-plane/docs/INTEGRATION.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/INTEGRATION.md), [`control-plane/docs/ARCHITECTURE.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/ARCHITECTURE.md)
-> - **Examples Service** — [`examples-service/docs/api-reference.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/api-reference.md), [`examples-service/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/architecture.md)
+> - **Control Plane** — [`macp-control-plane/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md), [`macp-control-plane/docs/INTEGRATION.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/INTEGRATION.md), [`macp-control-plane/docs/ARCHITECTURE.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/ARCHITECTURE.md)
+> - **Examples Service** — [`macp-playground/docs/api-reference.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/api-reference.md), [`macp-playground/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/architecture.md)
 >
 > What follows is **UI-specific**: the proxy model, the subset of endpoints the UI calls,
 > the normalizers that bridge upstream shapes to UI types, and the SSE / demo-mode
@@ -21,13 +21,13 @@ The UI integrates with two upstream services:
 1. **Examples Service** — scenario catalog, agent profiles, launch schema, launch compilation, optional one-shot bootstrap.
 2. **Control Plane** — observer-only run lifecycle, state projection, canonical events (per-run + cross-run), SSE streaming, metrics/traces/artifacts, runtime metadata + policy registry, webhooks, audit, admin.
 
-Under the observer-only control-plane model, agents emit envelopes (messages, signals,
+Under the observer-only macp-control-plane model, agents emit envelopes (messages, signals,
 context updates) **directly to the runtime** via `macp-sdk-python` / `macp-sdk-typescript`.
 The UI only reads from the CP; it never originates agent traffic. See
-[`control-plane/docs/ARCHITECTURE.md § Request Flow`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/ARCHITECTURE.md#request-flow-observer-mode--direct-agent-auth-2026-04-15)
+[`macp-control-plane/docs/ARCHITECTURE.md § Request Flow`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/ARCHITECTURE.md#request-flow-observer-mode--direct-agent-auth-2026-04-15)
 for the authority model and
-[`examples-service/docs/direct-agent-auth.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/direct-agent-auth.md)
-for how examples-service spawns those agents.
+[`macp-playground/docs/direct-agent-auth.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/direct-agent-auth.md)
+for how macp-playground spawns those agents.
 
 ## Proxy routes
 
@@ -36,29 +36,29 @@ requests, inject auth, and keep secrets server-side.
 
 | Route | File | Purpose |
 |---|---|---|
-| `/api/proxy/[service]/[...path]` | `app/api/proxy/[service]/[...path]/route.ts` | Generic forwarder for `example` and `control-plane` services. Injects auth, strips hop-by-hop headers, streams response body unchanged. |
+| `/api/proxy/[service]/[...path]` | `app/api/proxy/[service]/[...path]/route.ts` | Generic forwarder for `example` and `macp-control-plane` services. Injects auth, strips hop-by-hop headers, streams response body unchanged. |
 | `/api/jaeger/[...path]` | `app/api/jaeger/[...path]/route.ts` | Forwards to `JAEGER_BASE_URL/api/*`. Used by the trace detail surface to resolve span waterfalls. Returns `502` if Jaeger is unreachable. |
 
-Supported upstream service identifiers (`[service]` segment): `example`, `control-plane`.
+Supported upstream service identifiers (`[service]` segment): `example`, `macp-control-plane`.
 
 ### Environment variables
 
 ```bash
-EXAMPLE_SERVICE_BASE_URL=http://localhost:3000
-EXAMPLE_SERVICE_API_KEY=
-CONTROL_PLANE_BASE_URL=http://localhost:3001
-CONTROL_PLANE_API_KEY=
+MACP_PLAYGROUND_BASE_URL=http://localhost:3000
+MACP_PLAYGROUND_API_KEY=
+MACP_CONTROL_PLANE_BASE_URL=http://localhost:3001
+MACP_CONTROL_PLANE_API_KEY=
 JAEGER_BASE_URL=http://localhost:16686           # server-side (proxy target)
 NEXT_PUBLIC_JAEGER_BASE_URL=http://localhost:16686  # client-side (UI deep links)
 ```
 
-`lib/server/integrations.ts` throws when `EXAMPLE_SERVICE_BASE_URL` / `CONTROL_PLANE_BASE_URL`
+`lib/server/integrations.ts` throws when `MACP_PLAYGROUND_BASE_URL` / `MACP_CONTROL_PLANE_BASE_URL`
 are missing in production; empty API keys log a warning but do not block requests.
 
 ### Auth forwarding
 
-- **Examples Service** — the proxy adds `x-api-key: <EXAMPLE_SERVICE_API_KEY>` when configured.
-- **Control Plane** — the proxy adds `authorization: Bearer <CONTROL_PLANE_API_KEY>` when configured.
+- **Examples Service** — the proxy adds `x-api-key: <MACP_PLAYGROUND_API_KEY>` when configured.
+- **Control Plane** — the proxy adds `authorization: Bearer <MACP_CONTROL_PLANE_API_KEY>` when configured.
 
 Headers `host`, `connection`, `content-length` are stripped before forwarding;
 `content-encoding` is stripped on the response. Every proxied response carries
@@ -68,7 +68,7 @@ Headers `host`, `connection`, `content-length` are stripped before forwarding;
 
 ## Examples Service endpoints used by the UI
 
-Full schemas: [`examples-service/docs/api-reference.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/api-reference.md).
+Full schemas: [`macp-playground/docs/api-reference.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/api-reference.md).
 The UI calls the following subset:
 
 ### Scenario discovery
@@ -91,7 +91,7 @@ The UI calls the following subset:
 
 ## Control Plane endpoints used by the UI
 
-Full schemas: [`control-plane/docs/API.md`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/API.md).
+Full schemas: [`macp-control-plane/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md).
 The UI calls the following subset. Each bullet below documents what the **UI** sends
 and expects — for the authoritative endpoint contract, follow the links.
 
@@ -123,7 +123,7 @@ and expects — for the authoritative endpoint contract, follow the links.
 Under direct-agent-auth, agents emit envelopes directly to the runtime via the SDKs. The
 HTTP bypass endpoints return `410 Gone` and the UI does not render forms for them:
 
-- ~~`POST /runs/:id/messages`~~ — agents use `DecisionSession(client).evaluate(...)` or `session.send(...)` ([python-sdk](https://github.com/multiagentcoordinationprotocol/python-sdk/blob/main/docs/guides/agent-framework.md), [typescript-sdk](https://github.com/multiagentcoordinationprotocol/typescript-sdk/blob/main/docs/guides/agent-framework.md))
+- ~~`POST /runs/:id/messages`~~ — agents use `DecisionSession(client).evaluate(...)` or `session.send(...)` ([macp-sdk-python](https://github.com/multiagentcoordinationprotocol/macp-sdk-python/blob/main/docs/guides/agent-framework.md), [macp-sdk-typescript](https://github.com/multiagentcoordinationprotocol/macp-sdk-typescript/blob/main/docs/guides/agent-framework.md))
 - ~~`POST /runs/:id/signal`~~ — agents use `session.signal(...)` via the SDK
 - ~~`POST /runs/:id/context`~~ — agents construct a `ContextUpdate` envelope via SDK helpers
 
@@ -137,7 +137,7 @@ Still supported (scenario-agnostic, CP-local):
 - `POST /runs/batch/export` — returns `RunExportBundle[]`
 
 ### Observability and artifacts
-- `GET /runs/:id/metrics` — includes `promptTokens`, `completionTokens`, `totalTokens`, `estimatedCostUsd`. Cost is derived from `MODEL_COSTS` on the CP side (see [CP API.md § Token usage convention](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/API.md#get-runsidmetrics)).
+- `GET /runs/:id/metrics` — includes `promptTokens`, `completionTokens`, `totalTokens`, `estimatedCostUsd`. Cost is derived from `MODEL_COSTS` on the CP side (see [CP API.md § Token usage convention](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md#get-runsidmetrics)).
 - `GET /runs/:id/traces` — summary (`traceId`, `spanCount`, `linkedArtifacts`, `runStatus`, `scenarioRef`).
 - `GET /runs/:id/artifacts`
 - `GET /metrics` — raw Prometheus exposition. The `/observability` page parses it client-side via `lib/utils/prometheus.ts` (counters, gauges, histograms, summaries; percentile interpolation matches Grafana's `histogram_quantile`).
@@ -147,8 +147,8 @@ Still supported (scenario-agnostic, CP-local):
 - `GET /runtime/manifest`, `GET /runtime/modes`, `GET /runtime/roots`, `GET /runtime/health`
 
 Runtime-level semantics (what a "mode" is, what's in a manifest) are documented in the
-runtime repo: [`runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/modes.md)
-and [`runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/API.md).
+runtime repo: [`macp-runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/modes.md)
+and [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md).
 
 ### Runtime policy registry (RFC-MACP-0012, pass-through)
 - `GET /runtime/policies?mode=<modeId>` — filterable list
@@ -157,7 +157,7 @@ and [`runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/ru
 - `DELETE /runtime/policies/:policyId`
 
 Rule schemas are opaque to the control plane; the UI renders them descriptively. The
-authoritative per-mode schema lives in [`runtime/docs/policy.md`](https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs/policy.md).
+authoritative per-mode schema lives in [`macp-runtime/docs/policy.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/policy.md).
 
 ### Operational admin
 - `GET /webhooks` — subscriptions may include `deliveryStats` (`total`, `succeeded`, `failed`, `lastDeliveredAt`)
@@ -177,7 +177,7 @@ positive vs. negative encoded as +1/-1 per bucket, **not** split into two arrays
 `perScenario`.
 
 Series semantics are documented in
-[`control-plane/docs/API.md § GET /dashboard/overview`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/API.md#get-dashboardoverview).
+[`macp-control-plane/docs/API.md § GET /dashboard/overview`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md#get-dashboardoverview).
 
 ---
 
@@ -279,7 +279,7 @@ over `MOCK_RUN_FRAMES`.
 Live execution uses:
 
 ```text
-GET /api/proxy/control-plane/runs/:id/stream?includeSnapshot=true&afterSeq=<n>
+GET /api/proxy/macp-control-plane/runs/:id/stream?includeSnapshot=true&afterSeq=<n>
 ```
 
 `lib/hooks/use-live-run.ts` manages the subscription:
@@ -293,8 +293,8 @@ GET /api/proxy/control-plane/runs/:id/stream?includeSnapshot=true&afterSeq=<n>
 
 The CP-side stream contract (passive-subscribe frame, replay-from-`afterSeq`, heartbeat
 cadence) is documented in
-[`control-plane/docs/API.md § SSE Streaming`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/API.md#sse-streaming)
-and [`control-plane/docs/INTEGRATION.md § Consuming SSE Streams`](https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs/INTEGRATION.md#consuming-sse-streams).
+[`macp-control-plane/docs/API.md § SSE Streaming`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md#sse-streaming)
+and [`macp-control-plane/docs/INTEGRATION.md § Consuming SSE Streams`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/INTEGRATION.md#consuming-sse-streams).
 
 ## Run launch sequence in the UI
 
@@ -307,5 +307,5 @@ and [`control-plane/docs/INTEGRATION.md § Consuming SSE Streams`](https://githu
 
 ### One-shot bootstrap flow
 1. Call Examples Service `POST /examples/run`
-2. Examples Service compiles, mints per-agent JWTs, spawns worker processes with bootstrap files, and optionally submits the run to the CP (see [`examples-service/docs/direct-agent-auth.md`](https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs/direct-agent-auth.md))
+2. Examples Service compiles, mints per-agent JWTs, spawns worker processes with bootstrap files, and optionally submits the run to the CP (see [`macp-playground/docs/direct-agent-auth.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/direct-agent-auth.md))
 3. UI redirects to the returned `sessionId` (= run ID under observer-only CP)

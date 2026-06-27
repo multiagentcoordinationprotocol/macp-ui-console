@@ -8,8 +8,8 @@ export const metadata = {
 };
 
 export default async function ExamplesServiceDocsIndexPage() {
-  const entries = await listDocs('examples-service');
-  const label = getCollectionLabel('examples-service');
+  const entries = await listDocs('macp-playground');
+  const label = getCollectionLabel('macp-playground');
 
   return (
     <div className="stack">
@@ -24,7 +24,7 @@ export default async function ExamplesServiceDocsIndexPage() {
             {label} docs
           </h1>
           <p>
-            Synced from the <code>examples-service</code> repo. Covers scenario authoring, launch compilation, agent
+            Synced from the <code>macp-playground</code> repo. Covers scenario authoring, launch compilation, agent
             hosting, and the worker bootstrap contract.
           </p>
         </div>
@@ -44,12 +44,12 @@ export default async function ExamplesServiceDocsIndexPage() {
               <p className="muted">
                 This collection is syncd from{' '}
                 <a
-                  href="https://github.com/multiagentcoordinationprotocol/examples-service/tree/main/docs"
+                  href="https://github.com/multiagentcoordinationprotocol/macp-playground/tree/main/docs"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="docs-link docs-link-external"
                 >
-                  multiagentcoordinationprotocol/examples-service
+                  multiagentcoordinationprotocol/macp-playground
                 </a>
                 . Trigger the sync workflow in this repo to pull the current markdown, or push to the upstream
                 repo&apos;s <code>main</code> branch.
@@ -59,7 +59,7 @@ export default async function ExamplesServiceDocsIndexPage() {
             <ul className="docs-index-list docs-index-list-spacious">
               {entries.map((entry) => (
                 <li key={entry.slug}>
-                  <Link href={`/docs/examples-service/${entry.slug}`} className="docs-index-item">
+                  <Link href={`/docs/macp-playground/${entry.slug}`} className="docs-index-item">
                     <span className="docs-index-item-title">{entry.title}</span>
                     {entry.firstParagraph ? (
                       <span className="docs-index-item-blurb">{entry.firstParagraph}</span>

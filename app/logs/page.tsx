@@ -29,7 +29,7 @@ import { formatDateTime } from '@/lib/utils/format';
 
 const EVENT_TYPE_GROUPS: Record<string, string[]> = {
   // `run.suspended` / `run.resumed` are macp-proto 0.1.3 canonical events emitted
-  // by the control-plane on pause/resume. Session suspend/cancel transitions arrive
+  // by the macp-control-plane on pause/resume. Session suspend/cancel transitions arrive
   // as `session.state.changed` (with `data.state`), not as discrete session events.
   Run: ['run.created', 'run.started', 'run.completed', 'run.failed', 'run.cancelled', 'run.suspended', 'run.resumed'],
   Session: ['session.opened', 'session.resolved', 'session.expired'],

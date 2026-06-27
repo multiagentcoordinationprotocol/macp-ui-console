@@ -14,11 +14,11 @@ interface MarkdownRendererProps {
 }
 
 const EXTERNAL_REPO_MAP: Record<string, string> = {
-  'runtime/docs': 'https://github.com/multiagentcoordinationprotocol/runtime/blob/main/docs',
-  'control-plane/docs': 'https://github.com/multiagentcoordinationprotocol/control-plane/blob/main/docs',
-  'examples-service/docs': 'https://github.com/multiagentcoordinationprotocol/examples-service/blob/main/docs',
-  'python-sdk/docs': 'https://github.com/multiagentcoordinationprotocol/python-sdk/blob/main/docs',
-  'typescript-sdk/docs': 'https://github.com/multiagentcoordinationprotocol/typescript-sdk/blob/main/docs'
+  'macp-runtime/docs': 'https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs',
+  'macp-control-plane/docs': 'https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs',
+  'macp-playground/docs': 'https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs',
+  'macp-sdk-python/docs': 'https://github.com/multiagentcoordinationprotocol/macp-sdk-python/blob/main/docs',
+  'macp-sdk-typescript/docs': 'https://github.com/multiagentcoordinationprotocol/macp-sdk-typescript/blob/main/docs'
 };
 
 function rewriteHref(raw: string, collection: DocCollection): { href: string; external: boolean } {
@@ -38,7 +38,7 @@ function rewriteHref(raw: string, collection: DocCollection): { href: string; ex
     return { href: `/docs/${collection}/${slug}${anchor}`, external: false };
   }
 
-  // Rewrite cross-repo relative links (../../runtime/docs/API.md → github URL)
+  // Rewrite cross-repo relative links (../../macp-runtime/docs/API.md → github URL)
   for (const [prefix, base] of Object.entries(EXTERNAL_REPO_MAP)) {
     const idx = raw.indexOf(prefix);
     if (idx !== -1) {

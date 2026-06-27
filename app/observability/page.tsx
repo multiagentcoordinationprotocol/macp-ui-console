@@ -453,7 +453,7 @@ function ObservabilityPageContent() {
                     </CardHeader>
                     <CardContent className="stack">
                       <a
-                        href="/api/proxy/control-plane/metrics"
+                        href="/api/proxy/macp-control-plane/metrics"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="button button-secondary"
@@ -485,7 +485,7 @@ function ObservabilityPageContent() {
                   <CardContent className="stack">
                     <PrometheusMetricsTable metrics={parsedMetrics} />
                     <a
-                      href="/api/proxy/control-plane/metrics"
+                      href="/api/proxy/macp-control-plane/metrics"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="panel-action"

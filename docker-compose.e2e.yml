@@ -45,7 +45,7 @@ services:
 
   migrate:
     build:
-      context: ../control-plane
+      context: ../macp-control-plane
       dockerfile: Dockerfile
       args:
         NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
@@ -66,7 +66,7 @@ services:
       MACP_ALLOW_INSECURE: "1"
       # Static bearer kept so control-plane (tok-cp-observer) still authenticates.
       # JWT bearer added so spawned agents authenticate with auth-service-minted JWTs.
-      MACP_AUTH_TOKENS_JSON: '{"tokens":[{"token":"tok-cp-observer","sender":"control-plane","can_start_sessions":false,"is_observer":true,"can_manage_mode_registry":false}]}'
+      MACP_AUTH_TOKENS_JSON: '{"tokens":[{"token":"tok-cp-observer","sender":"macp-control-plane","can_start_sessions":false,"is_observer":true,"can_manage_mode_registry":false}]}'
       MACP_AUTH_JWKS_URL: "http://auth-service:3200/.well-known/jwks.json"
       MACP_AUTH_AUDIENCE: "macp-runtime"
       MACP_AUTH_ISSUER: "macp-auth-service"
@@ -81,9 +81,9 @@ services:
       retries: 10
       start_period: 5s
 
-  control-plane:
+  macp-control-plane:
     build:
-      context: ../control-plane
+      context: ../macp-control-plane
       dockerfile: Dockerfile
       args:
         NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
@@ -106,7 +106,7 @@ services:
       MACP_AUTH_SERVICE_URL: "http://auth-service:3200"
       MACP_AUTH_SERVICE_TIMEOUT_MS: "5000"
       MACP_AUTH_TOKEN_TTL_SECONDS: "3600"
-      MACP_AUTH_TOKEN_SENDER: "control-plane"
+      MACP_AUTH_TOKEN_SENDER: "macp-control-plane"
       RUNTIME_BEARER_TOKEN: "tok-cp-observer"
       AUTH_API_KEYS: ""
       SESSION_DISCOVERY_ENABLED: "true"
@@ -137,9 +137,9 @@ services:
       retries: 15
       start_period: 10s
 
-  examples-service:
+  macp-playground:
     build:
-      context: ../examples-service
+      context: ../macp-playground
       dockerfile: Dockerfile
       args:
         NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}

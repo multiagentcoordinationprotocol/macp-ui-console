@@ -8,16 +8,16 @@
 services:
   migrate:
     build: !reset null
-    image: ${MACP_CONTROL_PLANE_IMAGE:-ui-console-control-plane:latest}
+    image: ${MACP_CONTROL_PLANE_IMAGE:-macp-ui-console-control-plane:latest}
     command: node dist/db/migrate.js
 
-  control-plane:
+  macp-control-plane:
     build: !reset null
-    image: ${MACP_CONTROL_PLANE_IMAGE:-ui-console-control-plane:latest}
+    image: ${MACP_CONTROL_PLANE_IMAGE:-macp-ui-console-control-plane:latest}
 
-  examples-service:
+  macp-playground:
     build: !reset null
-    image: ${MACP_EXAMPLES_SERVICE_IMAGE:-ui-console-examples-service:latest}
+    image: ${MACP_EXAMPLES_SERVICE_IMAGE:-macp-ui-console-examples-service:latest}
     environment:
-      CONTROL_PLANE_API_KEY: "local-dev"
+      MACP_CONTROL_PLANE_API_KEY: "local-dev"
       OPENAI_API_KEY: "${OPENAI_API_KEY}"

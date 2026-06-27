@@ -268,8 +268,8 @@ export default function SettingsPage() {
             <div className="list-item">
               <div className="list-item-title">Expected secrets</div>
               <div className="list-item-meta">
-                Set EXAMPLE_SERVICE_BASE_URL / EXAMPLE_SERVICE_API_KEY and CONTROL_PLANE_BASE_URL /
-                CONTROL_PLANE_API_KEY in <code>.env.local</code>.
+                Set MACP_PLAYGROUND_BASE_URL / MACP_PLAYGROUND_API_KEY and MACP_CONTROL_PLANE_BASE_URL /
+                MACP_CONTROL_PLANE_API_KEY in <code>.env.local</code>.
               </div>
             </div>
             <JsonViewer value={healthQuery.data} />
