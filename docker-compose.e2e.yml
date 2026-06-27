@@ -107,6 +107,11 @@ services:
       MACP_AUTH_SERVICE_TIMEOUT_MS: "5000"
       MACP_AUTH_TOKEN_TTL_SECONDS: "3600"
       MACP_AUTH_TOKEN_SENDER: "macp-control-plane"
+      # Let the control-plane register/unregister runtime policies on behalf of
+      # the console's admin UI. Requires macp-control-plane PR #29 (the minter
+      # honours this flag); older images ignore it. See also the static
+      # observer token below — JWT mode (MACP_AUTH_SERVICE_URL) takes precedence.
+      MACP_AUTH_TOKEN_CAN_MANAGE_REGISTRY: "true"
       RUNTIME_BEARER_TOKEN: "tok-cp-observer"
       AUTH_API_KEYS: ""
       SESSION_DISCOVERY_ENABLED: "true"

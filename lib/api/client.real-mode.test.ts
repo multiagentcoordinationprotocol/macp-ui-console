@@ -670,6 +670,41 @@ describe('real mode API client', () => {
     });
   });
 
+  /* ─── getCircuitBreakerHistory ─── */
+
+  describe('getCircuitBreakerHistory', () => {
+    it('unwraps the CP { state, history } envelope into the history array', async () => {
+      const history = [
+        { state: 'CLOSED' as const, enteredAt: '2026-06-27T17:52:27.881Z', reason: 'initial' },
+        { state: 'HALF_OPEN' as const, enteredAt: '2026-06-27T17:55:00.000Z', reason: 'timeout' }
+      ];
+      mocker.on('GET', '/api/proxy/macp-control-plane/admin/circuit-breaker/history', () => ({
+        status: 200,
+        body: { state: 'HALF_OPEN', history }
+      }));
+
+      const { getCircuitBreakerHistory } = await import('@/lib/api/client');
+      const result = await getCircuitBreakerHistory(REAL);
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveLength(2);
+      expect(result[0]).toHaveProperty('state', 'CLOSED');
+    });
+
+    it('passes a bare array response through unchanged', async () => {
+      const history = [{ state: 'CLOSED' as const, enteredAt: '2026-06-27T17:52:27.881Z' }];
+      mocker.on('GET', '/api/proxy/macp-control-plane/admin/circuit-breaker/history', () => ({
+        status: 200,
+        body: history
+      }));
+
+      const { getCircuitBreakerHistory } = await import('@/lib/api/client');
+      const result = await getCircuitBreakerHistory(REAL);
+
+      expect(result).toEqual(history);
+    });
+  });
+
   /* ─── Error handling ─── */
 
   describe('error handling', () => {
