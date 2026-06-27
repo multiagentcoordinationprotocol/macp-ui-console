@@ -939,7 +939,13 @@ export async function getCircuitBreakerHistory(
     ]);
   }
   const suffix = window ? `?window=${window}` : '';
-  return fetchJson<CircuitBreakerHistoryEntry[]>('macp-control-plane', `/admin/circuit-breaker/history${suffix}`);
+  // CP returns `{ state, history: [...] }`; older/demo shapes may return a bare
+  // array. Unwrap to the `history` array either way so the timeline renders.
+  const raw = await fetchJson<
+    CircuitBreakerHistoryEntry[] | { state?: string; history?: CircuitBreakerHistoryEntry[] }
+  >('macp-control-plane', `/admin/circuit-breaker/history${suffix}`);
+  if (Array.isArray(raw)) return raw;
+  return raw.history ?? [];
 }
 
 export async function getLogsData(demoMode: boolean, runId?: string) {
