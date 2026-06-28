@@ -219,7 +219,7 @@ npm run typecheck     # TypeScript check
 
 GitHub Actions CI runs on every PR and push to `main`: format check, lint, typecheck, tests, and production build.
 
-A Vercel deploy workflow is available, gated by GitHub Environment approval for secret protection.
+Production deploys are handled by Vercel's native Git integration (auto-deploy on push to `main`).
 
 ## Notes
 
