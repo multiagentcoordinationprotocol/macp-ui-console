@@ -21,7 +21,7 @@ Liveness probe.
 
 **Response:** `200`
 ```json
-{ "ok": true, "service": "macp-example-service" }
+{ "ok": true, "service": "macp-playground" }
 ```
 
 ## Catalog
@@ -225,9 +225,9 @@ pre-allocated `sessionId` (UUID v4).
       "policyVersion": "policy.default",
       "ttlMs": 300000,
       "participants": [{ "id": "fraud-agent" }, { "id": "risk-agent" }],
-      "metadata": { "source": "example-service", "scenarioRef": "fraud/high-value-new-device@1.0.0" }
+      "metadata": { "source": "macp-playground", "scenarioRef": "fraud/high-value-new-device@1.0.0" }
     },
-    "execution": { "tags": ["example","fraud"], "requester": { "actorId": "example-service", "actorType": "service" } }
+    "execution": { "tags": ["example","fraud"], "requester": { "actorId": "macp-playground", "actorType": "service" } }
   },
   "initiator": {
     "participantId": "risk-agent",
@@ -337,7 +337,7 @@ Full showcase flow: compile scenario, bootstrap example agents, and optionally s
 
 When `submitToControlPlane` is `true` and the control plane is available, the response includes `runId`, `status`, and `traceId` in the `controlPlane` object, and hosted agents have `status: "bootstrapped"`.
 
-**Errors:** `400 VALIDATION_ERROR | INVALID_SCENARIO_REF | AGENT_NOT_FOUND`, `502 AUTH_MINT_FAILED | CONTROL_PLANE_UNAVAILABLE`, `500 INVALID_CONFIG`
+**Errors:** `400 VALIDATION_ERROR | INVALID_SCENARIO_REF | AGENT_NOT_FOUND`, `502 AUTH_MINT_FAILED`, `500 INVALID_CONFIG`
 
 `AUTH_MINT_FAILED` surfaces when the per-agent JWT mint against the
 auth-service fails (non-2xx response or timeout). `INVALID_CONFIG` surfaces
