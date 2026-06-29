@@ -99,7 +99,7 @@ spec:
   execution:
     tags: [demo, fraud]
     requester:
-      actorId: example-service
+      actorId: macp-playground
       actorType: service
 
   outputs:
