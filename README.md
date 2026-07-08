@@ -109,9 +109,19 @@ npm run local:status   # Check health of running services
 |---|---|---|
 | PostgreSQL | 5434 | — |
 | Runtime (gRPC) | 50051 | — |
+| Runtime (Prometheus metrics) | 9464 | — |
 | Control Plane | 3001 | `/healthz` |
 | Examples Service | 3100 | `/healthz` |
 | UI Console | 3000 | — |
+
+The stack pins the runtime to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.5.0`
+(override with `MACP_RUNTIME_IMAGE` for local builds). The v0.5.0 image no longer bakes
+`MACP_ALLOW_INSECURE` — the compose file sets it explicitly, along with
+`MACP_METRICS_ADDR=0.0.0.0:9464` so the runtime exposes per-mode Prometheus counters
+(`macp_messages_*`, `macp_sessions_*`, `macp_commitments_*`, `macp_replay_mismatches_total`)
+on port 9464 for local debugging (`curl localhost:9464/metrics`). These runtime-process
+counters are an ops surface only; the console's `/observability` page reads the Control
+Plane's own `/metrics`, not the runtime's.
 
 ## Environment variables
 

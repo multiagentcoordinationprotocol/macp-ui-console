@@ -134,7 +134,8 @@ export default async function DocsLandingPage() {
             </li>
             <li>
               <strong>Compile</strong> — merges schema defaults, template defaults, and user inputs; validates; and
-              produces a pre-allocated <code>sessionId</code> (UUID v4).
+              produces a pre-allocated <code>sessionId</code> (UUID v4 for Examples-Service–compiled sessions; the
+              runtime also accepts UUID v4/v7 or a 22+-char base64url id).
             </li>
             <li>
               <strong>Twin artifacts</strong> — a scenario-agnostic <code>RunDescriptor</code> goes to the Control

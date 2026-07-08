@@ -119,6 +119,25 @@ and expects — for the authoritative endpoint contract, follow the links.
 - `GET /runs/:id/replay/state?seq=<n>` — state projection at a specific sequence; powers the timeline scrubber.
 - `GET /runs/:id/export` — full run bundle; query: `includeCanonical`, `includeRaw`, `eventLimit`, `format` (`json | jsonl`).
 
+**Session canonical-event vocabulary.** The control plane emits `session.bound`,
+`session.stream.opened`, and `session.state.changed`. Suspend / resume / resolve / expire
+/ cancel transitions all arrive as `session.state.changed` carrying `data.state` (e.g.
+`SESSION_STATE_SUSPENDED`) — there are **no** discrete `session.opened` / `.resolved` /
+`.expired` events. The `/logs` Session filter group, `summarizeEvent`, and the run/session
+lifecycle summarizers key on this vocabulary (legacy names are retained only so old
+exports still group). Run pause/resume also surface as `run.suspended` / `run.resumed`.
+
+**Implicit handoff accepts (RFC-MACP-0010 §5.1).** When a handoff target stays silent
+past the accept window, the runtime emits a synthetic `HandoffAccept` (sender = the
+target, `messageId = implicit-accept:<handoff_id>`, `decodedPayload.implicit = true`) that
+the CP surfaces as a normal `proposal.updated`. The console flags these with an
+`implicit` badge (feed, `/logs`, event dialog) via `isImplicitAccept()` so a
+runtime-synthesized accept is visually distinct from one a participant actually sent.
+
+**Multi-round Contribute** payloads decode to `decodedPayload.value` on the CP side
+(proto `ContributePayload`, JSON legacy tolerated); the console reads the decoded
+payload and needs no decoding of its own.
+
 ### Session interaction (observer-only)
 Under direct-agent-auth, agents emit envelopes directly to the runtime via the SDKs. The
 HTTP bypass endpoints return `410 Gone` and the UI does not render forms for them:
@@ -150,6 +169,23 @@ Runtime-level semantics (what a "mode" is, what's in a manifest) are documented 
 runtime repo: [`macp-runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/modes.md)
 and [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md).
 
+Notes for runtime v0.5.0:
+
+- `GET /runtime/modes` returns all six mode descriptors — five standards-track
+  (`decision`, `proposal`, `task`, `handoff`, `quorum`) plus the `ext.multi_round.v1`
+  extension. Every descriptor's `terminalMessageTypes` is exactly `["Commitment"]` (a
+  registration invariant); the `/modes` page renders both `messageTypes` and
+  `terminalMessageTypes` per mode.
+- `GET /runtime/roots` is fetched once per page view. Roots are **static** — the runtime
+  advertises `list_changed: false` and there is no change-notification stream, so the
+  console never watches for root changes.
+- **Runtime Prometheus metrics** are exposed by the runtime process itself on
+  `MACP_METRICS_ADDR` (per-mode `macp_messages_*` / `macp_sessions_*` /
+  `macp_commitments_*` counters + `macp_replay_mismatches_total`). These are an
+  ops-only surface: the control plane does **not** re-serve them, so the console does
+  not render runtime-process counters. The `/observability` "Metrics" tab parses the
+  **control plane's own** `GET /metrics`, not the runtime's.
+
 ### Runtime policy registry (RFC-MACP-0012, pass-through)
 - `GET /runtime/policies?mode=<modeId>` — filterable list
 - `GET /runtime/policies/:policyId`
@@ -158,6 +194,14 @@ and [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotoc
 
 Rule schemas are opaque to the control plane; the UI renders them descriptively. The
 authoritative per-mode schema lives in [`macp-runtime/docs/policy.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/policy.md).
+
+**Read-only (file-managed) registry.** When the runtime runs with `MACP_POLICIES_DIR`,
+policies are managed on disk and register/unregister RPCs fail. The control plane
+surfaces this as **HTTP 405 with `errorCode: REGISTRY_READ_ONLY`**. The `/settings`
+policy-management UI detects this (`isRegistryReadOnlyError`, which also matches the
+underlying `FAILED_PRECONDITION` defensively), shows a persistent "registry is
+file-managed (read-only)" banner, and disables the mutation controls rather than looping
+a dead-end error toast.
 
 ### Operational admin
 - `GET /webhooks` — subscriptions may include `deliveryStats` (`total`, `succeeded`, `failed`, `lastDeliveredAt`)

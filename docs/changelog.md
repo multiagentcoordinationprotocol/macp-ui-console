@@ -1,5 +1,57 @@
 # Changelog
 
+## 2026-07-07 — Absorb macp-runtime v0.5.0 / macp-proto 0.1.6
+
+Absorbs the runtime v0.5.0 release into the console, consumed via the macp-control-plane
+and macp-playground (both of which shipped their own v0.5.0 absorptions). All changes are
+additive display / mock / config work — no data migration or wire-contract change.
+
+### Lifecycle & events
+
+- Session canonical-event vocabulary corrected to what the control plane actually emits:
+  `session.bound`, `session.stream.opened`, `session.state.changed` (transitions carry
+  `data.state`, e.g. `SESSION_STATE_SUSPENDED`). The `/logs` Session filter group and
+  `summarizeEvent` were keyed to phantom `session.opened/resolved/expired` events; those
+  are retained only for legacy exports. Added `run.suspended` / `run.resumed` summarizers.
+- Demo mode now covers the full lifecycle: added a **suspended** and a **cancelled** run
+  (records, projections, metrics with `SESSION_STATE_SUSPENDED` / `_CANCELLED`) so the
+  suspended badge, Resume action, and Suspended KPI render in demos.
+- Breadcrumb id detection widened for 36-char base64url session ids.
+
+### Handoff implicit accepts (RFC-MACP-0010 §5.1)
+
+- Runtime-synthesized implicit handoff accepts (silent target past the accept window)
+  now render with an `implicit` badge in the live feed, `/logs`, and the event dialog
+  (`isImplicitAccept()`), distinguishing them from accepts a participant actually sent.
+
+### Registries
+
+- `/modes` now displays `terminalMessageTypes` per mode. Mock descriptors rewritten to
+  match runtime `all_mode_descriptors()`: all six modes (was three), quorum terminal set
+  fixed to `[Commitment]`, `ext.multi_round.v1` bumped to `1.0.0`.
+- `/settings` policy management detects a file-managed (read-only) runtime registry from
+  the CP's `405 REGISTRY_READ_ONLY` error, shows a persistent banner, and disables
+  register/unregister instead of looping dead-end toasts.
+
+### Launch flow
+
+- `InitiatorPayload.sessionStart` gains `maxSuspendMs` (proto 0.1.5 `max_suspend_ms`,
+  compiled by the Examples Service) — surfaced as a "Max suspend" badge in the launch
+  review. Removed the deprecated inline `SessionStart.context` field; launch inputs flow
+  only via `scenarioMeta.sessionContext`.
+
+### Infra & docs
+
+- `docker-compose.e2e.yml` runtime pinned to
+  `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.5.0` (overridable via
+  `MACP_RUNTIME_IMAGE`), `MACP_METRICS_ADDR` + port 9464 exposed, `MACP_ALLOW_INSECURE`
+  kept (now load-bearing). Mock runtime manifest `protocolVersion` → `0.5.0`.
+- Runtime Prometheus metrics documented as an ops-only surface (the CP does not re-serve
+  them, so the console's runtime-metrics UI was intentionally not built).
+- `docs/api-integration.md`, in-app `/docs`, and `README.md` updated for the above.
+
+---
+
 ## 2026-04-22 — In-console docs surface + Examples Service docs sync
 
 Moves the UI Console and Examples Service docs out of the marketing website and into the Console app itself at `/docs`. Operators now read the docs next to the product.
