@@ -70,6 +70,9 @@ export function RunPreviewCard({
             <Badge label={`v${session.modeVersion}`} tone="neutral" />
             {session.policyVersion && <Badge label={`Policy: ${session.policyVersion}`} tone="warning" />}
             {session.ttlMs != null && <Badge label={`TTL: ${formatRelativeDuration(session.ttlMs)}`} tone="neutral" />}
+            {sessionStart?.maxSuspendMs != null && (
+              <Badge label={`Max suspend: ${formatRelativeDuration(sessionStart.maxSuspendMs)}`} tone="neutral" />
+            )}
             <Badge label={mode === 'live' ? 'Live' : 'Sandbox'} tone="neutral" />
           </div>
         </div>

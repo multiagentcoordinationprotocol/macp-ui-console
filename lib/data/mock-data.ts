@@ -410,17 +410,11 @@ export const MOCK_COMPILED_RUN: CompileLaunchResult = {
       intent: 'evaluate transaction',
       participants: ['fraud-agent', 'growth-agent', 'risk-agent'],
       ttlMs: 300000,
+      maxSuspendMs: 900000,
       modeVersion: '1.0.0',
       configurationVersion: 'config.default',
       policyVersion: 'policy.default',
-      context: {
-        customerId: 'CUST-1001',
-        transactionAmount: 2400,
-        deviceTrustScore: 0.18,
-        accountAgeDays: 14,
-        isVipCustomer: true,
-        priorChargebacks: 1
-      }
+      contextId: 'ctx:sha256:a1b2c3d4e5f6'
     },
     kickoff: {
       messageType: 'Proposal',
