@@ -13,6 +13,7 @@ import { listEvents, listRuns } from '@/lib/api/client';
 import { usePreferencesStore } from '@/lib/stores/preferences-store';
 import type { CanonicalEvent } from '@/lib/types';
 import { summarizeEvent } from '@/lib/utils/events';
+import { isImplicitAccept } from '@/lib/utils/macp';
 import { formatDateTime } from '@/lib/utils/format';
 
 /**
@@ -390,6 +391,9 @@ function LogsPageContent() {
                 },
                 ...(selectedEvent.trace?.traceId
                   ? [{ label: 'Trace', value: <code>{selectedEvent.trace.traceId}</code> }]
+                  : []),
+                ...(isImplicitAccept(selectedEvent)
+                  ? [{ label: 'Accept', value: <Badge label="implicit (runtime-emitted)" tone="neutral" /> }]
                   : []),
                 { label: 'Event id', value: <code>{selectedEvent.id}</code> }
               ]

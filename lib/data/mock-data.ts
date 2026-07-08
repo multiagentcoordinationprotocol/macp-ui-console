@@ -1351,6 +1351,39 @@ export const MOCK_RUN_EVENTS: Record<string, CanonicalEvent[]> = {
       source: { kind: 'runtime', name: 'macp-runtime' },
       data: { from: 'comms-agent', to: 'external-api', error: 'Connection timeout' }
     }
+  ],
+  // Handoff-mode transcript on the suspended run — includes a runtime-synthesized
+  // *implicit* accept (silent target past the accept window). Exercises the implicit
+  // badge in the feed / logs / event dialog and the isImplicitAccept() summarizer path.
+  [SUSPENDED_RUN_ID]: [
+    event(SUSPENDED_RUN_ID, 1, 'run.created', { status: 'queued' }, { kind: 'run', id: SUSPENDED_RUN_ID }),
+    event(SUSPENDED_RUN_ID, 2, 'run.started', { status: 'running' }, { kind: 'run', id: SUSPENDED_RUN_ID }),
+    event(
+      SUSPENDED_RUN_ID,
+      3,
+      'proposal.created',
+      { sender: 'fraud-agent', proposalId: 'handoff-005', messageType: 'HandoffOffer' },
+      { kind: 'proposal', id: 'handoff-005' }
+    ),
+    {
+      id: 'implicit-accept:handoff-005',
+      runId: SUSPENDED_RUN_ID,
+      seq: 4,
+      ts: isoMinutesAgo(20),
+      type: 'proposal.updated',
+      subject: { kind: 'proposal', id: 'handoff-005' },
+      source: { kind: 'runtime', name: 'rust-runtime' },
+      // sender = target participant; the participant never actually sent this — the
+      // runtime synthesized it. decodedPayload.implicit marks it as such.
+      data: {
+        sender: 'risk-agent',
+        action: 'allow',
+        messageType: 'HandoffAccept',
+        messageId: 'implicit-accept:handoff-005',
+        decodedPayload: { implicit: true, handoffId: 'handoff-005' }
+      }
+    },
+    event(SUSPENDED_RUN_ID, 5, 'run.suspended', { status: 'suspended' }, { kind: 'run', id: SUSPENDED_RUN_ID })
   ]
 };
 
@@ -1411,7 +1444,7 @@ const suspendedState: RunStateProjection = {
       { participantId: 'fraud-agent', percentage: 55, message: 'Device graph evaluated', ts: isoMinutesAgo(20) }
     ]
   },
-  timeline: { latestSeq: 4, totalEvents: 4, recent: [] },
+  timeline: { latestSeq: 5, totalEvents: 5, recent: [] },
   trace: { traceId: 'trace-suspended-005', spanCount: 8, lastSpanId: 'span-8', linkedArtifacts: [] },
   outboundMessages: { total: 2, queued: 0, accepted: 2, rejected: 0 },
   policy: {
@@ -1464,6 +1497,7 @@ liveBaseState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[LIVE_RUN_ID]);
 completedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[COMPLETED_RUN_ID]);
 failedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[FAILED_RUN_ID]);
 opsState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[DECLINED_RUN_ID]);
+suspendedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[SUSPENDED_RUN_ID]);
 
 export const MOCK_RUN_STATES: Record<string, RunStateProjection> = {
   [LIVE_RUN_ID]: liveBaseState,
@@ -1549,7 +1583,7 @@ export const MOCK_RUN_METRICS: Record<string, MetricsSummary> = {
   },
   [SUSPENDED_RUN_ID]: {
     runId: SUSPENDED_RUN_ID,
-    eventCount: 4,
+    eventCount: 5,
     messageCount: 2,
     signalCount: 1,
     proposalCount: 1,

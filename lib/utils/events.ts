@@ -1,4 +1,5 @@
 import type { CanonicalEvent } from '@/lib/types';
+import { isImplicitAccept } from '@/lib/utils/macp';
 
 /**
  * PR-A4 — `summarizeEvent()`
@@ -122,7 +123,9 @@ export function summarizeEvent(event: CanonicalEvent): string {
         participantId,
         action ? `→ ${action.toUpperCase()}` : '',
         fmtConfidence(data).trim(),
-        proposalId ? `#${proposalId.slice(0, 8)}` : ''
+        proposalId ? `#${proposalId.slice(0, 8)}` : '',
+        // Runtime-emitted implicit accept (silent handoff target past the accept window).
+        isImplicitAccept(event) ? 'implicit (runtime)' : ''
       ]
         .filter(Boolean)
         .join(' · ');

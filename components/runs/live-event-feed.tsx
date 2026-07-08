@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import type { CanonicalEvent } from '@/lib/types';
 import { formatDateTime, titleCase } from '@/lib/utils/format';
 import { summarizeEvent } from '@/lib/utils/events';
+import { isImplicitAccept } from '@/lib/utils/macp';
 
 /**
  * PR-B1 — LiveEventFeed redesign.
@@ -165,7 +166,10 @@ export function LiveEventFeed({
                       alignItems: 'center'
                     }}
                   >
-                    <Badge label={event.type} tone="info" />
+                    <span className="inline-list" style={{ gap: 6 }}>
+                      <Badge label={event.type} tone="info" />
+                      {isImplicitAccept(event) ? <Badge label="implicit" tone="neutral" /> : null}
+                    </span>
                     <span className="muted small mono">seq:{event.seq}</span>
                   </div>
                   <div className="list-item-title" style={{ marginTop: 4 }}>
@@ -200,6 +204,9 @@ export function LiveEventFeed({
                 },
                 ...(selectedEvent.trace?.traceId
                   ? [{ label: 'Trace', value: <code>{selectedEvent.trace.traceId}</code> }]
+                  : []),
+                ...(isImplicitAccept(selectedEvent)
+                  ? [{ label: 'Accept', value: <Badge label="implicit (runtime-emitted)" tone="neutral" /> }]
                   : []),
                 { label: 'Event id', value: <code>{selectedEvent.id}</code> }
               ]
