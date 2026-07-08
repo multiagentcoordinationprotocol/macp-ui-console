@@ -1581,7 +1581,7 @@ export const MOCK_RUNTIME_MANIFEST: RuntimeManifestResult = {
   description: 'Reference runtime with file-backed replay and dynamic mode registry.',
   supportedModes: MOCK_RUNTIME_MODES.map((mode) => mode.mode),
   metadata: {
-    protocolVersion: '0.4.0',
+    protocolVersion: '0.5.0',
     storage: 'file-backend',
     transport: 'grpc'
   }

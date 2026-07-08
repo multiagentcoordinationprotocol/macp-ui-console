@@ -58,12 +58,22 @@ services:
         condition: service_healthy
 
   runtime:
-    image: ${MACP_RUNTIME_IMAGE:-macp-runtime:latest}
+    # Pinned to the v0.5.0 release. Override with MACP_RUNTIME_IMAGE for local builds
+    # (e.g. `export MACP_RUNTIME_IMAGE=macp-runtime:latest`). This is the single switch
+    # that brings v0.5.0 runtime behavior into every console dev/e2e stack.
+    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.5.0}
     ports:
       - "50051:50051"
+      # Runtime Prometheus metrics (opt-in via MACP_METRICS_ADDR below). Harmless until
+      # a consumer scrapes it; lets `curl localhost:9464/metrics` return runtime series.
+      - "9464:9464"
     environment:
       MACP_BIND_ADDR: "[::]:50051"
+      # v0.5.0 image no longer bakes MACP_ALLOW_INSECURE — now load-bearing, keep it.
       MACP_ALLOW_INSECURE: "1"
+      # Expose per-mode runtime counters (macp_messages_*, macp_sessions_*, macp_commitments_*,
+      # macp_replay_mismatches_total) as Prometheus text on :9464.
+      MACP_METRICS_ADDR: "0.0.0.0:9464"
       # Static bearer kept so control-plane (tok-cp-observer) still authenticates.
       # JWT bearer added so spawned agents authenticate with auth-service-minted JWTs.
       MACP_AUTH_TOKENS_JSON: '{"tokens":[{"token":"tok-cp-observer","sender":"macp-control-plane","can_start_sessions":false,"is_observer":true,"can_manage_mode_registry":false}]}'
