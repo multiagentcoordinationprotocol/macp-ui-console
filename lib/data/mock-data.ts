@@ -1767,35 +1767,83 @@ export const MOCK_AGENT_PROFILES: AgentProfile[] = [
   }
 ];
 
+// Mirrors macp-runtime v0.5.0 `all_mode_descriptors()`
+// (crates/macp-modes/src/mode/mod.rs): five standards-track modes + the multi-round
+// extension. Every mode's terminal type is exactly `Commitment` (a v0.5.0 registration
+// invariant), and each message-type list leads with `SessionStart`.
 export const MOCK_RUNTIME_MODES: RuntimeModeDescriptor[] = [
   {
     mode: 'macp.mode.decision.v1',
     modeVersion: '1.0.0',
-    title: 'Decision',
-    description: 'Proposal, evaluation, voting, and commitment.',
-    determinismClass: 'eventual',
-    participantModel: 'coordinator + specialists',
-    messageTypes: ['Proposal', 'Evaluation', 'Vote', 'Commitment', 'Signal'],
+    title: 'Decision Mode',
+    description:
+      'Structured decision making with proposals, evaluations, objections, votes, and a terminal Commitment.',
+    determinismClass: 'semantic-deterministic',
+    participantModel: 'declared',
+    messageTypes: ['SessionStart', 'Proposal', 'Evaluation', 'Objection', 'Vote', 'Commitment'],
+    terminalMessageTypes: ['Commitment']
+  },
+  {
+    mode: 'macp.mode.proposal.v1',
+    modeVersion: '1.0.0',
+    title: 'Proposal Mode',
+    description:
+      'Negotiation with proposals, counterproposals, accepts, rejects, withdrawals, and a terminal Commitment.',
+    determinismClass: 'semantic-deterministic',
+    participantModel: 'peer',
+    messageTypes: ['SessionStart', 'Proposal', 'CounterProposal', 'Accept', 'Reject', 'Withdraw', 'Commitment'],
+    terminalMessageTypes: ['Commitment']
+  },
+  {
+    mode: 'macp.mode.task.v1',
+    modeVersion: '1.0.0',
+    title: 'Task Mode',
+    description:
+      'One bounded delegated task with assignee responses, progress, completion/failure reports, and a terminal Commitment.',
+    determinismClass: 'structural-only',
+    participantModel: 'orchestrated',
+    messageTypes: [
+      'SessionStart',
+      'TaskRequest',
+      'TaskAccept',
+      'TaskReject',
+      'TaskUpdate',
+      'TaskComplete',
+      'TaskFail',
+      'Commitment'
+    ],
+    terminalMessageTypes: ['Commitment']
+  },
+  {
+    mode: 'macp.mode.handoff.v1',
+    modeVersion: '1.0.0',
+    title: 'Handoff Mode',
+    description:
+      'Scoped responsibility transfer with handoff offers, context, target responses, and a terminal Commitment.',
+    determinismClass: 'context-frozen',
+    participantModel: 'delegated',
+    messageTypes: ['SessionStart', 'HandoffOffer', 'HandoffContext', 'HandoffAccept', 'HandoffDecline', 'Commitment'],
     terminalMessageTypes: ['Commitment']
   },
   {
     mode: 'macp.mode.quorum.v1',
     modeVersion: '1.0.0',
-    title: 'Quorum',
-    description: 'Threshold approval with ballots.',
-    determinismClass: 'eventual',
-    participantModel: 'voters',
-    messageTypes: ['ApprovalRequest', 'Approve', 'Reject', 'Abstain'],
-    terminalMessageTypes: ['Approve', 'Reject']
+    title: 'Quorum Mode',
+    description: 'Threshold approval with one approval request, participant ballots, and a terminal Commitment.',
+    determinismClass: 'semantic-deterministic',
+    participantModel: 'quorum',
+    messageTypes: ['SessionStart', 'ApprovalRequest', 'Approve', 'Reject', 'Abstain', 'Commitment'],
+    terminalMessageTypes: ['Commitment']
   },
   {
     mode: 'ext.multi_round.v1',
-    modeVersion: '0.1.0',
-    title: 'Multi-Round Extension',
-    description: 'Iterative convergence with explicit commitment.',
-    determinismClass: 'iterative',
-    participantModel: 'round-robin',
-    messageTypes: ['Contribute', 'Commitment'],
+    modeVersion: '1.0.0',
+    title: 'Multi-Round Mode',
+    description:
+      'Iterative convergence through multiple contribution rounds until all participants agree, with a terminal Commitment.',
+    determinismClass: 'semantic-deterministic',
+    participantModel: 'peer',
+    messageTypes: ['SessionStart', 'Contribute', 'Commitment'],
     terminalMessageTypes: ['Commitment']
   }
 ];

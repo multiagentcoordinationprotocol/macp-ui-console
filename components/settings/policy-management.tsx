@@ -13,6 +13,7 @@ import { FieldLabel, Input, Select, Textarea } from '@/components/ui/field';
 import { JsonViewer } from '@/components/ui/json-viewer';
 import { PolicyBadge } from '@/components/ui/policy-badge';
 import { listRuntimePolicies, registerRuntimePolicy, unregisterRuntimePolicy } from '@/lib/api/client';
+import { isRegistryReadOnlyError } from '@/lib/api/fetcher';
 import { formatDateTime } from '@/lib/utils/format';
 
 interface PolicyManagementProps {
@@ -26,6 +27,11 @@ export function PolicyManagement({ demoMode }: PolicyManagementProps) {
   const [modeFilter, setModeFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Latches once any mutation reveals a file-managed (read-only) runtime registry
+  // (MACP_POLICIES_DIR). Register/unregister RPCs then fail with FAILED_PRECONDITION →
+  // CP HTTP 405 REGISTRY_READ_ONLY; rather than a dead-end toast loop, we surface a
+  // persistent banner and disable the mutation controls for the session.
+  const [registryReadOnly, setRegistryReadOnly] = useState(false);
 
   const policiesQuery = useQuery({
     queryKey: ['runtime-policies', demoMode, modeFilter],
@@ -39,6 +45,11 @@ export function PolicyManagement({ demoMode }: PolicyManagementProps) {
       toast('success', 'Policy unregistered.');
     },
     onError: (error) => {
+      if (isRegistryReadOnlyError(error)) {
+        setRegistryReadOnly(true);
+        setShowForm(false);
+        return;
+      }
       toast('error', `Failed to unregister policy.${error instanceof Error ? ` ${error.message}` : ''}`);
     }
   });
@@ -52,6 +63,23 @@ export function PolicyManagement({ demoMode }: PolicyManagementProps) {
         <CardDescription>Manage governance policies registered with the control plane runtime.</CardDescription>
       </CardHeader>
       <CardContent className="stack">
+        {registryReadOnly && (
+          <div
+            role="status"
+            style={{
+              border: '1px solid var(--info)',
+              borderRadius: 8,
+              padding: '10px 12px',
+              background: 'var(--panel-2)'
+            }}
+          >
+            <strong>Policy registry is file-managed (read-only) on this runtime.</strong>
+            <div className="muted small" style={{ marginTop: 4 }}>
+              This runtime was started with <code>MACP_POLICIES_DIR</code>, so policies are managed on disk. Register
+              and unregister are disabled here — edit the policy files and restart the runtime to change them.
+            </div>
+          </div>
+        )}
         <div className="form-row">
           <div>
             <FieldLabel>Filter by mode</FieldLabel>
@@ -61,13 +89,22 @@ export function PolicyManagement({ demoMode }: PolicyManagementProps) {
               placeholder="e.g. macp.mode.decision.v1"
             />
           </div>
-          <Button variant="secondary" onClick={() => setShowForm(!showForm)}>
+          <Button variant="secondary" onClick={() => setShowForm(!showForm)} disabled={registryReadOnly}>
             <Plus size={14} />
             {showForm ? 'Cancel' : 'Register policy'}
           </Button>
         </div>
 
-        {showForm && <RegisterPolicyForm demoMode={demoMode} onSuccess={() => setShowForm(false)} />}
+        {showForm && !registryReadOnly && (
+          <RegisterPolicyForm
+            demoMode={demoMode}
+            onSuccess={() => setShowForm(false)}
+            onReadOnly={() => {
+              setRegistryReadOnly(true);
+              setShowForm(false);
+            }}
+          />
+        )}
 
         <div className="list">
           {(policiesQuery.data ?? []).map((policy) => (
@@ -108,7 +145,7 @@ export function PolicyManagement({ demoMode }: PolicyManagementProps) {
                     });
                     if (confirmed) deleteMutation.mutate(policy.policyId);
                   }}
-                  disabled={deleteMutation.isPending || policy.policyId === 'policy.default'}
+                  disabled={deleteMutation.isPending || policy.policyId === 'policy.default' || registryReadOnly}
                   aria-label={`Unregister policy ${policy.policyId}`}
                 >
                   <Trash2 size={14} />
@@ -138,7 +175,15 @@ export function PolicyManagement({ demoMode }: PolicyManagementProps) {
   );
 }
 
-function RegisterPolicyForm({ demoMode, onSuccess }: { demoMode: boolean; onSuccess: () => void }) {
+function RegisterPolicyForm({
+  demoMode,
+  onSuccess,
+  onReadOnly
+}: {
+  demoMode: boolean;
+  onSuccess: () => void;
+  onReadOnly: () => void;
+}) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [policyId, setPolicyId] = useState('');
@@ -176,6 +221,10 @@ function RegisterPolicyForm({ demoMode, onSuccess }: { demoMode: boolean; onSucc
       onSuccess();
     },
     onError: (error) => {
+      if (isRegistryReadOnlyError(error)) {
+        onReadOnly();
+        return;
+      }
       toast('error', `Registration failed.${error instanceof Error ? ` ${error.message}` : ''}`);
     }
   });

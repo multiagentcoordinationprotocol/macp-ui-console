@@ -123,6 +123,9 @@ export default function ModesPage() {
                   </div>
                   <div className="list-item-meta">Participant model: {mode.participantModel ?? 'unspecified'}</div>
                   <div className="list-item-meta">Message types: {mode.messageTypes.join(', ') || '—'}</div>
+                  {/* v0.5.0 registration invariant: a Commitment must be terminal. Surface
+                      the terminal set so operators can see which message closes the session. */}
+                  <div className="list-item-meta">Terminal types: {mode.terminalMessageTypes?.join(', ') || '—'}</div>
                 </div>
               ))}
             </div>
