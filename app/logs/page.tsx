@@ -32,7 +32,18 @@ const EVENT_TYPE_GROUPS: Record<string, string[]> = {
   // by the macp-control-plane on pause/resume. Session suspend/cancel transitions arrive
   // as `session.state.changed` (with `data.state`), not as discrete session events.
   Run: ['run.created', 'run.started', 'run.completed', 'run.failed', 'run.cancelled', 'run.suspended', 'run.resumed'],
-  Session: ['session.opened', 'session.resolved', 'session.expired'],
+  // Real macp-control-plane session vocabulary. Suspend/resume/resolve/expire/cancel
+  // transitions arrive as `session.state.changed` (with `data.state`), not as discrete
+  // session events. Legacy `session.opened/resolved/expired` kept so old exports / demo
+  // data still group instead of falling into the untyped bucket.
+  Session: [
+    'session.bound',
+    'session.stream.opened',
+    'session.state.changed',
+    'session.opened',
+    'session.resolved',
+    'session.expired'
+  ],
   Participant: ['participant.joined', 'participant.left', 'participant.progress'],
   Message: ['message.sent', 'message.received', 'message.send_failed'],
   Signal: ['signal.emitted', 'signal.acknowledged'],

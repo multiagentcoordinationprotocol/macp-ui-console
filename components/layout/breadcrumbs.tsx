@@ -49,9 +49,13 @@ function prettify(segment: string): string {
   return KNOWN_SECTION_LABELS[segment] ?? segment.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function looksLikeId(segment: string): boolean {
-  // UUID-ish or ≥16 chars of hex/alphanumeric — treat as opaque id.
-  return /^[0-9a-f-]{16,}$/i.test(segment);
+export function looksLikeId(segment: string): boolean {
+  // Treat as an opaque id (truncate rather than title-case) when it's either:
+  //  - UUID-ish / ≥16 chars of hex, or
+  //  - a 22+-char base64url token (runtime session IDs are 36-char base64url,
+  //    which can contain `A-Z`, `g-z`, `_`, and `-`). `runId === sessionId` for
+  //    discovered sessions, so such IDs can appear as route segments.
+  return /^[0-9a-f-]{16,}$/i.test(segment) || /^[A-Za-z0-9_-]{22,}$/.test(segment);
 }
 
 function buildCrumbs(pathname: string): Crumb[] {

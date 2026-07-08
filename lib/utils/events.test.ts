@@ -21,6 +21,30 @@ describe('summarizeEvent', () => {
     expect(summarizeEvent(evt({ type: 'run.failed', data: {} }))).toBe('Run failed');
   });
 
+  it('summarizes run suspend/resume lifecycle events', () => {
+    expect(summarizeEvent(evt({ type: 'run.suspended', data: {} }))).toBe('Run suspended');
+    expect(summarizeEvent(evt({ type: 'run.resumed', data: {} }))).toBe('Run resumed');
+  });
+
+  it('summarizes the real control-plane session vocabulary', () => {
+    expect(summarizeEvent(evt({ type: 'session.bound', data: { sessionId: 'sess-abcdef123456' } }))).toBe(
+      'Session bound · sess-abc…'
+    );
+    expect(summarizeEvent(evt({ type: 'session.stream.opened', data: {} }))).toBe('Session stream opened');
+    expect(summarizeEvent(evt({ type: 'session.state.changed', data: { state: 'SESSION_STATE_SUSPENDED' } }))).toBe(
+      'Session → SUSPENDED'
+    );
+    expect(
+      summarizeEvent(
+        evt({ type: 'session.state.changed', data: { state: 'SESSION_STATE_CANCELLED', sessionId: 'sess-abcdef12' } })
+      )
+    ).toBe('Session → CANCELLED · sess-abc…');
+  });
+
+  it('still summarizes legacy session events', () => {
+    expect(summarizeEvent(evt({ type: 'session.resolved', data: {} }))).toBe('Session resolved');
+  });
+
   it('summarizes participant progress with percentage and message', () => {
     const out = summarizeEvent(
       evt({

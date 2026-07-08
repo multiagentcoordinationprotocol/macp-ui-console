@@ -36,6 +36,8 @@ export const LIVE_RUN_ID = '11111111-1111-4111-8111-111111111111';
 export const COMPLETED_RUN_ID = '22222222-2222-4222-8222-222222222222';
 export const FAILED_RUN_ID = '33333333-3333-4333-8333-333333333333';
 export const DECLINED_RUN_ID = '44444444-4444-4444-8444-444444444444';
+export const SUSPENDED_RUN_ID = '55555555-5555-4555-8555-555555555555';
+export const CANCELLED_RUN_ID = '66666666-6666-4666-8666-666666666666';
 
 export const MOCK_PACKS: PackSummary[] = [
   {
@@ -549,6 +551,49 @@ export const MOCK_RUNS: RunRecord[] = [
       modeName: 'macp.mode.decision.v1',
       finalAction: 'mitigate_and_communicate',
       finalConfidence: 0.93
+    }
+  },
+  {
+    id: SUSPENDED_RUN_ID,
+    status: 'suspended',
+    runtimeKind: 'rust',
+    runtimeVersion: 'v1',
+    runtimeSessionId: 'session-suspended-005',
+    traceId: 'trace-suspended-005',
+    createdAt: isoMinutesAgo(22),
+    startedAt: isoMinutesAgo(22),
+    tags: ['demo', 'fraud', 'suspended'],
+    source: { kind: 'scenario-registry', ref: 'fraud/high-value-new-device@1.0.0' },
+    metadata: {
+      scenarioRef: 'fraud/high-value-new-device@1.0.0',
+      templateId: 'strict-risk',
+      environment: 'local-dev',
+      totalTokens: 1180,
+      estimatedCostUsd: 0.14,
+      modeName: 'macp.mode.decision.v1',
+      suspendedReason: 'operator paused for manual review'
+    }
+  },
+  {
+    id: CANCELLED_RUN_ID,
+    status: 'cancelled',
+    runtimeKind: 'rust',
+    runtimeVersion: 'v1',
+    runtimeSessionId: 'session-cancelled-006',
+    traceId: 'trace-cancelled-006',
+    createdAt: isoMinutesAgo(96),
+    startedAt: isoMinutesAgo(96),
+    endedAt: isoMinutesAgo(94),
+    tags: ['ops', 'incident', 'cancelled'],
+    source: { kind: 'scenario-registry', ref: 'ops/vendor-outage-triage@1.0.0' },
+    metadata: {
+      scenarioRef: 'ops/vendor-outage-triage@1.0.0',
+      templateId: 'major-incident',
+      environment: 'stage',
+      totalTokens: 640,
+      estimatedCostUsd: 0.08,
+      modeName: 'macp.mode.decision.v1',
+      cancelledReason: 'superseded by incident bridge'
     }
   }
 ];
@@ -1309,6 +1354,112 @@ export const MOCK_RUN_EVENTS: Record<string, CanonicalEvent[]> = {
   ]
 };
 
+// A run paused mid-flight — exercises the suspended badge (warning tone) and the
+// Resume action path in run-overview-card. Session state is SESSION_STATE_SUSPENDED.
+const suspendedState: RunStateProjection = {
+  run: {
+    runId: SUSPENDED_RUN_ID,
+    status: 'suspended',
+    runtimeSessionId: 'session-suspended-005',
+    startedAt: isoMinutesAgo(22),
+    traceId: 'trace-suspended-005',
+    modeName: 'macp.mode.decision.v1'
+  },
+  participants: [
+    { participantId: 'fraud-agent', role: 'fraud', status: 'completed', latestSummary: 'Device graph evaluated.' },
+    { participantId: 'growth-agent', role: 'growth', status: 'waiting' },
+    { participantId: 'risk-agent', role: 'risk', status: 'waiting', latestSummary: 'Awaiting resume.' }
+  ],
+  graph: {
+    nodes: [
+      { id: 'start', kind: 'start', status: 'completed' },
+      { id: 'context-fetch', kind: 'context', status: 'completed' },
+      { id: 'fraud-agent', kind: 'agent', status: 'completed' },
+      { id: 'growth-agent', kind: 'agent', status: 'waiting' },
+      { id: 'risk-agent', kind: 'agent', status: 'waiting' },
+      { id: 'decision', kind: 'decision', status: 'waiting' }
+    ],
+    edges: [
+      { from: 'start', to: 'context-fetch', kind: 'control', ts: isoMinutesAgo(22) },
+      { from: 'context-fetch', to: 'fraud-agent', kind: 'data', ts: isoMinutesAgo(22) },
+      { from: 'fraud-agent', to: 'decision', kind: 'analysis', ts: isoMinutesAgo(20) }
+    ]
+  },
+  decision: {
+    current: {
+      action: 'step_up',
+      confidence: 0.64,
+      reasons: ['Paused for manual review before finalizing.'],
+      finalized: false,
+      proposalId: 'CUST-5005-initial-review'
+    }
+  },
+  signals: {
+    signals: [
+      {
+        id: 'sig-suspend-device',
+        name: 'low_device_trust',
+        severity: 'high',
+        sourceParticipantId: 'fraud-agent',
+        ts: isoMinutesAgo(20),
+        confidence: 0.9
+      }
+    ]
+  },
+  progress: {
+    entries: [
+      { participantId: 'fraud-agent', percentage: 55, message: 'Device graph evaluated', ts: isoMinutesAgo(20) }
+    ]
+  },
+  timeline: { latestSeq: 4, totalEvents: 4, recent: [] },
+  trace: { traceId: 'trace-suspended-005', spanCount: 8, lastSpanId: 'span-8', linkedArtifacts: [] },
+  outboundMessages: { total: 2, queued: 0, accepted: 2, rejected: 0 },
+  policy: {
+    policyVersion: 'policy.default',
+    policyDescription: 'Default policy — no additional governance constraints',
+    commitmentEvaluations: []
+  }
+};
+
+// A run cancelled before resolution — exercises the cancelled badge (danger tone).
+const cancelledState: RunStateProjection = {
+  run: {
+    runId: CANCELLED_RUN_ID,
+    status: 'cancelled',
+    runtimeSessionId: 'session-cancelled-006',
+    startedAt: isoMinutesAgo(96),
+    endedAt: isoMinutesAgo(94),
+    traceId: 'trace-cancelled-006',
+    modeName: 'macp.mode.decision.v1'
+  },
+  participants: [
+    { participantId: 'ops-agent', role: 'ops', status: 'completed', latestSummary: 'Triage started.' },
+    { participantId: 'comms-agent', role: 'comms', status: 'idle' },
+    { participantId: 'risk-agent', role: 'risk', status: 'idle' }
+  ],
+  graph: {
+    nodes: [
+      { id: 'start', kind: 'start', status: 'completed' },
+      { id: 'ops-agent', kind: 'agent', status: 'completed' },
+      { id: 'decision', kind: 'decision', status: 'failed' }
+    ],
+    edges: [{ from: 'start', to: 'ops-agent', kind: 'control', ts: isoMinutesAgo(96) }]
+  },
+  decision: { current: undefined },
+  signals: { signals: [] },
+  progress: {
+    entries: [{ participantId: 'ops-agent', percentage: 30, message: 'Incident triage started', ts: isoMinutesAgo(95) }]
+  },
+  timeline: { latestSeq: 3, totalEvents: 3, recent: [] },
+  trace: { traceId: 'trace-cancelled-006', spanCount: 4, lastSpanId: 'span-4', linkedArtifacts: [] },
+  outboundMessages: { total: 1, queued: 0, accepted: 1, rejected: 0 },
+  policy: {
+    policyVersion: 'policy.default',
+    policyDescription: 'Default policy — no additional governance constraints',
+    commitmentEvaluations: []
+  }
+};
+
 liveBaseState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[LIVE_RUN_ID]);
 completedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[COMPLETED_RUN_ID]);
 failedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[FAILED_RUN_ID]);
@@ -1318,7 +1469,9 @@ export const MOCK_RUN_STATES: Record<string, RunStateProjection> = {
   [LIVE_RUN_ID]: liveBaseState,
   [COMPLETED_RUN_ID]: completedState,
   [FAILED_RUN_ID]: failedState,
-  [DECLINED_RUN_ID]: opsState
+  [DECLINED_RUN_ID]: opsState,
+  [SUSPENDED_RUN_ID]: suspendedState,
+  [CANCELLED_RUN_ID]: cancelledState
 };
 
 export const MOCK_RUN_METRICS: Record<string, MetricsSummary> = {
@@ -1393,6 +1546,42 @@ export const MOCK_RUN_METRICS: Record<string, MetricsSummary> = {
     completionTokens: 340,
     totalTokens: 1540,
     estimatedCostUsd: 0.0046
+  },
+  [SUSPENDED_RUN_ID]: {
+    runId: SUSPENDED_RUN_ID,
+    eventCount: 4,
+    messageCount: 2,
+    signalCount: 1,
+    proposalCount: 1,
+    toolCallCount: 1,
+    decisionCount: 0,
+    streamReconnectCount: 0,
+    firstEventAt: isoMinutesAgo(22),
+    lastEventAt: isoMinutesAgo(20),
+    durationMs: 120000,
+    sessionState: 'SESSION_STATE_SUSPENDED',
+    promptTokens: 900,
+    completionTokens: 280,
+    totalTokens: 1180,
+    estimatedCostUsd: 0.0035
+  },
+  [CANCELLED_RUN_ID]: {
+    runId: CANCELLED_RUN_ID,
+    eventCount: 3,
+    messageCount: 1,
+    signalCount: 0,
+    proposalCount: 0,
+    toolCallCount: 0,
+    decisionCount: 0,
+    streamReconnectCount: 0,
+    firstEventAt: isoMinutesAgo(96),
+    lastEventAt: isoMinutesAgo(94),
+    durationMs: 92000,
+    sessionState: 'SESSION_STATE_CANCELLED',
+    promptTokens: 500,
+    completionTokens: 140,
+    totalTokens: 640,
+    estimatedCostUsd: 0.0018
   }
 };
 
@@ -1400,7 +1589,9 @@ export const MOCK_RUN_TRACES: Record<string, TraceSummary> = {
   [LIVE_RUN_ID]: liveBaseState.trace,
   [COMPLETED_RUN_ID]: completedState.trace,
   [FAILED_RUN_ID]: failedState.trace,
-  [DECLINED_RUN_ID]: opsState.trace
+  [DECLINED_RUN_ID]: opsState.trace,
+  [SUSPENDED_RUN_ID]: suspendedState.trace,
+  [CANCELLED_RUN_ID]: cancelledState.trace
 };
 
 export const MOCK_RUN_ARTIFACTS: Record<string, Artifact[]> = {

@@ -42,11 +42,31 @@ export function summarizeEvent(event: CanonicalEvent): string {
     case 'run.started':
     case 'run.completed':
     case 'run.failed':
-    case 'run.cancelled': {
+    case 'run.cancelled':
+    case 'run.suspended':
+    case 'run.resumed': {
       const status = type.split('.')[1];
       return `Run ${status}${subject ? ` · ${subject}` : ''}`;
     }
 
+    // Real macp-control-plane session vocabulary (control-plane.ts canonical events).
+    // Suspend/resume/resolve/expire/cancel transitions all arrive as
+    // `session.state.changed` carrying `data.state` (e.g. SESSION_STATE_SUSPENDED).
+    case 'session.bound':
+    case 'session.stream.opened': {
+      const verb = type === 'session.bound' ? 'bound' : 'stream opened';
+      const sessionId = pick(data, 'sessionId', 'runtimeSessionId');
+      return `Session ${verb}${sessionId ? ` · ${sessionId.slice(0, 8)}…` : ''}`;
+    }
+
+    case 'session.state.changed': {
+      const state = pick(data, 'state', 'sessionState');
+      const label = state ? state.replace(/^SESSION_STATE_/, '') : 'changed';
+      const sessionId = pick(data, 'sessionId', 'runtimeSessionId');
+      return `Session → ${label}${sessionId ? ` · ${sessionId.slice(0, 8)}…` : ''}`;
+    }
+
+    // Legacy session vocabulary — retained so old exports / demo data still summarize.
     case 'session.opened':
     case 'session.resolved':
     case 'session.expired': {
