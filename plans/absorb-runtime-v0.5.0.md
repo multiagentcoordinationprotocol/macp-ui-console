@@ -1,8 +1,40 @@
 # Plan — Absorb macp-runtime v0.5.0 / macp-proto 0.1.4–0.1.6 into macp-ui-console
 
-**Status:** proposed · **Scope:** macp-ui-console (Next.js) · **Upstream:** macp-runtime
-v0.5.0, macp-proto 0.1.4 → 0.1.6, spec updates — consumed **via the macp-control-plane**
-(and the macp-playground Examples Service for launch compilation).
+**Status:** implemented (F, A, C, D, E, G, I landed; B skipped; H pending live stack) ·
+**Scope:** macp-ui-console (Next.js) · **Upstream:** macp-runtime v0.5.0, macp-proto
+0.1.4 → 0.1.6, spec updates — consumed **via the macp-control-plane** (and the
+macp-playground Examples Service for launch compilation).
+
+## Implementation note (2026-07-07)
+
+Both upstreams shipped their v0.5.0 absorptions before this work (see
+`../macp-control-plane/plans/absorb-runtime-v0.5.0.md` and
+`../macp-playground/plans/absorb-runtime-v0.5.0.md`), which pinned two contracts this plan
+had left open:
+
+- **CP did NOT add a `GET /runtime/metrics` passthrough** (its item 15 = "NO IMPACT —
+  ops opportunity"). Runtime Prometheus metrics stay an ops-only surface. **Task B was
+  therefore skipped** — there is no backend endpoint to consume, and the fallback
+  third-proxy service was declined as out of proportion.
+- **Read-only policy registry** returns **HTTP 405 `REGISTRY_READ_ONLY`** (CP T9), and
+  **handoff `implicit`** is carried on the CP contribution/normalizer (CP T5). ES added
+  `sessionStart.maxSuspendMs` and deleted `sessionStart.context` (ES T8/T4).
+
+Landed on branch `feat/absorb-runtime-v0.5.0`, one commit per task, full CI gate green
+(format + lint + typecheck + 390 vitest tests + build):
+
+- **F** — compose pinned to `ghcr.io/…/macp-runtime:0.5.0` + `MACP_METRICS_ADDR`/9464;
+  mock manifest `protocolVersion` → 0.5.0.
+- **A** — real session vocabulary in `summarizeEvent` + `/logs` group; `run.suspended`/
+  `.resumed`; base64url breadcrumb ids; suspended + cancelled demo runs; fixture fix.
+- **C** — `isImplicitAccept()` + implicit badge in feed / `/logs` / event dialog + mock.
+- **D** — `/modes` terminal types; all-six-modes mock rewrite; read-only policy banner.
+- **E** — `sessionStart.maxSuspendMs` + "Max suspend" badge; removed dead `context`.
+- **G** — external-orchestrator (initiator ∉ participants) resilience test.
+- **I** — docs: api-integration, in-app `/docs`, README, feature-matrix, changelog.
+- **B** — *skipped* (no CP endpoint; see above).
+- **H** — *pending*: live e2e matrix needs `npm run local:up` against the pinned stack;
+  not runnable in this pass. Unit/mock coverage stands in until then.
 
 ---
 

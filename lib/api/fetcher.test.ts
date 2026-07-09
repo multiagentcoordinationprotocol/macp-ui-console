@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ApiError, fetchJson, buildProxyUrl } from './fetcher';
+import { ApiError, fetchJson, buildProxyUrl, isRegistryReadOnlyError } from './fetcher';
 
 // ---------------------------------------------------------------------------
 // ApiError
@@ -184,6 +184,37 @@ describe('fetchJson', () => {
       expect(apiErr.status).toBe(404);
       expect(apiErr.isNotFound).toBe(true);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isRegistryReadOnlyError
+// ---------------------------------------------------------------------------
+describe('isRegistryReadOnlyError', () => {
+  it('detects the CP 405 REGISTRY_READ_ONLY response', () => {
+    const err = new ApiError(
+      405,
+      'Method Not Allowed',
+      JSON.stringify({ errorCode: 'REGISTRY_READ_ONLY' }),
+      'macp-control-plane',
+      '/runtime/policies'
+    );
+    expect(isRegistryReadOnlyError(err)).toBe(true);
+  });
+
+  it('matches the REGISTRY_READ_ONLY / FAILED_PRECONDITION body defensively on other statuses', () => {
+    expect(
+      isRegistryReadOnlyError(
+        new ApiError(409, 'Conflict', 'FAILED_PRECONDITION: read only', 'macp-control-plane', '/x')
+      )
+    ).toBe(true);
+    expect(isRegistryReadOnlyError(new Error('registry is read-only'))).toBe(true);
+  });
+
+  it('returns false for unrelated errors', () => {
+    expect(isRegistryReadOnlyError(new ApiError(500, 'Server Error', 'boom', 'macp-control-plane', '/x'))).toBe(false);
+    expect(isRegistryReadOnlyError(new Error('network down'))).toBe(false);
+    expect(isRegistryReadOnlyError('nope')).toBe(false);
   });
 });
 

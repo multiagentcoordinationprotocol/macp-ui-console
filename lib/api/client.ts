@@ -175,15 +175,10 @@ export async function compileLaunch(input: CompileLaunchRequest, demoMode: boole
         ...MOCK_COMPILED_RUN.runDescriptor,
         mode
       },
-      initiator: MOCK_COMPILED_RUN.initiator
-        ? {
-            ...MOCK_COMPILED_RUN.initiator,
-            sessionStart: {
-              ...MOCK_COMPILED_RUN.initiator.sessionStart,
-              context: input.inputs
-            }
-          }
-        : undefined,
+      // proto 0.1.5+ removed the inline SessionStart.context bytes field. Launch inputs
+      // now travel only via scenarioMeta.sessionContext (→ metadata.session_context),
+      // matching the Examples Service compile output.
+      initiator: MOCK_COMPILED_RUN.initiator,
       scenarioMeta: {
         ...MOCK_COMPILED_RUN.scenarioMeta,
         sessionContext: input.inputs

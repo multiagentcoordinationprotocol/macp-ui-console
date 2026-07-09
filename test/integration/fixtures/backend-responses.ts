@@ -112,16 +112,26 @@ export function runStateProjection(runId: string) {
 }
 
 export function canonicalEvents(runId: string, count = 3) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: `evt-${String(i + 1).padStart(3, '0')}`,
-    runId,
-    seq: i + 1,
-    ts: `2026-04-01T10:00:0${i + 1}Z`,
-    type: i === 0 ? 'session.opened' : 'message.sent',
-    subject: { kind: 'participant', id: 'agent-a' },
-    source: { kind: 'runtime', name: 'rust-runtime', rawType: 'StreamEnvelope' },
-    data: { messageType: 'Proposal', payload: { value: i } }
-  }));
+  // Uses the real macp-control-plane session vocabulary: `session.bound` on bind,
+  // then `session.state.changed` (carrying `data.state`) for lifecycle transitions.
+  // The CP never emits `session.opened`.
+  return Array.from({ length: count }, (_, i) => {
+    const base = {
+      id: `evt-${String(i + 1).padStart(3, '0')}`,
+      runId,
+      seq: i + 1,
+      ts: `2026-04-01T10:00:0${i + 1}Z`,
+      subject: { kind: 'participant', id: 'agent-a' },
+      source: { kind: 'runtime', name: 'rust-runtime', rawType: 'StreamEnvelope' }
+    };
+    if (i === 0) {
+      return { ...base, type: 'session.bound', data: { sessionId: runId } };
+    }
+    if (i === 1) {
+      return { ...base, type: 'session.state.changed', data: { sessionId: runId, state: 'SESSION_STATE_OPEN' } };
+    }
+    return { ...base, type: 'message.sent', data: { messageType: 'Proposal', payload: { value: i } } };
+  });
 }
 
 export function metricsSummary(runId: string) {

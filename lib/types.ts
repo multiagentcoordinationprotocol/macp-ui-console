@@ -250,10 +250,15 @@ export interface InitiatorPayload {
     intent: string;
     participants: string[];
     ttlMs: number;
+    /**
+     * Session-bound suspend cap (ms) — proto 0.1.5 `max_suspend_ms`, compiled by the
+     * Examples Service into `sessionStart` (macp-playground T8). Omitted → runtime
+     * default (7 days). The runtime auto-expires a session suspended longer than this.
+     */
+    maxSuspendMs?: number;
     modeVersion: string;
     configurationVersion: string;
     policyVersion?: string;
-    context?: Record<string, unknown>;
     contextId?: string;
     extensions?: Record<string, unknown>;
     roots?: Array<{ uri: string; name?: string }>;

@@ -22,7 +22,7 @@
 | Run detail | Graph view | ✅ | React Flow execution graph |
 | Run detail | Node inspector | ✅ | Payloads, logs, signals, traces |
 | Run detail | Signal rail | ✅ | Side-channel update surface |
-| Run detail | Live event rail | ✅ | Canonical events timeline |
+| Run detail | Live event rail | ✅ | Canonical events timeline; implicit handoff accepts badged |
 | Run detail | Final decision panel | ✅ | Action, confidence, rationale |
 | Run detail | Artifacts/messages panel | ✅ | Trace/report bundle visibility |
 | Run detail | Replay descriptor request | ✅ | Control Plane replay hookup |
@@ -38,7 +38,8 @@
 | Compare | Signal timeline overlay | ✅ | Dual-lane chronological signal view |
 | Agents | Agent catalog | ✅ | Search + framework filter, enriched with CP metrics |
 | Agents | Agent detail | ✅ | Scenario coverage + related runs, direct `/agents/:agentRef` endpoint |
-| Logs | Canonical event explorer | ✅ | Run selection + event filters |
+| Logs | Canonical event explorer | ✅ | Run selection + event filters; real CP session vocabulary (`session.bound` / `.stream.opened` / `.state.changed`) |
+| Lifecycle | Suspend / resume / cancel | ✅ | Six session lifecycle states; suspended & cancelled runs in demo, Resume action, Suspended KPI |
 | Traces | Trace summary and artifact explorer | ✅ | Inline span support when available |
 | Observability | Runtime health dashboard | ✅ | Manifest, modes, roots, metrics text |
 | Observability | Raw metrics surface | ✅ | Prometheus text dump, parsed into sortable table |
@@ -46,8 +47,8 @@
 | Observability | Circuit breaker timeline | ✅ | State transitions from `/admin/circuit-breaker/history` |
 | Observability | Readiness probe | ✅ | Per-subsystem health checks (`/readyz`) |
 | Observability | Jaeger trace deep-links | ✅ | Span waterfall via `/api/jaeger/*` proxy when configured |
-| Runtime | Runtime mode browser | ✅ | `/modes` surface |
-| Runtime | Runtime policy registry | ✅ | `/policies` surface, RFC-MACP-0012 governance rules |
+| Runtime | Runtime mode browser | ✅ | `/modes` surface; message + terminal message types per mode (all six v0.5.0 modes) |
+| Runtime | Runtime policy registry | ✅ | `/policies` surface, RFC-MACP-0012 governance rules; read-only (file-managed) registry banner |
 | Settings | Preferences store | ✅ | Persisted in local storage |
 | Settings | Webhook management | ✅ | Create/toggle/delete, delivery stats display |
 | Settings | Circuit breaker reset | ✅ | Admin action surface |

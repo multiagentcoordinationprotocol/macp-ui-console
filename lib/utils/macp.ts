@@ -1,4 +1,4 @@
-import type { RunRecord, ScenarioSummary } from '@/lib/types';
+import type { CanonicalEvent, RunRecord, ScenarioSummary } from '@/lib/types';
 
 export function parseScenarioRef(scenarioRef?: string | null) {
   if (!scenarioRef) {
@@ -42,4 +42,35 @@ export function optionValue(value: string | undefined, fallback = '') {
 
 export function unique<T>(items: T[]) {
   return [...new Set(items)];
+}
+
+/**
+ * Detects a runtime-synthesized *implicit* handoff accept (RFC-MACP-0010 §5.1).
+ *
+ * When a handoff target stays silent past the accept window, the runtime emits a
+ * synthetic `HandoffAccept` with `sender = target_participant`,
+ * `messageId = implicit-accept:<handoff_id>`, and `implicit = true` on the decoded
+ * payload. The macp-control-plane surfaces it as a normal `proposal.updated` canonical
+ * event — so without this marker it looks *exactly* like an explicit accept the target
+ * never sent, which is misleading in a transcript.
+ *
+ * Detection is deliberately defensive: the exact JSON casing the CP emits for the
+ * decoded proto and the location of the message id are pinned only loosely by the CP
+ * absorption (which carries `decodedPayload.implicit`). We accept both camelCase and
+ * snake_case, a top-level flag, and the `implicit-accept:` id prefix on any of the
+ * plausible id fields.
+ */
+export function isImplicitAccept(event: Pick<CanonicalEvent, 'data'> & { id?: string }): boolean {
+  const data = (event.data ?? {}) as Record<string, unknown>;
+
+  const decoded = (data.decodedPayload ?? data.decoded_payload) as Record<string, unknown> | undefined;
+  if (decoded && (decoded.implicit === true || decoded.implicitAccept === true || decoded.implicit_accept === true)) {
+    return true;
+  }
+  if (data.implicit === true || data.implicitAccept === true || data.implicit_accept === true) {
+    return true;
+  }
+
+  const idCandidates = [data.messageId, data.message_id, decoded?.handoffId, decoded?.handoff_id, event.id];
+  return idCandidates.some((id) => typeof id === 'string' && id.startsWith('implicit-accept:'));
 }

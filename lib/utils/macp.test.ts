@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { parseScenarioRef, getScenarioRefFromRun, getRunDurationMs, unique } from './macp';
+import { parseScenarioRef, getScenarioRefFromRun, getRunDurationMs, unique, isImplicitAccept } from './macp';
 import type { RunRecord } from '@/lib/types';
 
 describe('parseScenarioRef', () => {
@@ -103,5 +103,28 @@ describe('unique', () => {
 
   it('handles string arrays', () => {
     expect(unique(['a', 'b', 'a'])).toEqual(['a', 'b']);
+  });
+});
+
+describe('isImplicitAccept', () => {
+  it('detects the decodedPayload.implicit flag', () => {
+    expect(isImplicitAccept({ data: { decodedPayload: { implicit: true } } })).toBe(true);
+  });
+
+  it('tolerates snake_case and top-level flag spellings', () => {
+    expect(isImplicitAccept({ data: { decoded_payload: { implicit_accept: true } } })).toBe(true);
+    expect(isImplicitAccept({ data: { implicit: true } })).toBe(true);
+    expect(isImplicitAccept({ data: { implicitAccept: true } })).toBe(true);
+  });
+
+  it('detects the implicit-accept: message/event id prefix', () => {
+    expect(isImplicitAccept({ data: { messageId: 'implicit-accept:handoff-42' } })).toBe(true);
+    expect(isImplicitAccept({ id: 'implicit-accept:handoff-42', data: {} })).toBe(true);
+  });
+
+  it('returns false for an explicit accept sent by a participant', () => {
+    expect(isImplicitAccept({ data: { sender: 'risk-agent', action: 'allow', implicit: false } })).toBe(false);
+    expect(isImplicitAccept({ id: 'evt-7', data: { messageId: 'msg-123' } })).toBe(false);
+    expect(isImplicitAccept({ data: {} })).toBe(false);
   });
 });

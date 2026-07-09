@@ -36,6 +36,8 @@ export const LIVE_RUN_ID = '11111111-1111-4111-8111-111111111111';
 export const COMPLETED_RUN_ID = '22222222-2222-4222-8222-222222222222';
 export const FAILED_RUN_ID = '33333333-3333-4333-8333-333333333333';
 export const DECLINED_RUN_ID = '44444444-4444-4444-8444-444444444444';
+export const SUSPENDED_RUN_ID = '55555555-5555-4555-8555-555555555555';
+export const CANCELLED_RUN_ID = '66666666-6666-4666-8666-666666666666';
 
 export const MOCK_PACKS: PackSummary[] = [
   {
@@ -408,17 +410,11 @@ export const MOCK_COMPILED_RUN: CompileLaunchResult = {
       intent: 'evaluate transaction',
       participants: ['fraud-agent', 'growth-agent', 'risk-agent'],
       ttlMs: 300000,
+      maxSuspendMs: 900000,
       modeVersion: '1.0.0',
       configurationVersion: 'config.default',
       policyVersion: 'policy.default',
-      context: {
-        customerId: 'CUST-1001',
-        transactionAmount: 2400,
-        deviceTrustScore: 0.18,
-        accountAgeDays: 14,
-        isVipCustomer: true,
-        priorChargebacks: 1
-      }
+      contextId: 'ctx:sha256:a1b2c3d4e5f6'
     },
     kickoff: {
       messageType: 'Proposal',
@@ -549,6 +545,49 @@ export const MOCK_RUNS: RunRecord[] = [
       modeName: 'macp.mode.decision.v1',
       finalAction: 'mitigate_and_communicate',
       finalConfidence: 0.93
+    }
+  },
+  {
+    id: SUSPENDED_RUN_ID,
+    status: 'suspended',
+    runtimeKind: 'rust',
+    runtimeVersion: 'v1',
+    runtimeSessionId: 'session-suspended-005',
+    traceId: 'trace-suspended-005',
+    createdAt: isoMinutesAgo(22),
+    startedAt: isoMinutesAgo(22),
+    tags: ['demo', 'fraud', 'suspended'],
+    source: { kind: 'scenario-registry', ref: 'fraud/high-value-new-device@1.0.0' },
+    metadata: {
+      scenarioRef: 'fraud/high-value-new-device@1.0.0',
+      templateId: 'strict-risk',
+      environment: 'local-dev',
+      totalTokens: 1180,
+      estimatedCostUsd: 0.14,
+      modeName: 'macp.mode.decision.v1',
+      suspendedReason: 'operator paused for manual review'
+    }
+  },
+  {
+    id: CANCELLED_RUN_ID,
+    status: 'cancelled',
+    runtimeKind: 'rust',
+    runtimeVersion: 'v1',
+    runtimeSessionId: 'session-cancelled-006',
+    traceId: 'trace-cancelled-006',
+    createdAt: isoMinutesAgo(96),
+    startedAt: isoMinutesAgo(96),
+    endedAt: isoMinutesAgo(94),
+    tags: ['ops', 'incident', 'cancelled'],
+    source: { kind: 'scenario-registry', ref: 'ops/vendor-outage-triage@1.0.0' },
+    metadata: {
+      scenarioRef: 'ops/vendor-outage-triage@1.0.0',
+      templateId: 'major-incident',
+      environment: 'stage',
+      totalTokens: 640,
+      estimatedCostUsd: 0.08,
+      modeName: 'macp.mode.decision.v1',
+      cancelledReason: 'superseded by incident bridge'
     }
   }
 ];
@@ -1306,19 +1345,161 @@ export const MOCK_RUN_EVENTS: Record<string, CanonicalEvent[]> = {
       source: { kind: 'runtime', name: 'macp-runtime' },
       data: { from: 'comms-agent', to: 'external-api', error: 'Connection timeout' }
     }
+  ],
+  // Handoff-mode transcript on the suspended run — includes a runtime-synthesized
+  // *implicit* accept (silent target past the accept window). Exercises the implicit
+  // badge in the feed / logs / event dialog and the isImplicitAccept() summarizer path.
+  [SUSPENDED_RUN_ID]: [
+    event(SUSPENDED_RUN_ID, 1, 'run.created', { status: 'queued' }, { kind: 'run', id: SUSPENDED_RUN_ID }),
+    event(SUSPENDED_RUN_ID, 2, 'run.started', { status: 'running' }, { kind: 'run', id: SUSPENDED_RUN_ID }),
+    event(
+      SUSPENDED_RUN_ID,
+      3,
+      'proposal.created',
+      { sender: 'fraud-agent', proposalId: 'handoff-005', messageType: 'HandoffOffer' },
+      { kind: 'proposal', id: 'handoff-005' }
+    ),
+    {
+      id: 'implicit-accept:handoff-005',
+      runId: SUSPENDED_RUN_ID,
+      seq: 4,
+      ts: isoMinutesAgo(20),
+      type: 'proposal.updated',
+      subject: { kind: 'proposal', id: 'handoff-005' },
+      source: { kind: 'runtime', name: 'rust-runtime' },
+      // sender = target participant; the participant never actually sent this — the
+      // runtime synthesized it. decodedPayload.implicit marks it as such.
+      data: {
+        sender: 'risk-agent',
+        action: 'allow',
+        messageType: 'HandoffAccept',
+        messageId: 'implicit-accept:handoff-005',
+        decodedPayload: { implicit: true, handoffId: 'handoff-005' }
+      }
+    },
+    event(SUSPENDED_RUN_ID, 5, 'run.suspended', { status: 'suspended' }, { kind: 'run', id: SUSPENDED_RUN_ID })
   ]
+};
+
+// A run paused mid-flight — exercises the suspended badge (warning tone) and the
+// Resume action path in run-overview-card. Session state is SESSION_STATE_SUSPENDED.
+const suspendedState: RunStateProjection = {
+  run: {
+    runId: SUSPENDED_RUN_ID,
+    status: 'suspended',
+    runtimeSessionId: 'session-suspended-005',
+    startedAt: isoMinutesAgo(22),
+    traceId: 'trace-suspended-005',
+    modeName: 'macp.mode.decision.v1'
+  },
+  participants: [
+    { participantId: 'fraud-agent', role: 'fraud', status: 'completed', latestSummary: 'Device graph evaluated.' },
+    { participantId: 'growth-agent', role: 'growth', status: 'waiting' },
+    { participantId: 'risk-agent', role: 'risk', status: 'waiting', latestSummary: 'Awaiting resume.' }
+  ],
+  graph: {
+    nodes: [
+      { id: 'start', kind: 'start', status: 'completed' },
+      { id: 'context-fetch', kind: 'context', status: 'completed' },
+      { id: 'fraud-agent', kind: 'agent', status: 'completed' },
+      { id: 'growth-agent', kind: 'agent', status: 'waiting' },
+      { id: 'risk-agent', kind: 'agent', status: 'waiting' },
+      { id: 'decision', kind: 'decision', status: 'waiting' }
+    ],
+    edges: [
+      { from: 'start', to: 'context-fetch', kind: 'control', ts: isoMinutesAgo(22) },
+      { from: 'context-fetch', to: 'fraud-agent', kind: 'data', ts: isoMinutesAgo(22) },
+      { from: 'fraud-agent', to: 'decision', kind: 'analysis', ts: isoMinutesAgo(20) }
+    ]
+  },
+  decision: {
+    current: {
+      action: 'step_up',
+      confidence: 0.64,
+      reasons: ['Paused for manual review before finalizing.'],
+      finalized: false,
+      proposalId: 'CUST-5005-initial-review'
+    }
+  },
+  signals: {
+    signals: [
+      {
+        id: 'sig-suspend-device',
+        name: 'low_device_trust',
+        severity: 'high',
+        sourceParticipantId: 'fraud-agent',
+        ts: isoMinutesAgo(20),
+        confidence: 0.9
+      }
+    ]
+  },
+  progress: {
+    entries: [
+      { participantId: 'fraud-agent', percentage: 55, message: 'Device graph evaluated', ts: isoMinutesAgo(20) }
+    ]
+  },
+  timeline: { latestSeq: 5, totalEvents: 5, recent: [] },
+  trace: { traceId: 'trace-suspended-005', spanCount: 8, lastSpanId: 'span-8', linkedArtifacts: [] },
+  outboundMessages: { total: 2, queued: 0, accepted: 2, rejected: 0 },
+  policy: {
+    policyVersion: 'policy.default',
+    policyDescription: 'Default policy — no additional governance constraints',
+    commitmentEvaluations: []
+  }
+};
+
+// A run cancelled before resolution — exercises the cancelled badge (danger tone).
+const cancelledState: RunStateProjection = {
+  run: {
+    runId: CANCELLED_RUN_ID,
+    status: 'cancelled',
+    runtimeSessionId: 'session-cancelled-006',
+    startedAt: isoMinutesAgo(96),
+    endedAt: isoMinutesAgo(94),
+    traceId: 'trace-cancelled-006',
+    modeName: 'macp.mode.decision.v1'
+  },
+  participants: [
+    { participantId: 'ops-agent', role: 'ops', status: 'completed', latestSummary: 'Triage started.' },
+    { participantId: 'comms-agent', role: 'comms', status: 'idle' },
+    { participantId: 'risk-agent', role: 'risk', status: 'idle' }
+  ],
+  graph: {
+    nodes: [
+      { id: 'start', kind: 'start', status: 'completed' },
+      { id: 'ops-agent', kind: 'agent', status: 'completed' },
+      { id: 'decision', kind: 'decision', status: 'failed' }
+    ],
+    edges: [{ from: 'start', to: 'ops-agent', kind: 'control', ts: isoMinutesAgo(96) }]
+  },
+  decision: { current: undefined },
+  signals: { signals: [] },
+  progress: {
+    entries: [{ participantId: 'ops-agent', percentage: 30, message: 'Incident triage started', ts: isoMinutesAgo(95) }]
+  },
+  timeline: { latestSeq: 3, totalEvents: 3, recent: [] },
+  trace: { traceId: 'trace-cancelled-006', spanCount: 4, lastSpanId: 'span-4', linkedArtifacts: [] },
+  outboundMessages: { total: 1, queued: 0, accepted: 1, rejected: 0 },
+  policy: {
+    policyVersion: 'policy.default',
+    policyDescription: 'Default policy — no additional governance constraints',
+    commitmentEvaluations: []
+  }
 };
 
 liveBaseState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[LIVE_RUN_ID]);
 completedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[COMPLETED_RUN_ID]);
 failedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[FAILED_RUN_ID]);
 opsState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[DECLINED_RUN_ID]);
+suspendedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[SUSPENDED_RUN_ID]);
 
 export const MOCK_RUN_STATES: Record<string, RunStateProjection> = {
   [LIVE_RUN_ID]: liveBaseState,
   [COMPLETED_RUN_ID]: completedState,
   [FAILED_RUN_ID]: failedState,
-  [DECLINED_RUN_ID]: opsState
+  [DECLINED_RUN_ID]: opsState,
+  [SUSPENDED_RUN_ID]: suspendedState,
+  [CANCELLED_RUN_ID]: cancelledState
 };
 
 export const MOCK_RUN_METRICS: Record<string, MetricsSummary> = {
@@ -1393,6 +1574,42 @@ export const MOCK_RUN_METRICS: Record<string, MetricsSummary> = {
     completionTokens: 340,
     totalTokens: 1540,
     estimatedCostUsd: 0.0046
+  },
+  [SUSPENDED_RUN_ID]: {
+    runId: SUSPENDED_RUN_ID,
+    eventCount: 5,
+    messageCount: 2,
+    signalCount: 1,
+    proposalCount: 1,
+    toolCallCount: 1,
+    decisionCount: 0,
+    streamReconnectCount: 0,
+    firstEventAt: isoMinutesAgo(22),
+    lastEventAt: isoMinutesAgo(20),
+    durationMs: 120000,
+    sessionState: 'SESSION_STATE_SUSPENDED',
+    promptTokens: 900,
+    completionTokens: 280,
+    totalTokens: 1180,
+    estimatedCostUsd: 0.0035
+  },
+  [CANCELLED_RUN_ID]: {
+    runId: CANCELLED_RUN_ID,
+    eventCount: 3,
+    messageCount: 1,
+    signalCount: 0,
+    proposalCount: 0,
+    toolCallCount: 0,
+    decisionCount: 0,
+    streamReconnectCount: 0,
+    firstEventAt: isoMinutesAgo(96),
+    lastEventAt: isoMinutesAgo(94),
+    durationMs: 92000,
+    sessionState: 'SESSION_STATE_CANCELLED',
+    promptTokens: 500,
+    completionTokens: 140,
+    totalTokens: 640,
+    estimatedCostUsd: 0.0018
   }
 };
 
@@ -1400,7 +1617,9 @@ export const MOCK_RUN_TRACES: Record<string, TraceSummary> = {
   [LIVE_RUN_ID]: liveBaseState.trace,
   [COMPLETED_RUN_ID]: completedState.trace,
   [FAILED_RUN_ID]: failedState.trace,
-  [DECLINED_RUN_ID]: opsState.trace
+  [DECLINED_RUN_ID]: opsState.trace,
+  [SUSPENDED_RUN_ID]: suspendedState.trace,
+  [CANCELLED_RUN_ID]: cancelledState.trace
 };
 
 export const MOCK_RUN_ARTIFACTS: Record<string, Artifact[]> = {
@@ -1542,35 +1761,83 @@ export const MOCK_AGENT_PROFILES: AgentProfile[] = [
   }
 ];
 
+// Mirrors macp-runtime v0.5.0 `all_mode_descriptors()`
+// (crates/macp-modes/src/mode/mod.rs): five standards-track modes + the multi-round
+// extension. Every mode's terminal type is exactly `Commitment` (a v0.5.0 registration
+// invariant), and each message-type list leads with `SessionStart`.
 export const MOCK_RUNTIME_MODES: RuntimeModeDescriptor[] = [
   {
     mode: 'macp.mode.decision.v1',
     modeVersion: '1.0.0',
-    title: 'Decision',
-    description: 'Proposal, evaluation, voting, and commitment.',
-    determinismClass: 'eventual',
-    participantModel: 'coordinator + specialists',
-    messageTypes: ['Proposal', 'Evaluation', 'Vote', 'Commitment', 'Signal'],
+    title: 'Decision Mode',
+    description:
+      'Structured decision making with proposals, evaluations, objections, votes, and a terminal Commitment.',
+    determinismClass: 'semantic-deterministic',
+    participantModel: 'declared',
+    messageTypes: ['SessionStart', 'Proposal', 'Evaluation', 'Objection', 'Vote', 'Commitment'],
+    terminalMessageTypes: ['Commitment']
+  },
+  {
+    mode: 'macp.mode.proposal.v1',
+    modeVersion: '1.0.0',
+    title: 'Proposal Mode',
+    description:
+      'Negotiation with proposals, counterproposals, accepts, rejects, withdrawals, and a terminal Commitment.',
+    determinismClass: 'semantic-deterministic',
+    participantModel: 'peer',
+    messageTypes: ['SessionStart', 'Proposal', 'CounterProposal', 'Accept', 'Reject', 'Withdraw', 'Commitment'],
+    terminalMessageTypes: ['Commitment']
+  },
+  {
+    mode: 'macp.mode.task.v1',
+    modeVersion: '1.0.0',
+    title: 'Task Mode',
+    description:
+      'One bounded delegated task with assignee responses, progress, completion/failure reports, and a terminal Commitment.',
+    determinismClass: 'structural-only',
+    participantModel: 'orchestrated',
+    messageTypes: [
+      'SessionStart',
+      'TaskRequest',
+      'TaskAccept',
+      'TaskReject',
+      'TaskUpdate',
+      'TaskComplete',
+      'TaskFail',
+      'Commitment'
+    ],
+    terminalMessageTypes: ['Commitment']
+  },
+  {
+    mode: 'macp.mode.handoff.v1',
+    modeVersion: '1.0.0',
+    title: 'Handoff Mode',
+    description:
+      'Scoped responsibility transfer with handoff offers, context, target responses, and a terminal Commitment.',
+    determinismClass: 'context-frozen',
+    participantModel: 'delegated',
+    messageTypes: ['SessionStart', 'HandoffOffer', 'HandoffContext', 'HandoffAccept', 'HandoffDecline', 'Commitment'],
     terminalMessageTypes: ['Commitment']
   },
   {
     mode: 'macp.mode.quorum.v1',
     modeVersion: '1.0.0',
-    title: 'Quorum',
-    description: 'Threshold approval with ballots.',
-    determinismClass: 'eventual',
-    participantModel: 'voters',
-    messageTypes: ['ApprovalRequest', 'Approve', 'Reject', 'Abstain'],
-    terminalMessageTypes: ['Approve', 'Reject']
+    title: 'Quorum Mode',
+    description: 'Threshold approval with one approval request, participant ballots, and a terminal Commitment.',
+    determinismClass: 'semantic-deterministic',
+    participantModel: 'quorum',
+    messageTypes: ['SessionStart', 'ApprovalRequest', 'Approve', 'Reject', 'Abstain', 'Commitment'],
+    terminalMessageTypes: ['Commitment']
   },
   {
     mode: 'ext.multi_round.v1',
-    modeVersion: '0.1.0',
-    title: 'Multi-Round Extension',
-    description: 'Iterative convergence with explicit commitment.',
-    determinismClass: 'iterative',
-    participantModel: 'round-robin',
-    messageTypes: ['Contribute', 'Commitment'],
+    modeVersion: '1.0.0',
+    title: 'Multi-Round Mode',
+    description:
+      'Iterative convergence through multiple contribution rounds until all participants agree, with a terminal Commitment.',
+    determinismClass: 'semantic-deterministic',
+    participantModel: 'peer',
+    messageTypes: ['SessionStart', 'Contribute', 'Commitment'],
     terminalMessageTypes: ['Commitment']
   }
 ];
@@ -1581,7 +1848,7 @@ export const MOCK_RUNTIME_MANIFEST: RuntimeManifestResult = {
   description: 'Reference runtime with file-backed replay and dynamic mode registry.',
   supportedModes: MOCK_RUNTIME_MODES.map((mode) => mode.mode),
   metadata: {
-    protocolVersion: '0.4.0',
+    protocolVersion: '0.5.0',
     storage: 'file-backend',
     transport: 'grpc'
   }
