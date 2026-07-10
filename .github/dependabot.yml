@@ -8,6 +8,13 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "typescript"      # TS 7 major
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"          # eslint 10 needs the eslint-CLI migration
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lucide-react"    # icon lib major (0.x -> 1.x)
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
