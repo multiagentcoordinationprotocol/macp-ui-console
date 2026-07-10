@@ -21,10 +21,10 @@ jobs:
 
     steps:
       - name: Checkout macp-ui-console
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Checkout macp-playground
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: multiagentcoordinationprotocol/macp-playground
           path: macp-playground-repo
@@ -44,7 +44,7 @@ jobs:
 
       - name: Create PR with updated docs
         if: steps.changes.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: 'docs: sync macp-playground docs'
           title: 'docs: sync macp-playground docs'
