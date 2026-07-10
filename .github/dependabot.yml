@@ -8,6 +8,8 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+      major-updates:
+        update-types: [major]
     ignore:
       - dependency-name: "typescript"      # TS 7 major
         update-types: ["version-update:semver-major"]
