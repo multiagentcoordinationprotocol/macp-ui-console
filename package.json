@@ -52,7 +52,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.6",
     "@types/node": "^26.4.0",
@@ -63,7 +63,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.3",
     "husky": "^9.1.7",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "lint-staged": "^17.4.1",
     "prettier": "^3.9.6",
     "typescript": "^5.1.0",
