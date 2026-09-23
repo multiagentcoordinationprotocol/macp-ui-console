@@ -433,8 +433,44 @@ for events after ones that were never delivered, and nothing else ever requested
 is the right thing to compare a received `seq` against when detecting a gap.
 
 Two limits worth knowing: the client buffer holds 500 events (`MAX_EVENT_BUFFER`), so a long backfill
-evicts the oldest rather than growing without bound; and the feed appends in arrival order without
-sorting, so a replayed range lands after the events already shown rather than being merged by `seq`.
+evicts the oldest rather than growing without bound; and the hook's own buffer appends in arrival
+order without sorting. The workbench no longer shows that raw buffer directly — `mergeEventStreams`
+unions it with the fetched history and orders the result by `seq` — but anything reading
+`useLiveRun().events` gets arrival order.
+
+### Gap visibility
+
+**`run.historyGap`** (`RunStateProjection.run.historyGap`) is the control plane's signal that a run's
+event history is known-incomplete, mirroring `RunSummaryProjection.historyGap`. It is set when the CP
+could not resume the runtime's per-session `StreamSession` from its last envelope ordinal because that
+history had been compacted away (the runtime answers `FAILED_PRECONDITION`). The CP's own doc comment
+states that the console surfaces this as a fidelity warning; the console renders it as a single notice
+in the event feed. Absent or `false` means no known gap; only `true` warns. The matching
+`session.stream.gap` canonical event is emitted at the same time, carries
+`{ requestedAfter, detail }`, and is filterable under **Session** in `/logs`.
+
+This gap is genuinely unrecoverable, and the notice says so instead of offering a retry: the envelopes
+were compacted out of the runtime before the control plane could read them, so no refetch produces
+them.
+
+**There is deliberately no client-side seq-delta gap detector**, and one should not be added.
+Canonical `seq` values are **not contiguous per run**. `RunEventService.persistRawAndCanonical`
+allocates `1 + canonicalEvents.length` values from the single `runs.last_event_seq` counter, gives
+the first to the **raw** row and `startSeq + index + 1` to the canonical events. Raw and canonical are
+separate tables, and only canonical events are streamed — so every persisted batch burns one seq that
+no subscriber will ever see. The CP's own unit spec pins the behaviour (raw@5, canonical@6 and @7),
+and the projection's separate `timeline.latestSeq` and `timeline.totalEvents` counters are the
+corroborating tell.
+
+A detector built on "`seq` jumped, therefore an event was lost" therefore fires on **every healthy
+run** — one false warning per batch. An earlier revision of this phase shipped exactly that and it was
+removed; `lib/hooks/use-live-run.test.ts` carries a regression test asserting the hook stays quiet on
+the real `2, 4, 6, 8` pattern.
+
+Detecting the one hole the server cannot see — an event persisted but never published, which the
+non-blocking post-commit publish makes possible — needs a signal that does not assume contiguity
+(comparing `timeline.totalEvents` against the number of distinct canonical events held is the obvious
+candidate). That is deferred rather than guessed at.
 
 The CP-side stream contract (passive-subscribe frame, replay-from-`afterSeq`, heartbeat
 cadence) is documented in

@@ -107,6 +107,14 @@ function makeFrame(seq: number) {
   return { seq, event: makeEvent(`evt-${seq}`, seq), snapshot: makeSnapshot(seq) };
 }
 
+/** First reconnect backoff: `min(1000 * 2 ** attempt, 30_000)` with attempt 0. */
+const RECONNECT_BACKOFF_MS = 1000;
+
+/** The `afterSeq` the hook opened its most recent stream with. */
+function afterSeqOf(instance: MockEventSource): number {
+  return Number(new URL(instance.url, 'http://localhost').searchParams.get('afterSeq'));
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────
 
 describe('useLiveRun', () => {
@@ -424,14 +432,6 @@ describe('useLiveRun', () => {
   // permanent, silent event-loss path before this phase: the cursor was derived from the server's
   // head rather than from what the client actually holds.
   describe('resume cursor (SSE path)', () => {
-    /** First reconnect backoff: `min(1000 * 2 ** attempt, 30_000)` with attempt 0. */
-    const RECONNECT_BACKOFF_MS = 1000;
-
-    /** The `afterSeq` the hook opened its most recent stream with. */
-    function afterSeqOf(instance: MockEventSource): number {
-      return Number(new URL(instance.url, 'http://localhost').searchParams.get('afterSeq'));
-    }
-
     it('opens at the newest event held, not at the server head', async () => {
       // The headline bug. `initialEvents` is capped at 500 by getRunEvents and arrives oldest-first,
       // so on a long run the head is far past anything the client has. Opening at the head skips
@@ -642,6 +642,47 @@ describe('useLiveRun', () => {
 
       expect(MockEventSource.instances).toHaveLength(1);
       expect(afterSeqOf(MockEventSource.instances[0])).toBe(300);
+    });
+  });
+  describe('seq contiguity (why there is no client-side gap detector)', () => {
+    it('receives canonical seqs with permanent holes on a perfectly healthy stream', async () => {
+      // Load-bearing regression guard. A seq-delta gap detector was built here and removed, because
+      // canonical seqs are NOT contiguous per run and it warned on every healthy run.
+      //
+      // `RunEventService.persistRawAndCanonical` allocates `1 + canonicalEvents.length` seqs from the
+      // single `runs.last_event_seq` counter, gives `startSeq` to the RAW row and `startSeq + i + 1`
+      // to the canonical ones (macp-control-plane/src/events/run-event.service.ts:118-123). Raw and
+      // canonical live in separate tables, and only canonical events are streamed. So every batch
+      // burns one seq that no subscriber will ever see — the CP's own spec pins raw@5 / canonical@6,@7
+      // (run-event.service.spec.ts:339-361).
+      //
+      // This test asserts the hook stays quiet on exactly that pattern. If a gap detector is ever
+      // reintroduced on `seq` deltas, this fails — which is the point.
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false }));
+
+      act(() => {
+        // One canonical event per batch: 2, 4, 6, 8 — a hole at every odd seq, all of them normal.
+        for (const seq of [2, 4, 6, 8]) {
+          MockEventSource.instances[0].dispatchEvent('canonical_event', makeEvent(`e${seq}`, seq));
+        }
+      });
+
+      expect(result.current.events.map((event) => event.seq)).toEqual([2, 4, 6, 8]);
+      expect(result.current.lastSeq).toBe(8);
+      // Pin the whole surface, not just the absence of one name: a reporting-only detector
+      // reintroduced under any other name must fail this too.
+      expect(Object.keys(result.current).sort()).toEqual([
+        'connectionStatus',
+        'events',
+        'lastSeq',
+        'latestEvent',
+        'paused',
+        'reconnectAttempt',
+        'reset',
+        'setPaused',
+        'state'
+      ]);
     });
   });
 });

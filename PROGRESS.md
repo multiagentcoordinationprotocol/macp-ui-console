@@ -25,7 +25,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P6 | Constrain policy `schemaVersion` to {1,2,3} | DONE | 1 | Opus | `e7fbb08` | pending /ship |
 | P7 | Absorb `controlPlaneRun` from the playground bootstrap | DONE | 3 | Opus | `4dd89cf` | pending /ship |
 | P8a | SSE resume-cursor correctness | DONE | 2 | Opus | `fd2ed50` | pending /ship |
-| P8b | Gap visibility (`historyGap`, client gaps) + `policy.denied` detail | TODO | — | — | — | — |
+| P8b | Gap visibility (`historyGap`) + `policy.denied` detail | DONE | 2 | Opus | `pending` | pending /ship |
 | P9 | Repoint the dev/e2e stack at runtime v0.8.0 | TODO | — | — | — | — |
 | P10 | Documentation refresh | TODO | — | — | — | — |
 
@@ -339,6 +339,12 @@ _(`/implement` appends; `/plan` seeded the five below — full reasoning in the 
 | D24 | Ids render in `<code>`, not through `Badge` | `Badge` title-cases its label, turning `run-abc` into `Run Abc` and mangling a UUID outright. The pre-existing session badge had the same defect (P7 verify R2, obs) |
 | D25 | The resume cursor is guarded with `Number.isFinite`, not `typeof === 'number'` | `Math.max` is absorbing over **both** NaN and Infinity. A missing `seq` yields NaN (`Math.max(9, undefined)`) and an overflowing JSON number yields Infinity (`JSON.parse('{"seq":1e999}')`); either pins the cursor permanently, sends `afterSeq=NaN\|Infinity`, and every reconnect is rejected by the CP's `@IsInt()` until the 8-attempt limit — a one-off bad frame becomes a dead stream. The plan's own prescribed `Math.max(prev, payload.seq)` introduced this; the unguarded assignment it replaced self-healed (P8a verify R1 gap B4, R2 obs 1) |
 | D26 | The cold-mount rail truncation is **knowingly deferred to P8b**, not fixed in P8a | `effectiveEvents` swaps rather than unions (`run-workbench.tsx:116-120`) and `useLiveRun` reads `initialEvents` at mount only, so on `/runs/live/:id` the fetched history shows until the first live event lands and then collapses to that one event. Real and user-visible — but bit-for-bit identical before and after this diff, in a file outside the phase's scope, and fixing it is a UI change with its own ordering/dedup surface, against a phase charter of "correctness only — no UI change" (P8a verify R2, cold-mount ruling) |
+| D28 | Acceptance criteria 2 and 3 are **struck**, not deferred: no client-side seq-delta gap detector | Canonical seqs are not contiguous — the CP burns one seq per raw row out of the same counter (`run-event.service.ts:100,118-122`; spec `run-event.service.spec.ts:339-361` pins raw@5/canonical@6,@7) and publishes only canonical rows. AC2's own worked example ("seq 10 after seq 8") **is** the healthy pattern. A detector was built, warned once per batch on every healthy run, and was removed. No client-visible signal separates "burned by a raw row" from "lost", so it could not be repaired (P8b verify R1 gap B1) |
+| D29 | The gap notice is driven solely by `historyGap` and offers no retry | That gap really is permanent: after emitting `session.stream.gap` the CP degrades to poll-only, and polling yields one `session.state.changed` per snapshot — it never reconstructs envelope-level events, and `projection.service.ts:174-179` never clears the flag. Verified adversarially because a false permanence claim would suppress a recovery that works (P8b verify R2, B3) |
+| D30 | The dead `decision !== 'deny'` guard was deleted rather than fixed | All three CP deny paths nest `decision` under `decodedPayload`; nothing sets it top-level, where `pick` reads. The test "covering" it passed against its own mutant because it wrote the nested shape (P8b verify R1 gap B4) |
+| D31 | `mergeEventStreams` extracted to `lib/utils/events.ts` rather than inlined | `run-workbench.tsx` has no test file, so the D26 fix would have been unfalsifiable where the plan put it. As a pure function a mutant reproducing the exact pre-fix swap now fails 3 tests |
+| D33 | The warm-remount backfill floor (`latestSeq - MAX_EVENT_BUFFER`) is deferred again, out of P8b | Half its prescribed fix — "report the skipped range through the gap notice" — became unavailable when the seq detector was removed, and the other half (flooring the resume seed) reintroduces reading `timeline.latestSeq` for cursor purposes, which P8a deliberately removed. That deserves its own phase and its own verification, not a tail-end addition to a phase that already cut a feature. The hazard is real but pre-existing: a 10k-event warm remount replays ~9.5k frames, each a `JSON.parse` + O(500) dedup scan + a React render (P8b verify R2, N3) |
+| D32 | `policyDenyReasons` also reads a singular top-level `reason` | Demo data (`evt-ops-policy-denied`) uses that shape, so the demo feed would otherwise show less than the live one. Nested/`reasons` must be an array; a non-array is ignored rather than coerced into a bogus single reason |
 | D27 | Bounding the warm-remount backfill burst is deferred to P8b | P8a converts silent loss into delivery, so re-entering a long run within `gcTime` now replays the entire remainder, one React render per frame. The fix (floor the seed at `latestSeq - MAX_EVENT_BUFFER` and report the skipped range) needs the gap notice P8b builds, so it belongs there (P8a verify R2, obs 4) |
 
 ## Assumptions to reconcile
@@ -683,7 +689,61 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
   `docs/api-integration.md`, `PROGRESS.md`.
 - **Gates:** typecheck clean · 38 files / 486 tests passing · 5 files / 95 integration tests passing ·
   lint clean · format:check clean · `next build` clean.
-- **Next:** P8b — gap visibility (`historyGap`, client-side gap detection) + `policy.denied` detail.
+- **Next:** P8b — gap visibility (`historyGap`) + `policy.denied` detail.
+
+### P8b — Gap visibility and `policy.denied` detail — **PASS**
+
+- **Verify rounds:** 2 (fresh Opus each). R1 returned **FAIL** with five blocking gaps; R2 returned PASS
+  with none, plus eight non-blocking findings, five of which were adopted.
+- **The headline outcome: a feature the plan specified was cut, because its premise is false.**
+  Acceptance criteria 2 and 3 called for a client-side gap detector on `seq` deltas. Canonical seqs are
+  **not contiguous per run**: `run-event.service.ts:100,118-122` allocates `1 + canonicalEvents.length`
+  from the single `runs.last_event_seq` counter, gives the first value to the **raw** row and
+  `startSeq + index + 1` to the canonical ones; raw and canonical are separate tables and only canonical
+  rows are published. Every batch therefore burns a seq no subscriber will ever see, and real streamed
+  seqs look like `2, 4, 6, 8`. The CP's own spec pins it (raw@5, canonical@6/@7).
+  **AC2's worked example — "seq 10 immediately after seq 8" — is the healthy pattern.** The detector was
+  built, shipped into round 1, and would have warned *once per batch on every healthy run* — a user on a
+  live run seeing "Some events are missing" within two events. Removed entirely rather than patched:
+  there is no client-visible signal separating "burned by a raw row" from "lost", so repair was not
+  available, only redesign (**D28**). `lib/hooks/use-live-run.ts` is byte-identical to its P8a state,
+  confirming a clean excision, and a regression guard pins the hook's entire return surface so no
+  detector can reappear under any name.
+- **What did ship, and is correct:** `historyGap` on the run projection (the CP's own documented
+  obligation), a single fidelity notice, the `session.stream.gap` label and `/logs` filter entry,
+  `formatEventSubject`, `policy.denied` reasons, and the D26 rail-collapse fix.
+- **Three more false claims caught by verification, all checked against CP source:** the
+  `session.stream.gap` summary read `data.reason`/`data.message` when the CP emits
+  `{ requestedAfter, detail }` — dead decoration that could never fire (R1 B2); "neither kind of gap is
+  recoverable" was false for the detected kind (R1 B3, resolved by the removal, then re-verified
+  adversarially — polling after a gap yields only `session.state.changed` and never reconstructs
+  envelope events, so the remaining claim is true); and the `decision !== 'deny'` guard was dead against
+  all three deny paths (**D30**).
+- **A third unfalsifiable test of this run, found by mutation not review (R1 B4).** It wrote `decision`
+  under `decodedPayload` while the code read the top level, so it passed against the very mutant it
+  existed to catch. Guard and test deleted together.
+- **Found while implementing, not in the plan:** a pre-existing doubled separator in the shared policy
+  block — the outcome suffix carried its own `' · '` and was then `.trim()`ed, so the `join` added a
+  second one and the label read `Policy commitment evaluated · · positive`. Fixed; this is the single
+  documented deviation from AC5's "labels unchanged" (**N1**, plan amended). Also: demo `policy.denied`
+  uses a singular top-level `reason` that the new summary would have dropped (**D32**), and
+  `commitmentId` was read only at the top level, where no real CP path sets it — so `#id` never rendered
+  on an actual denial.
+- **Mutation coverage:** 21 mutants across the two rounds, independently reconstructed by the verifier;
+  19 killed. Both survivors were closed afterwards — a reporting-only detector under a different name
+  (the guard now pins the whole return-key set) and reason-source precedence (now pinned).
+- **Known debt, deliberately not closed here:** both `run-workbench` wirings are unguarded — deleting
+  `historyGap={…}` or reverting `effectiveEvents` to the old collapse still passes all 512 tests. Closing
+  it needs a new harness for a React Flow + Recharts component with no existing precedent in this repo;
+  the R2 verifier independently agreed it should not block. **D33** below carries the deferred
+  backfill-burst floor so it does not drop off the record.
+- **Files touched:** `lib/types.ts`, `lib/utils/events.ts`, `lib/utils/events.test.ts`,
+  `lib/hooks/use-live-run.test.ts`, `components/runs/live-event-feed.tsx`,
+  `components/runs/live-event-feed.test.tsx` (new), `components/runs/run-workbench.tsx`,
+  `app/logs/page.tsx`, `lib/data/mock-data.ts`, `docs/api-integration.md`, `PROGRESS.md`.
+- **Gates:** typecheck clean · 39 files / 512 tests passing · 5 files / 95 integration tests passing ·
+  lint clean · format:check clean · `next build` clean.
+- **Next:** P9 — repoint the dev/e2e stack at runtime v0.8.0.
 
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 

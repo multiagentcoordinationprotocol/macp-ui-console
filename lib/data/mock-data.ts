@@ -1402,7 +1402,11 @@ const suspendedState: RunStateProjection = {
     runtimeSessionId: 'session-suspended-005',
     startedAt: isoMinutesAgo(22),
     traceId: 'trace-suspended-005',
-    modeName: 'macp.mode.decision.v1'
+    modeName: 'macp.mode.decision.v1',
+    // The suspended run is the natural demo home for this: a long pause is exactly when the runtime
+    // compacts the session history out from under the control plane's resume ordinal. Makes the
+    // event-feed fidelity notice reachable with no backend running.
+    historyGap: true
   },
   participants: [
     { participantId: 'fraud-agent', role: 'fraud', status: 'completed', latestSummary: 'Device graph evaluated.' },

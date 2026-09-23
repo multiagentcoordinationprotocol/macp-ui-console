@@ -34,6 +34,77 @@ function fmtConfidence(data: Record<string, unknown>): string {
   return ` · conf ${(v * 100).toFixed(0)}%`;
 }
 
+/**
+ * Render an event's `subject` for a detail row: `kind:id`, or `—` when there is nothing to show.
+ *
+ * Extracted because `live-event-feed.tsx` and `app/logs/page.tsx` built this expression identically
+ * and both got the empty-id case wrong: the control plane's inline stream-error path emits a subject
+ * with a populated `kind` and an **empty** `id` (`event-normalizer.service.ts`), which the old
+ * `subject ? \`${kind}:${id}\` : '—'` rendered as a dangling `message:`. A subject with no id
+ * identifies nothing, so it is treated the same as an absent one.
+ */
+export function formatEventSubject(event: CanonicalEvent): string {
+  const subject = event.subject;
+  if (!subject?.id) return '—';
+  return `${subject.kind}:${subject.id}`;
+}
+
+/**
+ * Merge the fetched event history with the live SSE buffer into one seq-ordered list.
+ *
+ * Exists because the two sources genuinely overlap and neither is a superset. `useLiveRun` reads its
+ * `initialEvents` in a `useState` initializer — at mount only — and the live run route mounts with
+ * streaming already enabled, before the history query has settled. So the live buffer never picks the
+ * fetched history up, and picking one source over the other drops real events: preferring the live
+ * buffer collapses the feed to whatever arrived after mount, preferring the fetched page hides the
+ * live tail.
+ *
+ * Dedups on `id` rather than `seq`, matching the hook's own buffer, because a reconnect replays from
+ * the resume cursor and legitimately re-delivers events already held. Sorts by `seq` because the live
+ * buffer appends in arrival order, which the control plane does not guarantee matches seq order.
+ */
+export function mergeEventStreams(fetched: CanonicalEvent[], live: CanonicalEvent[]): CanonicalEvent[] {
+  if (!live.length) return fetched;
+  if (!fetched.length) return live;
+  const byId = new Map(fetched.map((event) => [event.id, event]));
+  for (const event of live) byId.set(event.id, event);
+  return Array.from(byId.values()).sort((a, b) => a.seq - b.seq);
+}
+
+/**
+ * Pull policy-denial reasons out of an event payload, across every shape that carries them.
+ *
+ * The control plane nests them under `decodedPayload.reasons` on all **three** deny paths — the
+ * ack-error path (`event-normalizer.service.ts:111`), the inline `MACPError` path (`:161`), and the
+ * envelope `PolicyDenied` path (`:359-379`, which passes the decoded payload through wholesale). The
+ * inline path populates none of `commitmentId`, `decision` or `outcomePositive`, which were the only
+ * fields the old shared summary read, so such a denial rendered as the bare string `Policy denied`
+ * with the real reasons sitting unread.
+ *
+ * The top-level fallbacks are not speculative: demo data uses a singular top-level `reason`
+ * (`mock-data.ts`, `evt-ops-policy-denied`), and dropping it would make the demo feed less
+ * informative than the live one.
+ */
+function policyDenyReasons(data: Record<string, unknown>): string[] {
+  const strings = (value: unknown): string[] =>
+    (Array.isArray(value) ? value : []).filter(
+      (reason): reason is string => typeof reason === 'string' && reason.trim() !== ''
+    );
+
+  const decoded = data.decodedPayload;
+  const nested =
+    typeof decoded === 'object' && decoded !== null ? (decoded as Record<string, unknown>).reasons : undefined;
+
+  // `reasons` is an array wherever it appears; a non-array there is malformed and is ignored rather
+  // than coerced into a single bogus reason. `reason` is the singular demo shape and is a string.
+  for (const plural of [nested, data.reasons]) {
+    const reasons = strings(plural);
+    if (reasons.length > 0) return reasons;
+  }
+  const singular = data.reason;
+  return typeof singular === 'string' && singular.trim() !== '' ? [singular] : [];
+}
+
 export function summarizeEvent(event: CanonicalEvent): string {
   const { type, data } = event;
   const subject = event.subject ? `${event.subject.kind}:${event.subject.id}` : '';
@@ -138,22 +209,48 @@ export function summarizeEvent(event: CanonicalEvent): string {
       return `Decision ${verb}${action ? ` → ${action.toUpperCase()}` : ''}${fmtConfidence(data)}`;
     }
 
+    // Split out of the shared policy case below. Appending reasons to that block would change the
+    // label of `policy.resolved`, `policy.violated` and `policy.commitment.evaluated` too.
+    case 'policy.denied': {
+      // No `decision` here. All three control-plane deny paths nest it as
+      // `decodedPayload.decision` and always as the literal `'deny'`, which says nothing next to the
+      // label — and `pick` reads the top level, where nothing ever sets it.
+      const reasons = policyDenyReasons(data);
+      // Top level is the demo shape; the envelope path nests it instead
+      // (`event-normalizer.service.ts:369` builds the subject from `decodedPayload.commitmentId ??
+      // decodedPayload.policyId`). Reading only the top level meant the id never rendered on a real
+      // denial.
+      const decoded = data.decodedPayload;
+      const nested = typeof decoded === 'object' && decoded !== null ? (decoded as Record<string, unknown>) : {};
+      const commitmentId = pick(data, 'commitmentId') ?? pick(nested, 'commitmentId', 'policyId');
+      return ['Policy denied', commitmentId ? `#${commitmentId}` : '', reasons.join('; ')].filter(Boolean).join(' · ');
+    }
+
+    case 'session.stream.gap': {
+      // Emitted when the control plane could not resume the runtime StreamSession from its last
+      // ordinal. The payload is `{ requestedAfter, detail }` — verified against the emit site at
+      // `macp-control-plane/src/runs/stream-consumer.service.ts:312-315`, not guessed. `detail`
+      // already reads as a sentence, so it is used verbatim rather than re-worded here.
+      const detail = pick(data, 'detail');
+      const requestedAfter = pick(data, 'requestedAfter');
+      return ['Stream history gap', detail, requestedAfter !== undefined ? `resume point ${requestedAfter}` : '']
+        .filter(Boolean)
+        .join(' · ');
+    }
+
     case 'policy.resolved':
     case 'policy.violated':
-    case 'policy.denied':
     case 'policy.commitment.evaluated': {
       const verb = type.replace('policy.', '').replace('commitment.', 'commitment ');
       const commitmentId = pick(data, 'commitmentId');
       const decision = pick(data, 'decision');
       const outcome = data.outcomePositive;
+      // The separator comes from the `join` below, not from this value. It used to be baked in as
+      // `' · positive'` and then `.trim()`ed, which strips the space but leaves the bullet — so the
+      // join added a second one and the label read `Policy commitment evaluated · · positive`.
       const outcomeStr =
-        outcome === true ? ' · positive' : outcome === false ? ' · negative' : outcome === null ? ' · no outcome' : '';
-      return [
-        `Policy ${verb}`,
-        commitmentId ? `#${commitmentId}` : '',
-        decision ? `→ ${decision}` : '',
-        outcomeStr.trim()
-      ]
+        outcome === true ? 'positive' : outcome === false ? 'negative' : outcome === null ? 'no outcome' : '';
+      return [`Policy ${verb}`, commitmentId ? `#${commitmentId}` : '', decision ? `→ ${decision}` : '', outcomeStr]
         .filter(Boolean)
         .join(' · ');
     }

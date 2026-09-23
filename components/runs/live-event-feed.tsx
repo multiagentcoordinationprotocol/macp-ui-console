@@ -9,7 +9,7 @@ import { EventDetailDialog } from '@/components/ui/event-detail-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import type { CanonicalEvent } from '@/lib/types';
 import { formatDateTime, titleCase } from '@/lib/utils/format';
-import { summarizeEvent } from '@/lib/utils/events';
+import { formatEventSubject, summarizeEvent } from '@/lib/utils/events';
 import { isImplicitAccept } from '@/lib/utils/macp';
 
 /**
@@ -28,14 +28,56 @@ import { isImplicitAccept } from '@/lib/utils/macp';
 const SIZE_OPTIONS = [100, 500] as const;
 type Size = (typeof SIZE_OPTIONS)[number];
 
+/**
+ * Fidelity notice for a run whose event history the control plane knows is incomplete.
+ *
+ * Driven solely by `RunStateProjection.run.historyGap`, which the CP sets when it could not resume
+ * the runtime's session stream from its last envelope ordinal because that history had been
+ * compacted away. Its contract doc calls for exactly this treatment.
+ *
+ * There is deliberately **no** client-side seq-delta detector behind this. Canonical seqs are not
+ * contiguous per run — the control plane burns one seq per raw row out of the same counter — so a
+ * `seq` jump is the normal case, not evidence of loss. See the contiguity test in
+ * `lib/hooks/use-live-run.test.ts`.
+ *
+ * Offers no retry, because this kind of gap genuinely is unrecoverable: the envelopes were compacted
+ * out of the runtime before the control plane could read them, so no refetch can produce them.
+ */
+function EventGapNotice({ historyGap }: { historyGap?: boolean }) {
+  if (!historyGap) return null;
+
+  return (
+    <div
+      role="status"
+      className="stack"
+      style={{
+        gap: 4,
+        padding: '8px 10px',
+        border: '1px solid var(--warning)',
+        borderRadius: 6,
+        background: 'transparent'
+      }}
+    >
+      <strong className="small">Some events are missing from this run</strong>
+      <p className="muted small" style={{ margin: 0 }}>
+        The control plane could not resume this run&apos;s session stream from where it left off, because the runtime
+        had already compacted that history away. Those events were never recorded, so refreshing will not bring them
+        back.
+      </p>
+    </div>
+  );
+}
+
 export function LiveEventFeed({
   events,
   runId,
+  historyGap,
   title = 'Live event rail',
   description = 'Streaming canonical events, tool calls, and decision transitions.'
 }: {
   events: CanonicalEvent[];
   runId?: string;
+  historyGap?: boolean;
   title?: string;
   description?: string;
 }) {
@@ -131,6 +173,8 @@ export function LiveEventFeed({
             ) : null}
           </div>
 
+          <EventGapNotice historyGap={historyGap} />
+
           <div className="timeline-list">
             {visible.length === 0 ? (
               <EmptyState
@@ -196,7 +240,7 @@ export function LiveEventFeed({
             ? [
                 {
                   label: 'Subject',
-                  value: selectedEvent.subject ? `${selectedEvent.subject.kind}:${selectedEvent.subject.id}` : '—'
+                  value: formatEventSubject(selectedEvent)
                 },
                 {
                   label: 'Source',

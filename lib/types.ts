@@ -516,6 +516,18 @@ export interface RunStateProjection {
     modeName?: string;
     contextId?: string;
     extensionKeys?: string[];
+    /**
+     * True when the control plane could not resume the runtime's per-session `StreamSession` from
+     * its last envelope ordinal, because that history had been compacted away (the runtime answers
+     * `FAILED_PRECONDITION`). Envelope-level events between the compacted base and the reconnect are
+     * missing from this run's event log **permanently** — no reconnect or refetch recovers them.
+     *
+     * Mirrors `RunSummaryProjection.historyGap` in
+     * `macp-control-plane/src/contracts/control-plane.ts:245`, whose own doc comment states that the
+     * console surfaces this as a fidelity warning. Absent or `false` means no known gap; only `true`
+     * warns.
+     */
+    historyGap?: boolean;
   };
   participants: Array<{
     participantId: string;

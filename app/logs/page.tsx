@@ -12,7 +12,7 @@ import { RunSelectorFilters, type RunSelectorFiltersValue } from '@/components/r
 import { listEvents, listRuns } from '@/lib/api/client';
 import { usePreferencesStore } from '@/lib/stores/preferences-store';
 import type { CanonicalEvent } from '@/lib/types';
-import { summarizeEvent } from '@/lib/utils/events';
+import { formatEventSubject, summarizeEvent } from '@/lib/utils/events';
 import { isImplicitAccept } from '@/lib/utils/macp';
 import { formatDateTime } from '@/lib/utils/format';
 
@@ -40,6 +40,7 @@ const EVENT_TYPE_GROUPS: Record<string, string[]> = {
   Session: [
     'session.bound',
     'session.stream.opened',
+    'session.stream.gap',
     'session.state.changed',
     'session.opened',
     'session.resolved',
@@ -379,7 +380,7 @@ function LogsPageContent() {
             ? [
                 {
                   label: 'Subject',
-                  value: selectedEvent.subject ? `${selectedEvent.subject.kind}:${selectedEvent.subject.id}` : '—'
+                  value: formatEventSubject(selectedEvent)
                 },
                 {
                   label: 'Source',
