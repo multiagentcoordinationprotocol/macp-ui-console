@@ -27,7 +27,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P8a | SSE resume-cursor correctness | DONE | 2 | Opus | `fd2ed50` | pending /ship |
 | P8b | Gap visibility (`historyGap`) + `policy.denied` detail | DONE | 2 | Opus | `3c6d3fc` | pending /ship |
 | P9 | Repoint the dev/e2e stack at runtime v0.8.0 | DONE | 1 | Opus | `7679ce3` | pending /ship |
-| P10 | Documentation refresh | TODO | — | — | — | — |
+| P10 | Documentation refresh | DONE | 3 | Opus | `PENDING` | pending /ship |
 
 Dependency edges: P4→P3, P5→P4, **P5→P3** (Phase 5 reads `errorCode` directly, so the edge is real and not
 merely transitive through P4), P6→P3, P8b→P8a, P10→all. P1, P2, P7, P8a, P9 are independent.
@@ -346,6 +346,10 @@ _(`/implement` appends; `/plan` seeded the five below — full reasoning in the 
 | D33 | The warm-remount backfill floor (`latestSeq - MAX_EVENT_BUFFER`) is deferred again, out of P8b | Half its prescribed fix — "report the skipped range through the gap notice" — became unavailable when the seq detector was removed, and the other half (flooring the resume seed) reintroduces reading `timeline.latestSeq` for cursor purposes, which P8a deliberately removed. That deserves its own phase and its own verification, not a tail-end addition to a phase that already cut a feature. The hazard is real but pre-existing: a 10k-event warm remount replays ~9.5k frames, each a `JSON.parse` + O(500) dedup scan + a React render (P8b verify R2, N3) |
 | D32 | `policyDenyReasons` also reads a singular top-level `reason` | Demo data (`evt-ops-policy-denied`) uses that shape, so the demo feed would otherwise show less than the live one. Nested/`reasons` must be an array; a non-array is ignored rather than coerced into a bogus single reason |
 | D27 | Bounding the warm-remount backfill burst is deferred to P8b | P8a converts silent loss into delivery, so re-entering a long run within `gcTime` now replays the entire remainder, one React render per frame. The fix (floor the seed at `latestSeq - MAX_EVENT_BUFFER` and report the skipped range) needs the gap notice P8b builds, so it belongs there (P8a verify R2, obs 4) |
+| D34 | `MOCK_RUNTIME_MANIFEST.metadata.protocolVersion` went to `0.1.10` (proto), not `0.8.0` (runtime image) | The plan explicitly refused to let AC2's grep drive this value, and it was right to: the field tracks the **proto** package, and the CP's dependency is `0.1.10`. The stale `0.5.0` was traced to this repo's own 2026-07-07 changelog entry, which set it beside the v0.5.0 image pin and conflated image version with protocol version. A real runtime returns `metadata: {}`, so nothing reads it — the comment now says so, to stop the next bump repeating the conflation (P10) |
+| D35 | The feature-matrix modes row says **five**, overriding the plan's "do not change the count" | The plan counted what the runtime *declares* (5 standard + 1 extension); the row describes what the console *shows*. `/modes` → CP `GET /runtime/modes` → runtime `ListModes` → `standard_mode_descriptors()` = five. `ext.multi_round.v1` needs `ListExtModes`, for which the CP exposes no route, so it can never reach this surface. Demo's six is now a labelled `KNOWN DEMO/REAL DIVERGENCE` in the mock rather than a silent contradiction of production (P10) |
+| D36 | Stale line counts were deleted rather than corrected | `client.ts` was documented at ~460 lines against an actual 1346 — a ~3x error — and mock-data's figure was stale by about a thousand, across three files. (No *mock-data* count is quoted here on purpose: this bullet's own first draft cited one that the branch had already invalidated. `client.ts`'s 1346 is safe to cite only because the branch's last commit is the thing that fixes it.) They have rotted twice already; an updated number is a third rot scheduled. Nothing depends on them (P10) |
+| D37 | Proto `0.1.9 → 0.1.10` is published as explicitly **unaudited** | Saying nothing would read as "checked and fine". The changelog names it as a known-unverified edge and `ASSUMPTIONS.md` carries the entry, per the plan's own instruction. The console's payload reads are name-based lookups with fallbacks, so a shape change degrades quietly — exactly the failure that needs naming rather than burying (P10) |
 
 ## Assumptions to reconcile
 
@@ -355,6 +359,7 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
 - A2 — bootstrap without `controlPlaneRun` does **not** redirect (P7)
 - A3 — drift loads on demand rather than with the tab (P5)
 - A4 — GHCR tag `f97fd15` is pullable (P9; verified by that phase's own boot criterion)
+- A5 — macp-proto `0.1.10` changed no `decodedPayload` shape the console reads (P10; **not audited**)
 
 ---
 
@@ -795,6 +800,125 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
 - **Gates:** typecheck clean · 39 files / 512 tests passing · 5 files / 95 integration tests passing ·
   lint clean · format:check clean · `next build` clean · `docker compose config` parses.
 - **Next:** P10 — documentation refresh.
+
+### P10 — Documentation refresh — **PASS**
+
+- **Shipped.** A newest-first `2026-09-23` changelog entry at `docs/changelog.md:3` following the
+  2026-07-07 template (dated `##` heading, 2–4 line lead, `###` domain subsections, closing
+  `### Infra & docs`, `---` separator), covering the authority enum correction, `supersedes.canonical`,
+  the drift endpoint, the schemaVersion constraint, `controlPlaneRun`, both SSE cursor fixes, the
+  deliberate *absence* of a gap detector, and the runtime image repoint — plus the five upstream
+  behaviour changes that need no console code but change what operators see, and a "Corrections to this
+  repo's own docs" subsection recording the eight pre-existing errors found while verifying.
+- **All seven acceptance criteria re-run from the shell, not from memory.** AC2's grep now returns only
+  historical references inside older changelog entries and two comments that exist specifically to
+  explain why the old value was wrong; AC6's grep for the invented field name (the one the brief
+  used, which does not exist upstream) returns nothing repo-wide — note the criterion is a
+  whole-repo absence check, so it cannot be restated here using the literal string;
+  AC7's `git status docs-content/` is clean.
+- **The plan's "do not change the count" instruction was wrong, and was overridden.** The plan counted
+  the modes the **runtime declares** (five standard + one extension = six); the feature-matrix row
+  describes what the **console shows**, which is `GET /runtime/modes` → the CP's `ListModes` call →
+  `standard_mode_descriptors()` → **five**. `ext.multi_round.v1` is reachable only via `ListExtModes`,
+  which the CP exposes no route for. I re-verified this in runtime source myself after a fact-check
+  flagged it, rather than taking either the plan's or the fact-checker's word. Demo mode's six is now a
+  documented `KNOWN DEMO/REAL DIVERGENCE` in `lib/data/mock-data.ts` instead of a silent contradiction.
+- **`protocolVersion` was decided, not bumped.** The plan explicitly refused to let AC2's grep drive the
+  value. `MOCK_RUNTIME_MANIFEST.metadata.protocolVersion` tracks the **proto** package, so it went to
+  `0.1.10` (the CP's actual proto dependency), not `0.8.0`. The old `0.5.0` was traced to this
+  changelog's own 2026-07-07 entry, which set it alongside the v0.5.0 image pin and conflated runtime
+  image version with protocol version. A real runtime returns `metadata: {}`, so the field is
+  illustrative and nothing reads it — recorded in the comment so the next bump does not repeat the
+  conflation.
+- **Four of the plan's own upstream-behaviour claims were corrected before they reached the changelog**
+  (read-only fact-check, then re-verified): `RUNTIME_MAX_RECEIVE_MESSAGE_BYTES` is a **new** var making
+  grpc-js's implicit ~4 MB limit explicit at 16 MiB — not "a raise from a 4 MiB default" — and the same
+  commit added `RUNTIME_MAX_SEND_MESSAGE_BYTES`, which the plan missed; the event-count decrease is a
+  sound **inference**, not an observation, and is worded as "can legitimately go down"; the
+  stream-consumer range is `:92-155` and includes a 10s `LAST_RESORT_FINALIZE_TIMEOUT_MS`, so the entry
+  says "bounded by a last-resort timeout" rather than implying an unbounded immediate finalize; and the
+  runtime **workspace** is 0.8.1 while the pinned image `f97fd15` is genuinely v0.8.0, so P9's label
+  needed no change. All five corrections are inline `> CORRECTED` blocks in the plan.
+- **Proto 0.1.9 → 0.1.10 is recorded as explicitly unaudited**, per the plan's instruction — a known
+  edge rather than a checked one, logged UNCONFIRMED in `ASSUMPTIONS.md` (A5) rather than left as a
+  changelog aside. The console reads `decodedPayload` fields by name with fallbacks, so a shape change
+  degrades to a blank summary line rather than an error — the failure mode that most needs naming.
+- **`docs-content/macp-playground/**` deliberately untouched** (AC7). Those files are auto-synced by
+  `.github/workflows/sync-examples-docs.yml`; hand edits would be clobbered. The changelog says so, and
+  notes they still carry a stale `"authority": "designated_roles"` that upstream has already fixed.
+- **`CLAUDE.md` is gitignored (`.gitignore:46`), so its corrections ship in no commit and appear in no
+  diff.** Done anyway, and AC5 verified by reading the file from disk: four env var names, both proxy
+  identifiers, `suspended` in the run-status list, `observability/` + `settings/` in the inventory,
+  `npm run test:integration`, and the `/policies` move.
+- **Line counts deleted rather than corrected** across `CLAUDE.md`, `docs/api-integration.md` and
+  `docs/architecture.md` — `client.ts` was documented at ~460 lines against an actual 1346. They have
+  rotted twice; an approximation would rot again.
+- **Files touched:** `docs/changelog.md`, `docs/api-integration.md`, `docs/architecture.md`,
+  `docs/feature-matrix.md`, `docs/backend-repo-notes.md`, `lib/data/mock-data.ts`, `app/modes/page.tsx`,
+  `PROGRESS.md`, and `CLAUDE.md` (untracked).
+- **Corrected after verification (round 1 → FAIL on two blocking gaps, both real):**
+  - **B1 — I wrote a new, false claim into the docs, which is exactly the failure this phase
+    existed to fix.** The fail-fast credential bullet (`docs/backend-repo-notes.md`, the observer-only authority list) ended with "(`NOT_FOUND` is the ordinary case
+    that keeps polling — only a permission failure short-circuits.)" That is wrong: `mapGrpcError`
+    maps `NOT_FOUND` to an `AppException` at `grpc-helpers.ts:146`, one line above the
+    `PERMISSION_DENIED` entry, and `run-executor.service.ts:413` rethrows **every** `AppException` —
+    so `NOT_FOUND` short-circuits too and never reaches the `debug` log below it. The upstream repo
+    had already written this down (`macp-control-plane/docs/INTEGRATION.md:133-138` calls the
+    `:415` comment stale). I verified it in source myself before rewriting. The only branch that
+    actually keeps polling is a snapshot whose `state` is neither `OPEN` nor `EXPIRED`.
+  - **B2 — the changelog claimed a correction it had not made.** The entry asserts the proxy
+    identifiers were fixed and lists `docs/architecture.md` as updated, but that file still read
+    `/api/proxy/example/...` at `:154` and "maps `example` and …" at `:161`. Not cosmetic: the
+    route casts the segment (`rawService as ProxyService`) with no validation and
+    `getIntegrationConfig` falls through to the control-plane branch for anything unrecognized, so
+    a reader following that doc would silently route playground calls at the control plane. Both
+    occurrences fixed and the fall-through documented. I had found this one independently in the
+    §4 docs sweep before the verdict arrived.
+- **Five non-blocking accuracy fixes also applied** rather than deferred, since each was a claim a
+  reader could act on: the runtime test citation was off by seven lines (length assertion at
+  `:2042`, absence assertion at `:2049`); `CLAUDE.md` asserted a playground port default the code
+  does not use; "every batch burns a seq" is true only of the raw-envelope path, so it is now
+  qualified — and the qualification strengthens the argument for having no gap detector, because
+  the two allocation paths interleave in one counter; the changelog said "two" error envelopes
+  where the filter emits three, and `docs/api-integration.md`'s heading said two above a table of
+  three; and "nothing reads" the mock `protocolVersion` was true of code but false of the screen —
+  `/modes` renders the whole manifest through `JsonViewer`.
+- **Found while sweeping, recorded not patched:** `lib/server/integrations.ts:37` falls back to
+  `http://localhost:3000` for the playground — the Next.js dev server's own port — while
+  `.env.example` says `3100`. Unset, the proxy forwards Examples Service calls to the console
+  itself. Out of this phase's file list, unverifiable without a boot, and a behaviour change
+  dressed as a doc fix if done here (**see ASSUMPTIONS.md**).
+- **AC6 caught me a second time, on my own bookkeeping.** The criterion is a whole-repo absence
+  check for a field name that does not exist upstream, and my first draft of this very checkpoint
+  quoted the string — which made the criterion false. Reworded to describe it instead.
+- **Corrected after verification (round 2 → FAIL, two blocking gaps, both mine and both new):**
+  - **B1 — I fixed a false claim with a false claim.** Round 1's fix ended "the only branch that
+    actually keeps polling is a snapshot whose `state` is neither `OPEN` nor `EXPIRED`". That
+    absolute is wrong: `CircuitBreaker.execute` throws a plain `Error` (`circuit-breaker.ts:77`)
+    with no numeric `.code`, so `isGrpcServiceError` rejects it, `mapGrpcError` returns `undefined`,
+    and the provider rethrows it unchanged (`rust-runtime.provider.ts:930`, whose own comment says
+    "Non-gRPC errors (e.g. circuit-breaker-open) are rethrown unchanged"). Not being an
+    `AppException`, it is swallowed by the poll loop — so a breaker-open `GetSession` polls the full
+    budget, and *that* is what the `debug` log is still for. Verified in source before rewriting.
+    The lesson is narrow and worth keeping: the first fix failed because I reached for an absolute
+    ("the only branch") when the evidence only supported a negative ("`NOT_FOUND` is not the
+    contrasting case").
+  - **B2 — the round-1 rename left the file contradicting itself.** Renaming the section to "The
+    three control-plane error envelopes" orphaned a by-name cross-reference at
+    `docs/api-integration.md:219` still saying "two", so one file asserted both counts.
+- **Found by me while applying those fixes, in the same class as round 1's B2:**
+  `docs/backend-repo-notes.md:11`'s topology diagram still read `/api/proxy/{example,…}`. Round 1's
+  B2 was the same defect in `docs/architecture.md`; the verifier had grepped only the file it was
+  pointed at. A repo-wide grep now returns nothing.
+- **Four further accuracy fixes:** two cited line numbers were off by one (`.env.example:11`,
+  `docs/api-integration.md:47`); the port disagreement is **four**-way, not three (`README.md:77`
+  is a fourth source); the `2, 4, 6, 8` illustration was over-specified, since normalization can
+  emit two canonical events per envelope or none, so the stride varies as well as skipping; and the
+  D36 line-count bullet had itself gone stale — fixed by quoting no replacement number, which is
+  the point that bullet was making.
+- **Gates (re-run after every fix):** typecheck clean · 39 files / 512 tests passing · 5 files /
+  95 integration tests passing · lint clean · format:check clean.
+- **Next:** §4 finalization pass.
 
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 

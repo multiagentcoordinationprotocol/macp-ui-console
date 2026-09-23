@@ -123,8 +123,12 @@ export default function ModesPage() {
                   </div>
                   <div className="list-item-meta">Participant model: {mode.participantModel ?? 'unspecified'}</div>
                   <div className="list-item-meta">Message types: {mode.messageTypes.join(', ') || '—'}</div>
-                  {/* v0.5.0 registration invariant: a Commitment must be terminal. Surface
-                      the terminal set so operators can see which message closes the session. */}
+                  {/* Registration invariant: a Commitment must be terminal. Since v0.8.0 the
+                      runtime *enforces* this — the registry rejects an extension descriptor with
+                      an empty terminal set, or any terminal other than Commitment, because
+                      "dynamically registered modes resolve only on 'Commitment'"
+                      (crates/macp-modes/src/mode_registry.rs:481-499). Surface the terminal set so
+                      operators can see which message closes the session. */}
                   <div className="list-item-meta">Terminal types: {mode.terminalMessageTypes?.join(', ') || '—'}</div>
                 </div>
               ))}

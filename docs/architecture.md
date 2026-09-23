@@ -64,7 +64,7 @@ The `app/` directory contains route-driven product surfaces:
 Located in `lib/api/`.
 
 - `fetcher.ts` wraps proxy requests and exposes the typed `ApiError` class (with `isNotFound` getter for 404 discrimination).
-- `client.ts` exposes typed UI-facing functions (~1180 lines) covering packs, scenarios, launch, runs, state, events, streaming, metrics, traces, artifacts, audit, webhooks, runtime metadata, runtime policies, batch ops, and admin. See [`api-integration.md § Client-side integration functions`](./api-integration.md#client-side-integration-functions) for the full inventory.
+- `client.ts` exposes typed UI-facing functions covering packs, scenarios, launch, runs, state, events, streaming, metrics, traces, artifacts, audit, webhooks, runtime metadata, runtime policies, batch ops, and admin. See [`api-integration.md § Client-side integration functions`](./api-integration.md#client-side-integration-functions) for the full inventory.
 - Functions switch between demo-mode mocks and real proxy-backed requests.
 - Includes response normalization layers that reconcile backend shapes with UI types:
   - `normalizeRun()` — unwraps paginated responses and nests flat `sourceKind`/`sourceRef` into `source: { kind, ref }`. `archivedAt` is passed through from CP directly (the legacy tag-synthesis bridge is gone).
@@ -75,7 +75,7 @@ Located in `lib/api/`.
 
 ### 3. Demo-mode data layer
 
-Located in `lib/data/mock-data.ts` (~2000 lines).
+Located in `lib/data/mock-data.ts`.
 
 Contains:
 
@@ -151,14 +151,17 @@ Persisted UI settings:
 The browser only calls:
 
 ```text
-/api/proxy/example/...
+/api/proxy/macp-playground/...
 /api/proxy/macp-control-plane/...
 /api/jaeger/...                 # optional, trace-detail deep-dives only
 ```
 
 The generic proxy handler (`app/api/proxy/[service]/[...path]/route.ts`):
 
-- maps `example` and `macp-control-plane` to upstream base URLs
+- maps `macp-playground` and `macp-control-plane` — the two members of `ProxyService`
+  (`lib/server/integrations.ts:1`) — to upstream base URLs. There is no allowlist check: an
+  unrecognized segment falls through to the control-plane branch rather than 404ing, so the
+  spelling matters.
 - forwards method, headers (minus `host` / `connection` / `content-length`), query string, and body
 - injects auth when configured (`x-api-key` for Examples Service, `authorization: Bearer` for Control Plane)
 - strips `content-encoding` on the response and streams the body unchanged

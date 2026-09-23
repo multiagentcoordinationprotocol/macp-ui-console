@@ -138,3 +138,64 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
   file list **and because the fix is unverifiable in this environment** — the name can be shown to
   match, but not that the stack then boots. Strong candidate for its own change.
 - **Status:** UNCONFIRMED
+
+---
+
+## macp-proto 0.1.9 → 0.1.10 was not audited for `decodedPayload` shape changes
+
+- **Plan:** plans/absorb-control-plane-playground-sep-2026.md
+- **Phase:** 10
+- **Assumed:** That the proto bump the control plane took in this range (`macp-proto` `0.1.9` → `0.1.10`,
+  confirmed as the CP's current dependency) introduced no change to the `event.data.decodedPayload`
+  shapes the console reads. Nothing in this pass checked that. The console decodes payloads in
+  `lib/utils/events.ts` and several run surfaces, all of which read fields positionally by name off an
+  untyped object, so a renamed or re-nested field would degrade quietly — a summary line rendering as
+  `—` or an empty detail block, not an error.
+- **Chose:** Record it as a known-unverified edge and say so explicitly in the changelog, rather than
+  relabelling the docs as "absorbed" and implying the audit happened. The plan itself instructed this
+  ("**Not audited this session** — record it as a known-unverified edge rather than implying it was
+  checked"), and it is the right call: a confidently-wrong doc is worse than a missing one.
+- **Alternatives:** (1) Diff the two proto packages field-by-field and audit every console read site —
+  the right thorough answer, but it is a phase of its own, not a bullet in a documentation refresh, and
+  it would need the 0.1.9 package to diff against. (2) Say nothing — rejected; silence here reads as
+  "checked and fine". (3) Assert compatibility from the absence of breakage in the test suite —
+  rejected; demo-mode fixtures are this repo's own mock data and would not move if upstream shapes did.
+- **Blast radius if wrong:** Degraded event detail rendering on real backends only — demo mode is
+  unaffected because it never touches proto. No crash path: every read site is a lookup on a possibly-
+  absent field with a fallback. Detection would come from an operator noticing a blank summary, which
+  is why the changelog names the risk rather than burying it.
+- **Status:** UNCONFIRMED
+
+---
+
+## `MACP_PLAYGROUND_BASE_URL`'s code default points at the console, not the playground
+
+- **Plan:** plans/absorb-control-plane-playground-sep-2026.md
+- **Phase:** 10 (found while sweeping docs; **not** introduced by this branch)
+- **Assumed:** That leaving `lib/server/integrations.ts:37`'s fallback at `http://localhost:3000`
+  is safe because every supported way of running the stack sets the variable explicitly. Four
+  sources disagree about this value: `.env.example:11` says `3100`, while the code's fallback,
+  `docs/api-integration.md:47` and `README.md:77` all say `3000`. `3100` is the right one — the
+  compose stacks publish the playground there (`docker-compose.e2e.yml` maps `3100:3000`, so the
+  container's own port really is `3000`) — while host-side `3000` is the Next.js dev server —
+  so with the variable unset, the proxy forwards Examples Service calls **to the console itself**.
+  The likely symptom is not a connection error but a confusing 404 from Next's own router.
+- **Chose:** Document the disagreement in `CLAUDE.md` and record it here rather than change the
+  fallback. `lib/server/integrations.ts` is outside this phase's file list; the phase is
+  documentation; and the correct value cannot be demonstrated here, because the console's local
+  stack could not be booted in this environment (see the runtime-pin entry above). Changing a
+  default that every working configuration currently overrides is a behaviour change dressed as a
+  doc fix — it belongs in its own change, with a test.
+- **Alternatives:** (1) Change the fallback to `3100` and align `docs/api-integration.md` — probably
+  right, but unverifiable here and out of scope. (2) Delete the fallback and fail fast when the
+  variable is unset — arguably the best answer, since a silent self-proxy is worse than a startup
+  error, but that is a behaviour change with its own blast radius. (3) Say nothing — rejected; the
+  next person to hit it would have no thread to pull.
+- **Blast radius if wrong:** Only affects a real-mode run with `MACP_PLAYGROUND_BASE_URL` unset.
+  What actually sets it is `.env.e2e` (loaded by `dev:e2e`, which `scripts/local-stack.sh` execs)
+  and the `.env.local` recipe in `README.md:75-81` — note that `npm run dev:real` sets only
+  `NEXT_PUBLIC_MACP_UI_DEMO_MODE`, and the compose files start no UI service, so neither supplies
+  it. A developer who runs `dev:real` without having written an env file gets the self-proxy. If the
+  fallback is in fact correct and `.env.example` is the wrong one, the cost of this entry is a
+  paragraph of prose. Nothing in the branch depends on either value.
+- **Status:** UNCONFIRMED

@@ -47,7 +47,8 @@
 | Observability | Circuit breaker timeline | ✅ | State transitions from `/admin/circuit-breaker/history` |
 | Observability | Readiness probe | ✅ | Per-subsystem health checks (`/readyz`) |
 | Observability | Jaeger trace deep-links | ✅ | Span waterfall via `/api/jaeger/*` proxy when configured |
-| Runtime | Runtime mode browser | ✅ | `/modes` surface; message + terminal message types per mode (all six v0.5.0 modes) |
+| Runtime | Runtime mode browser | ✅ | `/modes` surface; message + terminal message types per mode. Against a real backend this is the **five** standards-track modes — the control plane exposes no `ListExtModes`, so `ext.multi_round.v1` does not appear. Demo mode shows six. |
+| Runtime | Runtime session drift | ✅ | Infrastructure tab; sessions the runtime holds with no control-plane run and vice versa, with an explicit incomplete-sweep notice |
 | Runtime | Runtime policy registry | ✅ | `/policies` surface, RFC-MACP-0012 governance rules; read-only (file-managed) registry banner |
 | Settings | Preferences store | ✅ | Persisted in local storage |
 | Settings | Webhook management | ✅ | Create/toggle/delete, delivery stats display |

@@ -1777,10 +1777,21 @@ export const MOCK_AGENT_PROFILES: AgentProfile[] = [
   }
 ];
 
-// Mirrors macp-runtime v0.5.0 `all_mode_descriptors()`
-// (crates/macp-modes/src/mode/mod.rs): five standards-track modes + the multi-round
-// extension. Every mode's terminal type is exactly `Commitment` (a v0.5.0 registration
-// invariant), and each message-type list leads with `SessionStart`.
+// Mirrors macp-runtime `all_mode_descriptors()` (crates/macp-modes/src/mode/mod.rs): five
+// standards-track modes + the multi-round extension. Every mode's terminal type is exactly
+// `Commitment` — a registration invariant that has since been *enforced*: since v0.8.0 the
+// registry rejects any extension descriptor with empty terminal types, and any terminal other
+// than `Commitment` (crates/macp-modes/src/mode_registry.rs:481-499). Each message-type list
+// leads with `SessionStart`.
+//
+// KNOWN DEMO/REAL DIVERGENCE — this list has six entries; a real backend returns five.
+// `GET /runtime/modes` proxies the control plane, which calls the runtime's `ListModes`, and
+// that RPC returns `standard_mode_descriptors()` only (macp-runtime/src/server.rs:1136-1143;
+// its own test asserts a length of 5 at :2042 and `ext.multi_round.v1`'s absence at :2049).
+// The extension is reachable
+// only via `ListExtModes`, and the control plane exposes no endpoint for it. So `/modes` shows
+// six in demo mode and five against a real stack. Left as-is deliberately: trimming the mock
+// would hide the extension from the only place it is currently visible. See docs/changelog.md.
 export const MOCK_RUNTIME_MODES: RuntimeModeDescriptor[] = [
   {
     mode: 'macp.mode.decision.v1',
@@ -1863,8 +1874,18 @@ export const MOCK_RUNTIME_MANIFEST: RuntimeManifestResult = {
   title: 'MACP Rust Runtime',
   description: 'Reference runtime with file-backed replay and dynamic mode registry.',
   supportedModes: MOCK_RUNTIME_MODES.map((mode) => mode.mode),
+  // Illustrative only. A real runtime returns `metadata: {}` — the live manifest carries no
+  // version field at all — so nothing here is contract-bearing. No *code* reads this field, but
+  // it is not invisible: `/modes` renders the whole manifest as raw JSON through `JsonViewer`
+  // (app/modes/page.tsx:95), so a wrong value here is a wrong value on screen in demo mode.
+  //
+  // `protocolVersion` tracks the **proto/spec** package, currently `0.1.10`
+  // (`macp-control-plane/package.json` depends on `@multiagentcoordinationprotocol/proto@^0.1.10`),
+  // not the runtime build. The previous value `0.5.0` was a runtime image version: docs/changelog.md
+  // set it alongside the v0.5.0 image pin, conflating the two. A field named `protocolVersion`
+  // should name the protocol, so it now does.
   metadata: {
-    protocolVersion: '0.5.0',
+    protocolVersion: '0.1.10',
     storage: 'file-backend',
     transport: 'grpc'
   }

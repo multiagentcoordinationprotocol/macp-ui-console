@@ -8,7 +8,7 @@ the UI needs to know to consume those services correctly.
 ## Integration topology
 
 ```
-macp-ui-console (this repo) ──HTTP──► /api/proxy/{example,macp-control-plane}
+macp-ui-console (this repo) ──HTTP──► /api/proxy/{macp-playground,macp-control-plane}
                                         │
                                         ├──► macp-playground  (catalog, compile, bootstrap)
                                         └──► macp-control-plane      (run lifecycle, state, SSE)
@@ -40,7 +40,9 @@ agent profile catalog, and optional one-shot bootstrap + spawn of example agents
 
 - **Endpoints the UI calls** — see [`api-integration.md`](./api-integration.md#example-service-endpoints-used-by-the-ui)
 - **Observed characteristics**
-  - NestJS service; local default port `3000`
+  - NestJS service; listens on `3000` inside its container, published on `3100` by the compose
+    stacks (`docker-compose.e2e.yml`). Set `MACP_PLAYGROUND_BASE_URL` explicitly — the code's
+    fallback is `http://localhost:3000`, which is the Next.js dev server, not this service.
   - Optional `x-api-key` auth (forwarded by the UI proxy)
   - Built-in example agent catalog: `fraud-agent`, `growth-agent`, `compliance-agent`, `risk-agent` across LangGraph / LangChain / CrewAI / custom Node frameworks
   - Agent metrics are fetched from the control plane and merged client-side into agent profiles
@@ -68,6 +70,9 @@ and admin operations.
   - `POST /runs/:id/messages`, `POST /runs/:id/signal`, and `POST /runs/:id/context` are **removed** and return `410 Gone` with `errorCode: ENDPOINT_REMOVED`. The UI does not render forms that target these endpoints.
   - `POST /runs/:id/cancel` has two flows, chosen by `metadata.cancelCallback` / `metadata.cancellationDelegated`. The UI treats the endpoint as opaque — it posts and re-renders from the returned record.
   - `POST /runs/:id/clone` rejects non-empty `context` overrides. The clone form surfaces this error directly.
+  - **A mis-scoped control-plane credential fails a run immediately, not after a timeout.** The runtime denies session access with gRPC `PERMISSION_DENIED` and a message beginning `FORBIDDEN:` — `FORBIDDEN: session access denied` from `GetSession`, or `FORBIDDEN: caller is not a declared participant or observer for this session` when subscribing to `StreamSession`. The control plane maps `PERMISSION_DENIED` to HTTP 403, and its session poll **rethrows** that rather than retrying, so the run fails on the **first** `GetSession` attempt rather than after the poll budget expires. (`NOT_FOUND` is **not** the contrasting case: `mapGrpcError` maps it to an `AppException` too — `grpc-helpers.ts:146` sits beside `:147` — and the poll loop rethrows *every* `AppException`, so it short-circuits as well. The `debug`-log comment at `run-executor.service.ts:415` saying "`NotFound` … is normal" is stale and is flagged as such in the control plane's own `docs/INTEGRATION.md:133-138`. Polling continues in only two cases: a snapshot whose `state` is neither `OPEN` nor `EXPIRED`, and a **non-gRPC** error — notably circuit-breaker-open, which is a plain `Error` with no numeric `.code` (`circuit-breaker.ts:77`), so `mapGrpcError` declines it and the provider rethrows it unchanged. That second case is what the `debug` log is still genuinely for.)
+  - **Where the reason actually is, and where it is not.** The failure is persisted as two columns, `errorCode` and `errorMessage`. On this path `errorCode` is always the literal `RUN_FAILED` — **never** `FORBIDDEN` — and `errorMessage` carries the runtime's sentence, so the `FORBIDDEN:` prefix is the thing to match on. Both are returned by `GET /runs/:id`, which selects the whole row. **Neither appears in `GET /runs/:id/state`**: `RunSummaryProjection` has no error field of any kind, and nor does any sibling block in `RunStateProjection`. A console surface that reads a failure reason from the projection alone will therefore show nothing for this case — that is the difference between "the UI has a bug" and "the UI is reading the wrong endpoint". Note also that `errorCode`/`errorMessage` ship on the wire but are **not** declared in the control plane's published `Run` contract, so they are undocumented rather than guaranteed.
+  - **Triage line:** a run that fails almost instantly, with an `errorMessage` starting `FORBIDDEN:`, means a mis-scoped control-plane credential — not a missing initiator agent, and not a runtime outage.
 
 - **Response-shape differences the UI normalizes** — see the [Response normalization](./api-integration.md#response-normalization) section of `api-integration.md`.
 
@@ -89,7 +94,7 @@ macp-control-plane** at `/runtime/*` endpoints. The UI never opens a gRPC channe
 - **Canonical docs** (useful for understanding what the CP passes through)
   - Overview: [`macp-runtime/docs/README.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/README.md)
   - Architecture: [`macp-runtime/docs/architecture.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/architecture.md)
-  - API (22 gRPC RPCs): [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md)
+  - API (24 gRPC RPCs): [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md)
   - Modes (Decision / Proposal / Task / Handoff / Quorum + extensions): [`macp-runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/modes.md)
   - Policy (RFC-MACP-0012 rule schemas + evaluator internals): [`macp-runtime/docs/policy.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/policy.md)
   - Deployment: [`macp-runtime/docs/deployment.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/deployment.md)

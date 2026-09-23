@@ -36,10 +36,10 @@ requests, inject auth, and keep secrets server-side.
 
 | Route | File | Purpose |
 |---|---|---|
-| `/api/proxy/[service]/[...path]` | `app/api/proxy/[service]/[...path]/route.ts` | Generic forwarder for `example` and `macp-control-plane` services. Injects auth, strips hop-by-hop headers, streams response body unchanged. |
+| `/api/proxy/[service]/[...path]` | `app/api/proxy/[service]/[...path]/route.ts` | Generic forwarder for `macp-playground` and `macp-control-plane` services. Injects auth, strips hop-by-hop headers, streams response body unchanged. |
 | `/api/jaeger/[...path]` | `app/api/jaeger/[...path]/route.ts` | Forwards to `JAEGER_BASE_URL/api/*`. Used by the trace detail surface to resolve span waterfalls. Returns `502` if Jaeger is unreachable. |
 
-Supported upstream service identifiers (`[service]` segment): `example`, `macp-control-plane`.
+Supported upstream service identifiers (`[service]` segment): `macp-playground`, `macp-control-plane` — the two members of `ProxyService` in `lib/server/integrations.ts:1`.
 
 ### Environment variables
 
@@ -179,16 +179,29 @@ Runtime-level semantics (what a "mode" is, what's in a manifest) are documented 
 runtime repo: [`macp-runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/modes.md)
 and [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md).
 
-Notes for runtime v0.5.0:
+Notes for runtime v0.8.0 (the image pinned in `docker-compose.e2e.yml`):
 
-- `GET /runtime/modes` returns all six mode descriptors — five standards-track
-  (`decision`, `proposal`, `task`, `handoff`, `quorum`) plus the `ext.multi_round.v1`
-  extension. Every descriptor's `terminalMessageTypes` is exactly `["Commitment"]` (a
-  registration invariant); the `/modes` page renders both `messageTypes` and
-  `terminalMessageTypes` per mode.
-- `GET /runtime/roots` is fetched once per page view. Roots are **static** — the runtime
-  advertises `list_changed: false` and there is no change-notification stream, so the
-  console never watches for root changes.
+- `GET /runtime/modes` returns **five** mode descriptors — the standards-track set
+  (`decision`, `proposal`, `task`, `handoff`, `quorum`). It does **not** include
+  `ext.multi_round.v1`: the control plane calls the runtime's `ListModes`, which returns
+  `standard_mode_descriptors()` only, and the extension is reachable solely via `ListExtModes`,
+  for which the control plane exposes no endpoint. (An earlier revision of this file said "all
+  six"; that was true of `all_mode_descriptors()`, which is not what this endpoint calls.)
+  **Demo mode still lists six**, because the mock mirrors the full descriptor set — a known
+  divergence, flagged at `MOCK_RUNTIME_MODES` in `lib/data/mock-data.ts`.
+  Every returned descriptor's `terminalMessageTypes` is exactly `["Commitment"]`; the `/modes`
+  page renders both `messageTypes` and `terminalMessageTypes` per mode.
+- **The `Commitment` terminal is now enforced, not merely conventional.** The registry rejects,
+  at registration time, any extension descriptor with an empty terminal set or with a terminal
+  other than `Commitment` — "dynamically registered modes resolve only on 'Commitment'"
+  (`macp-runtime/crates/macp-modes/src/mode_registry.rs:481-499`).
+- `GET /runtime/roots` is fetched once per page view and returns an empty list — the runtime
+  ships no roots provider. Roots are **static**: the runtime advertises `list_changed: false`,
+  so per RFC-MACP-0006 §3.3 a client need not watch, and the console does not. (A `WatchRoots`
+  RPC does exist on the runtime and yields one initial frame before parking idle, but the
+  control plane exposes no route to it — so "there is no change-notification stream", as this
+  file previously claimed, was wrong about the runtime even though the console's behaviour was
+  right.)
 - **Runtime Prometheus metrics** are exposed by the runtime process itself on
   `MACP_METRICS_ADDR` (per-mode `macp_messages_*` / `macp_sessions_*` /
   `macp_commitments_*` counters + `macp_replay_mismatches_total`). These are an
@@ -203,7 +216,7 @@ Notes for runtime v0.5.0:
   `schemaVersion` must be **1, 2 or 3**; any other value is rejected with HTTP 400 and the message
   `schemaVersion must be one of 1, 2, 3` (a `null` counts as omitted, not as a bad value). The
   rejection uses the same no-`errorCode` envelope as every other policy-registration 400 — see
-  "The two control-plane error envelopes" below — so read `message` via `describeApiError` rather
+  "The three control-plane error envelopes" below — so read `message` via `describeApiError` rather
   than branching on a code. Omitting the field defaults to **1** at the control plane, but the console's
   registration form defaults to **3**, the current
   authoring version, and offers only those three values so the constraint cannot be violated from the
@@ -216,7 +229,7 @@ authoritative per-mode schema lives in [`macp-runtime/docs/policy.md`](https://g
 
 **Read-only (file-managed) registry.** When the runtime runs with `MACP_POLICIES_DIR`,
 policies are managed on disk and register/unregister RPCs fail. The control plane
-surfaces this as **HTTP 405 with `errorCode: REGISTRY_READ_ONLY`**. The `/settings`
+surfaces this as **HTTP 405 with `errorCode: REGISTRY_READ_ONLY`**. The `/policies`
 policy-management UI detects this (`isRegistryReadOnlyError`, which also matches the
 underlying `FAILED_PRECONDITION` defensively), shows a persistent "registry is
 file-managed (read-only)" banner, and disables the mutation controls rather than looping
@@ -228,6 +241,9 @@ a dead-end error toast.
 - `POST /admin/circuit-breaker/reset`
 - `GET /admin/circuit-breaker/history?window=<alias>` — state transitions (`CLOSED | OPEN | HALF_OPEN`) with enter timestamps and optional reason
 - `GET /readyz` — `{ ok, database, runtime, streamConsumer, circuitBreaker }`
+- `GET /admin/runtime/sessions` — runtime session drift: sessions the runtime holds that the control
+  plane has no run for, and vice versa. Carries `complete: false` when the sweep was cut short by its
+  page or time budget rather than finishing, so a partial answer is never mistaken for "no drift".
 
 ### Chart series
 
@@ -256,7 +272,7 @@ configured:
 
 ## Client-side integration functions
 
-All UI-facing data access lives in `lib/api/client.ts` (~1180 lines). Every function
+All UI-facing data access lives in `lib/api/client.ts`. Every function
 branches on `NEXT_PUBLIC_MACP_UI_DEMO_MODE` — demo returns mock data, real hits the
 proxy.
 
@@ -296,7 +312,7 @@ proxy.
 ### Control Plane — admin
 - `getWebhooks`, `createWebhook`, `updateWebhook`, `deleteWebhook`
 - `resetCircuitBreaker`, `getCircuitBreakerHistory`
-- `getReadinessProbe`, `rebuildProjection`
+- `getReadinessProbe`, `rebuildProjection`, `getRuntimeSessionDrift`
 - `batchCancelRuns`, `batchArchiveRuns`, `batchDeleteRuns`, `batchExportRuns`
 
 ### Utility helpers (no network I/O)
@@ -331,7 +347,7 @@ or to mark a capability as degraded (`getDashboardOverview`, `listEvents` fallba
 `getAgentMetrics`). Non-404 errors propagate and are caught by React Query / error
 boundaries.
 
-### The two control-plane error envelopes
+### The three control-plane error envelopes
 
 The control plane's `GlobalExceptionFilter` emits **three** different bodies, and code that
 understands only the first renders nothing for the second.
@@ -382,7 +398,7 @@ body is never parsed at all. `.message` is unchanged — it is still the raw bod
 ## Demo mode
 
 When `NEXT_PUBLIC_MACP_UI_DEMO_MODE=true`, every client function short-circuits to mock
-data from `lib/data/mock-data.ts` (~2000 lines). This keeps the entire product surface
+data from `lib/data/mock-data.ts`. This keeps the entire product surface
 exercisable with no backend. Live-run streaming is simulated with 1600ms frame ticks
 over `MOCK_RUN_FRAMES`.
 
