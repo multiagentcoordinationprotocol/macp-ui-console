@@ -18,6 +18,7 @@ import {
 } from '@/components/runs/run-selector-filters';
 import { PrometheusMetricsTable } from '@/components/observability/prometheus-metrics-table';
 import { CircuitBreakerTimeline } from '@/components/observability/circuit-breaker-timeline';
+import { RuntimeSessionDrift, RUNTIME_SESSION_DRIFT_QUERY_KEY } from '@/components/observability/runtime-session-drift';
 import {
   getAuditLogs,
   getCircuitBreakerHistory,
@@ -25,6 +26,7 @@ import {
   getObservabilityRawMetrics,
   getReadinessProbe,
   getRuntimeHealth,
+  getRuntimeSessionDrift,
   resetCircuitBreaker
 } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
@@ -99,6 +101,16 @@ function ObservabilityPageContent() {
       )
   });
   const resetBreakerMutation = useMutation({ mutationFn: () => resetCircuitBreaker(demoMode) });
+  // Observer only — never fetches. `RuntimeSessionDrift` owns the fetching query so its own
+  // behaviour is testable; this subscribes to the same cache entry so a failed drift check can
+  // join the page's partial-data banner below. The key must match the component's exactly,
+  // `demoMode` included, or this watches a different entry and silently never fires.
+  const driftQuery = useQuery({
+    queryKey: [RUNTIME_SESSION_DRIFT_QUERY_KEY, demoMode],
+    queryFn: () => getRuntimeSessionDrift(demoMode),
+    enabled: false,
+    retry: false
+  });
 
   // Parse Prometheus text once per response; derive latency percentiles from
   // `macp_run_duration_seconds` histogram buckets (BE §5.4 / PR-F6).
@@ -142,7 +154,8 @@ function ObservabilityPageContent() {
   const subsidiaryErrors = [
     metricsTextQuery.error ? 'Metrics' : '',
     auditQuery.error ? 'Audit' : '',
-    readinessQuery.error ? 'Readiness' : ''
+    readinessQuery.error ? 'Readiness' : '',
+    driftQuery.error ? 'Drift' : ''
   ].filter(Boolean);
 
   const { charts, kpis } = overviewQuery.data;
@@ -414,6 +427,8 @@ function ObservabilityPageContent() {
                 {(breakerHistoryQuery.data?.length ?? 0) > 0 ? (
                   <CircuitBreakerTimeline entries={breakerHistoryQuery.data!} />
                 ) : null}
+
+                <RuntimeSessionDrift demoMode={demoMode} />
 
                 <div className="grid-2">
                   <Card>

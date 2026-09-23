@@ -21,7 +21,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P2 | Surface non-canonical supersedes hashes | DONE | 2 | Opus | `6178633` | pending /ship |
 | P3 | Structured error codes on `ApiError` | DONE | 3 | Opus | `4e4f543` | pending /ship |
 | P4 | Runtime session drift: types, client, demo data | DONE | 2 | Opus | `032a6f0` | pending /ship |
-| P5 | Runtime session drift: Infrastructure-tab UI | TODO | — | — | — | — |
+| P5 | Runtime session drift: Infrastructure-tab UI | DONE | 2 | Opus | `pending` | pending /ship |
 | P6 | Constrain policy `schemaVersion` to {1,2,3} | TODO | — | — | — | — |
 | P7 | Absorb `controlPlaneRun` from the playground bootstrap | TODO | — | — | — | — |
 | P8a | SSE resume-cursor correctness | TODO | — | — | — | — |
@@ -329,6 +329,9 @@ _(`/implement` appends; `/plan` seeded the five below — full reasoning in the 
 | D14 | Phase 5's drift query must set `retry: false` | The global default is `retry: 1`, which on a 503 fires a *second* full gRPC session drain exactly when the runtime is unhealthy; retrying an open breaker is pointless as well as expensive (P4 verify, item 8) |
 | D15 | `RuntimeSessionSnapshot` models 7 of the CP's 11 fields | `configurationVersion`, `policyVersion`, `contextId`, `extensionKeys` are passed through by the CP but nothing renders them; documented in the type so a future need adds them rather than reaching past it (P4 verify, item 2c) |
 | D16 | Demo and fixture counts are held to a derived invariant, not chosen for looks | An arithmetically unreachable payload teaches a wrong contract to everything that reuses it; `untracked ≤ live` and `live − untracked + missing ≤ trackedRunCount` are now asserted (P4 verify, items 1–2) |
+| D17 | The row cap is one shared `RowCapNote`, used by **both** drift tables | The missing-runs table originally capped at 50 silently while only the untracked table disclosed it. `listActiveRuns()` is unbounded upstream, so a runtime restart really can produce 300 missing runs — a drift panel that under-reports drift 6× without saying so is worse than no cap at all (P5 verify R1, gap 1) |
+| D18 | A test that pins a query option must not run under a client that already supplies it | The `retry: false` test passed under `test-utils`' `retry: false` client even with the component's own option deleted — it could not fail. Tests asserting a React Query option now build a client mirroring `providers.tsx` (`retry: 1`) so the component's option is the only thing under test (P5 verify R1, gap 2) |
+| D19 | The drift card stamps results with `dataUpdatedAt` and clears the badge on a later failure | `tabs.tsx:48` unmounts inactive tabs while the page's observer keeps the cache entry alive, so a returning operator re-reads old numbers as live; and React Query retains `data` across an error, which would otherwise show "Full session list" beside "Drift check failed" (P5 verify R1 obs 2, R2 obs 3) |
 
 ## Assumptions to reconcile
 
@@ -488,6 +491,52 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
   never render `errorCode` verbatim; cap rendered rows — the response is bounded at 40,000 snapshots.
 - **Gates:** typecheck clean · 36 files / 437 tests passing · lint clean · format:check clean.
 - **Next:** P5 — the Infrastructure-tab drift UI.
+
+### P5 — Runtime session drift: Infrastructure-tab UI — **PASS**
+
+- **When:** 2026-09-23 · **Verifier:** fresh Opus subagent, both rounds · **Rounds:** 2
+- **Why Opus (not Fable):** a read-only diagnostic card on an existing tab. No trust boundary, no
+  one-way door, no cross-repo write. The one genuinely load-bearing choice — that the endpoint fires
+  only on an explicit click — was already settled by the plan and by D14.
+- **Every CP claim the plan made checked out**, verified against control-plane source in both rounds:
+  the route (`admin.controller.ts:11,43`), `trackedRunCount` including `starting` runs (`:129`),
+  `missingFromRuntime` excluding them (`:117`), null-iff-incomplete (`:115-120`), and all five error
+  codes. P5 is the second phase running (after P4) where the plan's upstream claims held.
+- **Round 1 → FAIL (2 blocking), both real defects in shipped code:**
+  - **The missing-runs table capped at 50 rows silently.** Only the untracked table disclosed its
+    cap, and there was no KPI tile for the missing count, so the number appeared nowhere on screen.
+    `listActiveRuns()` is unbounded upstream (`run.repository.ts:178-183`), and the headline scenario
+    for this whole panel — a runtime restart that drops every session — produces exactly this shape.
+    The verifier demonstrated a 300-run response rendering 50 rows with no "showing" text anywhere:
+    a drift panel under-reporting drift 6×. Fixed by hoisting a shared `RowCapNote` used by both
+    tables (**D17**) plus an explicit count sentence above the missing-runs table.
+  - **The `retry: false` test could not fail.** `test/test-utils.tsx:9` already sets `retry: false`
+    on the test client, so the assertion held with the component's own option deleted — the one
+    decision the plan calls "required, not stylistic" (D14) was unprotected. Now rendered under a
+    client mirroring `providers.tsx` (`retry: 1`) (**D18**). Falsifiability proven by deleting
+    `retry: false` and observing exactly that one test fail, then restoring.
+- **All four round-1 non-blocking observations adopted**, not deferred: the error state moved from
+  `muted small` to the repo's bordered notice idiom (`policy-management.tsx:66-72`); a
+  `checked <timestamp>` stamp via `dataUpdatedAt`; 429 copy rewritten to be true of *both* the CP
+  throttler and the runtime's page-size-budget `RATE_LIMITED`; and a redundant
+  `new Date(ms).toISOString()` round-trip dropped — which also removed a latent `RangeError` on an
+  absent timestamp.
+- **Round 2 → PASS**, with three observations about *untested* new behaviour. Rather than accept
+  them, added four more tests: the cap note's own boundary (a `total < shown` slip would print
+  "Showing 50 of 50"), the singular/plural count, the `checked` stamp, and that a later failure
+  drops the stale badge and timestamp (**D19**). Both new guards mutation-proven to fail.
+- **Verified by diff, not by test** — as the plan requires and asks to be called out at PR time:
+  the card's placement on the Infrastructure tab, and `'Drift'` reaching `subsidiaryErrors`. There
+  are still zero tests under `app/`.
+- **Files touched:** `components/observability/runtime-session-drift.tsx` (new),
+  `components/observability/runtime-session-drift.test.tsx` (new, 21 tests),
+  `app/observability/page.tsx`, plan, `PROGRESS.md`.
+- **Carried into P6:** assert on the inline `.error-text` div, never the toast — there is no
+  `ToastProvider` in `test-utils`; and give the new select an accessible name rather than indexing
+  `getAllByRole('combobox')`.
+- **Gates:** typecheck clean · 37 files / 458 tests passing · lint clean · format:check clean ·
+  `next build` clean (criterion 6's build half).
+- **Next:** P6 — constrain policy `schemaVersion` to {1,2,3}.
 
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 
