@@ -21,7 +21,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P2 | Surface non-canonical supersedes hashes | DONE | 2 | Opus | `6178633` | pending /ship |
 | P3 | Structured error codes on `ApiError` | DONE | 3 | Opus | `4e4f543` | pending /ship |
 | P4 | Runtime session drift: types, client, demo data | DONE | 2 | Opus | `032a6f0` | pending /ship |
-| P5 | Runtime session drift: Infrastructure-tab UI | DONE | 2 | Opus | `pending` | pending /ship |
+| P5 | Runtime session drift: Infrastructure-tab UI | DONE | 2 | Opus | `8149d9d` | pending /ship |
 | P6 | Constrain policy `schemaVersion` to {1,2,3} | TODO | — | — | — | — |
 | P7 | Absorb `controlPlaneRun` from the playground bootstrap | TODO | — | — | — | — |
 | P8a | SSE resume-cursor correctness | TODO | — | — | — | — |
