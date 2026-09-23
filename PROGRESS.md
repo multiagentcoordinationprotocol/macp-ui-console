@@ -27,7 +27,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P8a | SSE resume-cursor correctness | DONE | 2 | Opus | `fd2ed50` | pending /ship |
 | P8b | Gap visibility (`historyGap`) + `policy.denied` detail | DONE | 2 | Opus | `3c6d3fc` | pending /ship |
 | P9 | Repoint the dev/e2e stack at runtime v0.8.0 | DONE | 1 | Opus | `7679ce3` | pending /ship |
-| P10 | Documentation refresh | DONE | 3 | Opus | `PENDING` | pending /ship |
+| P10 | Documentation refresh | DONE | 3 | Opus | `09f4538` | pending /ship |
 
 Dependency edges: P4→P3, P5→P4, **P5→P3** (Phase 5 reads `errorCode` directly, so the edge is real and not
 merely transitive through P4), P6→P3, P8b→P8a, P10→all. P1, P2, P7, P8a, P9 are independent.
