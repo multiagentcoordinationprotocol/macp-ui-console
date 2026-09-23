@@ -1953,15 +1953,28 @@ export const MOCK_POLICY_DEFINITIONS: PolicyDefinition[] = [
     }
   },
   {
+    // This entry is a faithful mirror of the real shipped policy at
+    // macp-playground/policies/policy.lending.conservative.json — every field, not just the
+    // commitment block. It is the one entry in this catalogue kept in lockstep with upstream, so
+    // that the demo surface exercises a real policy shape rather than an invented one. If upstream
+    // changes, change this with it.
     policy_id: 'policy.lending.conservative',
     mode: 'macp.mode.decision.v1',
-    schema_version: 1,
-    description: 'Conservative lending: supermajority with confidence floor',
+    schema_version: 3,
+    description: 'Lending: supermajority with compliance veto and mandatory evaluations before voting',
     rules: {
-      voting: { algorithm: 'supermajority', threshold: 0.67, quorum: { type: 'percentage', value: 0.67 } },
+      voting: { algorithm: 'supermajority', threshold: 0.67, quorum: { type: 'count', value: 3 } },
       objection_handling: { critical_severity_vetoes: true, veto_threshold: 1 },
       evaluation: { minimum_confidence: 0.6, required_before_voting: true },
-      commitment: { authority: 'initiator_only', require_vote_quorum: true, designated_roles: [] }
+      // NOTE: `designated_roles` here holds raw *participant identities*, matched literally against the
+      // envelope sender — not role labels. (`PolicyHints.designatedRoles`, a different field entirely,
+      // is the one that holds role labels; upstream's policy-authoring guide is explicit that the two
+      // are unrelated.) Do not "harmonize" the two.
+      commitment: {
+        authority: 'designated_role',
+        require_vote_quorum: true,
+        designated_roles: ['risk-agent', 'compliance-agent']
+      }
     }
   },
   {
@@ -2002,6 +2015,18 @@ export const MOCK_RUNTIME_POLICIES: RuntimePolicyDescriptor[] = [
     rules: MOCK_POLICY_DEFINITIONS[3].rules,
     schemaVersion: 1,
     registeredAtUnixMs: Date.now() - 86400000
+  },
+  {
+    // The only registered policy using `authority: 'designated_role'`. Without it the demo
+    // `/policies` surface renders nothing but `initiator_only`, and the corrected authority value
+    // would be data that never reaches a screen. Mirrors the real upstream policy — see
+    // MOCK_POLICY_DEFINITIONS[4].
+    policyId: MOCK_POLICY_DEFINITIONS[4].policy_id,
+    mode: MOCK_POLICY_DEFINITIONS[4].mode,
+    description: MOCK_POLICY_DEFINITIONS[4].description,
+    rules: MOCK_POLICY_DEFINITIONS[4].rules,
+    schemaVersion: MOCK_POLICY_DEFINITIONS[4].schema_version,
+    registeredAtUnixMs: Date.now() - 86400000 * 2
   }
 ];
 

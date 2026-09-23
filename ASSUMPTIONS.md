@@ -32,3 +32,30 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
   rather than "a store round-trips its state" could pass here and fail in a real browser. No production
   code path is affected. Reversing is deleting two files' worth of additions.
 - **Status:** UNCONFIRMED
+
+---
+
+## `CommitmentAuthority` is a compile-time guard only — real-mode policy data is never narrowed
+
+- **Plan:** plans/absorb-control-plane-playground-sep-2026.md
+- **Phase:** 1
+- **Assumed:** Correcting the union and adding a `Record<CommitmentAuthority, true>` exhaustiveness
+  anchor makes the *type* impossible to get wrong again by an editor. It does **not** make the console
+  detect a backend that emits a different value. Real policies never pass through `PolicyDefinition`:
+  they arrive as `RuntimePolicyDescriptor.rules: Record<string, unknown>` (`lib/types.ts`) and are
+  rendered opaquely through `JsonViewer` at `app/policies/[policyId]/page.tsx`. There is no parse,
+  narrow, or validate step anywhere in the real-mode path.
+- **Chose:** Leave it that way for this phase. Phase 1's stated scope is the wire *value*, and adding
+  runtime validation of policy rules would be a new feature with its own error surface, its own demo
+  parity work, and its own failure mode (rejecting a policy the runtime happily accepted). The anchor
+  plus the mirrored demo entry is the full extent of what the plan asked for.
+- **Alternatives:** (1) Parse `RuntimePolicyDescriptor.rules` with a schema validator and surface a
+  "policy rules not recognized" state — rejected as out of scope and a larger change than the bug being
+  fixed. (2) Narrow `rules` from `Record<string, unknown>` to `PolicyDefinition['rules']` — rejected:
+  it would be a type assertion about a backend, not a proof, and would silently mis-describe any policy
+  shape the console has not seen.
+- **Blast radius if wrong:** A control plane emitting an unknown `authority` value renders as raw JSON
+  in the policy detail panel rather than being flagged. No crash, no data loss, no incorrect
+  enforcement (the console never enforces policy — it displays it). Cost to reverse: none; this is an
+  absence of behaviour, not a behaviour.
+- **Status:** UNCONFIRMED

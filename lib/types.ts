@@ -23,7 +23,20 @@ export type SessionState =
 
 export type PolicyType = 'none' | 'majority' | 'supermajority' | 'unanimous' | string;
 export type VotingAlgorithm = 'none' | 'majority' | 'supermajority' | 'unanimous' | 'weighted';
-export type CommitmentAuthority = 'initiator_only' | 'designated_roles' | 'any_participant';
+/**
+ * Who may commit a decision on behalf of the session.
+ *
+ * `designated_role` is **singular**. This is the value the whole stack agrees on — the playground
+ * contract mirror (`macp-playground/src/contracts/policy.ts`), the runtime matcher and registration
+ * validator (`macp-runtime` `macp-core/src/policy/mod.rs`, `macp-policy/src/registry.rs`), and the
+ * control plane's rejection check (`macp-control-plane/src/controllers/runtime.controller.ts`).
+ *
+ * Do not confuse it with the sibling **array** field `rules.commitment.designated_roles` below
+ * (plural, and correct — it is the wire field name), nor with `PolicyHints.designatedRoles`, which is
+ * a separate camelCase advisory hint on the scenario/launch side (RFC-MACP-0012) and holds role
+ * *labels* rather than participant identities.
+ */
+export type CommitmentAuthority = 'initiator_only' | 'designated_role' | 'any_participant';
 
 export interface PolicyHints {
   type?: PolicyType;
