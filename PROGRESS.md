@@ -20,7 +20,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P1 | Correct the `CommitmentAuthority` wire value | DONE | 2 | Opus | `68d80db` | pending /ship |
 | P2 | Surface non-canonical supersedes hashes | DONE | 2 | Opus | `6178633` | pending /ship |
 | P3 | Structured error codes on `ApiError` | DONE | 3 | Opus | `4e4f543` | pending /ship |
-| P4 | Runtime session drift: types, client, demo data | TODO | — | — | — | — |
+| P4 | Runtime session drift: types, client, demo data | DONE | 2 | Opus | _(this commit)_ | pending /ship |
 | P5 | Runtime session drift: Infrastructure-tab UI | TODO | — | — | — | — |
 | P6 | Constrain policy `schemaVersion` to {1,2,3} | TODO | — | — | — | — |
 | P7 | Absorb `controlPlaneRun` from the playground bootstrap | TODO | — | — | — | — |
@@ -326,6 +326,9 @@ _(`/implement` appends; `/plan` seeded the five below — full reasoning in the 
 | D11 | Phase 5's page gets an `enabled: false` **observer** query on the same key | The component owns the fetch, but `subsidiaryErrors` is built from page-local query objects — without the observer, AC5 is unimplementable, not merely untested (round-2 review, B2) |
 | D12 | Phase 8a does **not** re-sync the cursor when `initialEvents` arrives late | `useState` is mount-only, so a cold mount seeds `0`, which is safe; an effect that writes `lastSeq` is the bug class being removed (round-2 review, S3) |
 | D13 | `RUNTIME_LIST_SESSIONS_TIMEOUT_MS=1` is the recipe for `complete:false` | `MAX_PAGES=1` alone needs >200 concurrent sessions to trip the page cap; the timeout path needs none (round-2 review, S1) |
+| D14 | Phase 5's drift query must set `retry: false` | The global default is `retry: 1`, which on a 503 fires a *second* full gRPC session drain exactly when the runtime is unhealthy; retrying an open breaker is pointless as well as expensive (P4 verify, item 8) |
+| D15 | `RuntimeSessionSnapshot` models 7 of the CP's 11 fields | `configurationVersion`, `policyVersion`, `contextId`, `extensionKeys` are passed through by the CP but nothing renders them; documented in the type so a future need adds them rather than reaching past it (P4 verify, item 2c) |
+| D16 | Demo and fixture counts are held to a derived invariant, not chosen for looks | An arithmetically unreachable payload teaches a wrong contract to everything that reuses it; `untracked ≤ live` and `live − untracked + missing ≤ trackedRunCount` are now asserted (P4 verify, items 1–2) |
 
 ## Assumptions to reconcile
 
@@ -445,6 +448,46 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
   `RUNTIME_UNAVAILABLE`) and treat everything else, `INTERNAL_ERROR` included, as unclassified.
 - **Gates:** typecheck clean · 36 files / 423 tests passing · lint clean · format:check clean.
 - **Next:** P4 — runtime session drift types, client and demo data.
+
+### P4 — Runtime session drift: types, client, demo data — **PASS**
+
+- **When:** 2026-09-23 · **Verifier:** fresh Opus subagent, both rounds · **Rounds:** 2
+- **Why Opus (not Fable):** a data-layer seam — one client function, local types, demo data. No UI,
+  no caller yet, nothing irreversible.
+- **Every upstream claim the plan made about the CP checked out this time** (unlike P2 and P3): the
+  route, the null-iff-incomplete rule, the soundness of `untrackedSessions` under truncation, the
+  `starting` exclusion, the live-vs-retained count asymmetry, all five error codes, and that no
+  proxy allowlist change is needed. Only line citations had drifted.
+- **Round 1 → GAPS (9), three of them real defects in shipped code, not missing tests:**
+  - **The demo payload described a state the control plane cannot produce.** With 5 live sessions
+    of which 1 was untracked and only 4 tracked runs, the controller's own logic forces
+    `missingFromRuntime: []` — yet the payload claimed one missing run. The fixture and one test
+    override had the same flaw. Fixed by deriving the real bound
+    (`live − untracked + missing ≤ trackedRunCount`), correcting the numbers, and asserting the
+    invariant in a test so it cannot drift again.
+  - **The demo's "missing" run was a terminal one** (`FAILED_RUN_ID`), which `listActiveRuns()`
+    excludes — and it named a `runtimeSessionId` that contradicted that run's own. Now
+    `SUSPENDED_RUN_ID` with its real session id.
+  - **`modeVersion`/`initiator` arrive as empty strings, not absent** — proto3 string defaults
+    survive the CP's `?? undefined`. A `—`-for-absent renderer using `??` would show blank cells.
+    Documented and pinned with a bare-snapshot test.
+  - Untested error paths that the plan itself had named: 429/`RATE_LIMITED`, 500/`INTERNAL_ERROR`,
+    and most importantly the CP throttler's 429 arriving labelled `INTERNAL_ERROR` — the one case
+    where `errorCode` actively lies, and the one P5 must not render.
+  - The fixture was not tied to the declared type (`fetchJson` blind-casts, so nothing would catch
+    drift). Now annotated with the interface as its return type — `satisfies` was tried first and
+    was wrong: it kept the literal's narrow inferred shape and broke `Partial<>` overrides.
+  - Two findings promoted to decisions rather than silent fixes: **D14** (`retry: false` on P5's
+    query — the global `retry: 1` fires a second full gRPC drain on a 503, exactly when the runtime
+    is unhealthy) and **D15**/**D16**.
+- **Round 2 → GAPS (1, docs-only).** Adding D14 left two passages in the plan still saying to keep
+  the global retry — a self-contradiction a P5 implementer could have followed. Both corrected.
+- **Files touched:** `lib/api/client.ts`, `lib/api/client.test.ts`, `lib/api/client.real-mode.test.ts`,
+  `test/integration/fixtures/backend-responses.ts`, plan, `PROGRESS.md`.
+- **Carried into P5:** `retry: false` (D14); render `modeVersion`/`initiator` with `||` not `??`;
+  never render `errorCode` verbatim; cap rendered rows — the response is bounded at 40,000 snapshots.
+- **Gates:** typecheck clean · 36 files / 437 tests passing · lint clean · format:check clean.
+- **Next:** P5 — the Infrastructure-tab drift UI.
 
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 

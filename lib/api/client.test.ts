@@ -23,7 +23,8 @@ import {
   listScenarioRefs,
   listScenarios,
   getLaunchSchema,
-  createReplay
+  createReplay,
+  getRuntimeSessionDrift
 } from './client';
 import { LIVE_RUN_ID, COMPLETED_RUN_ID } from '@/lib/data/mock-data';
 
@@ -265,5 +266,51 @@ describe('demo mode API client', () => {
     const metrics = await getObservabilityRawMetrics(DEMO);
     expect(typeof metrics).toBe('string');
     expect(metrics.length).toBeGreaterThan(0);
+  });
+
+  it('getRuntimeSessionDrift returns a complete diff with both directions populated', async () => {
+    const drift = await getRuntimeSessionDrift(DEMO);
+
+    expect(drift.complete).toBe(true);
+    expect(drift.untrackedSessions.length).toBeGreaterThan(0);
+    expect(drift.missingFromRuntime).not.toBeNull();
+    expect(drift.missingFromRuntime?.length).toBeGreaterThan(0);
+  });
+
+  it('getRuntimeSessionDrift demo counts reflect the live-vs-retained distinction', async () => {
+    const drift = await getRuntimeSessionDrift(DEMO);
+
+    // runtimeSessionCount includes terminal sessions still inside the runtime's retention
+    // window; only liveRuntimeSessionCount feeds the diff. If the fixture made them equal the
+    // UI's explainer for the gap would have nothing to explain.
+    expect(drift.runtimeSessionCount).toBeGreaterThan(drift.liveRuntimeSessionCount);
+    expect(drift.trackedRunCount).toBeGreaterThan(0);
+  });
+
+  it('getRuntimeSessionDrift demo payload describes a state the control plane could emit', async () => {
+    // A demo fixture is the artifact the UI renders and the thing reviewers reason from, so an
+    // arithmetically impossible one teaches a wrong contract. Re-derived from the controller:
+    //   untracked ⊆ live                       (untracked sessions are drawn from live ones)
+    //   live - untracked = live-and-tracked    (the rest are bound to tracked runs)
+    //   trackedRunCount ≥ live-and-tracked + |missing|
+    //       (each tracked run holds at most one session id; the missing ones are runs whose
+    //        session is NOT among the live set, so they are disjoint from live-and-tracked)
+    const drift = await getRuntimeSessionDrift(DEMO);
+    const untracked = drift.untrackedSessions.length;
+    const missing = drift.missingFromRuntime?.length ?? 0;
+
+    expect(drift.liveRuntimeSessionCount).toBeLessThanOrEqual(drift.runtimeSessionCount);
+    expect(untracked).toBeLessThanOrEqual(drift.liveRuntimeSessionCount);
+    expect(drift.liveRuntimeSessionCount - untracked + missing).toBeLessThanOrEqual(drift.trackedRunCount);
+  });
+
+  it('getRuntimeSessionDrift demo sessions carry the fields the UI renders', async () => {
+    const [session] = (await getRuntimeSessionDrift(DEMO)).untrackedSessions;
+
+    expect(session.sessionId).toBeTruthy();
+    expect(session.mode).toBeTruthy();
+    // The CP filters to live states, so a demo fixture in a terminal state would misrepresent
+    // the contract.
+    expect(['SESSION_STATE_OPEN', 'SESSION_STATE_SUSPENDED']).toContain(session.state);
   });
 });

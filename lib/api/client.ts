@@ -25,7 +25,8 @@ import {
   MOCK_RUNTIME_POLICIES,
   MOCK_RUNTIME_ROOTS,
   MOCK_SCENARIOS,
-  MOCK_WEBHOOKS
+  MOCK_WEBHOOKS,
+  SUSPENDED_RUN_ID
 } from '@/lib/data/mock-data';
 import type {
   AgentMetricsEntry,
@@ -1108,6 +1109,118 @@ export async function getReadinessProbe(demoMode: boolean): Promise<ReadinessPro
       circuitBreaker: 'CLOSED'
     });
   return fetchJson<ReadinessProbeResponse>('macp-control-plane', '/readyz');
+}
+
+/* ─── Runtime session drift (admin) ─── */
+
+/**
+ * One session as the runtime reports it, passed through verbatim by the control plane.
+ *
+ * The three required fields are always serialized (the CP's `fromSessionMetadata` defaults them),
+ * and `state` is pre-filtered to live values. The optional four are not uniform:
+ * `startedAtUnixMs`/`expiresAtUnixMs` really are absent when unset, but **`modeVersion` and
+ * `initiator` arrive as empty strings**, not `undefined` — they are proto3 string fields, so their
+ * default survives. Render them with `||`, never `??`, or a blank cell appears where a `—` was
+ * intended.
+ *
+ * The CP also passes through `configurationVersion`, `policyVersion`, `contextId` and
+ * `extensionKeys`. They are deliberately not modelled here — nothing renders them — so add them to
+ * this interface if that changes rather than reaching past the type.
+ */
+export interface RuntimeSessionSnapshot {
+  sessionId: string;
+  mode: string;
+  /** In this response always `SESSION_STATE_OPEN` or `SESSION_STATE_SUSPENDED` — the CP filters to live states. */
+  state: string;
+  startedAtUnixMs?: number;
+  expiresAtUnixMs?: number;
+  modeVersion?: string;
+  initiator?: string;
+}
+
+/**
+ * Backend admin — `GET /admin/runtime/sessions`. A two-way diff between the sessions the runtime
+ * holds and the runs this control plane still considers active.
+ *
+ * The two directions are **not** symmetric, and that asymmetry is the whole point of the endpoint:
+ *
+ * - `untrackedSessions` (runtime knows, CP does not) stays sound even when the session drain is
+ *   truncated — a fetched session that is untracked really is untracked.
+ * - `missingFromRuntime` (CP knows, runtime does not) is **`null` whenever `complete` is false**,
+ *   because a partial prefix cannot prove absence. `null` means "not computed", never "zero
+ *   missing"; `[]` with `complete: true` is the real "no drift" answer. Consumers must render
+ *   those two differently.
+ *
+ * Two counts, two different jobs: `runtimeSessionCount` is every session returned, terminal ones
+ * still inside the runtime's retention window included; the diff runs only over
+ * `liveRuntimeSessionCount`. And `trackedRunCount` counts all active runs while
+ * `missingFromRuntime` excludes runs in `starting` — their `runtimeSessionId` is pre-allocated
+ * before the session exists. So the tiles will not reconcile by subtraction, by design.
+ */
+export interface RuntimeSessionDriftResponse {
+  complete: boolean;
+  runtimeSessionCount: number;
+  liveRuntimeSessionCount: number;
+  trackedRunCount: number;
+  untrackedSessions: RuntimeSessionSnapshot[];
+  missingFromRuntime: Array<{ runId: string; runtimeSessionId: string }> | null;
+}
+
+/**
+ * Point-in-time diagnostic, not a monitored value: this drains the runtime's full paginated
+ * session list over gRPC behind a circuit breaker. Call it on an explicit user action — never on
+ * an interval, and never with a `refetchInterval`. The CP also throttles per actor.
+ *
+ * Errors worth distinguishing arrive as `ApiError.errorCode`: `CIRCUIT_BREAKER_OPEN` and
+ * `RUNTIME_UNAVAILABLE` share HTTP 503 but mean different things to an operator;
+ * `RUNTIME_TIMEOUT` is 504; `RATE_LIMITED` is 429, but **only** when the *runtime* returned
+ * `RESOURCE_EXHAUSTED`. Note a 401 carries no `errorCode` at all (Nest default), and a 429 from the
+ * CP's *own* throttler surfaces as `INTERNAL_ERROR` — so branch on the codes you handle and treat
+ * everything else, `INTERNAL_ERROR` included, as unclassified rather than rendering the code.
+ *
+ * **Two limits a caller must respect.**
+ *  - **Disable retries on this query.** React Query's global default is `retry: 1`, which on a
+ *    `CIRCUIT_BREAKER_OPEN` or `RUNTIME_UNAVAILABLE` 503 fires a *second* full gRPC drain at
+ *    exactly the moment the runtime is unhealthy. Retrying an open breaker is pointless as well as
+ *    expensive.
+ *  - **`untrackedSessions` is large-but-bounded, not small.** The CP's drain ceiling is
+ *    `RUNTIME_LIST_SESSIONS_MAX_PAGES` × `PAGE_SIZE` = 200 × 200 = 40,000 snapshots by default,
+ *    and after a long control-plane outage most of them can be untracked — several MB of JSON,
+ *    parsed on the main thread. Cap what is *rendered*, and treat a very large response as a
+ *    finding in itself rather than something to lay out.
+ */
+export async function getRuntimeSessionDrift(demoMode: boolean): Promise<RuntimeSessionDriftResponse> {
+  if (demoMode)
+    return maybeDelay({
+      complete: true,
+      // These numbers must describe a state the control plane could actually produce. With 5 live
+      // sessions of which 1 is untracked, 4 live sessions are bound to tracked runs — so there
+      // must be at least 5 active runs for one of them to be missing from the runtime. (7 total
+      // vs 5 live is the retention-window gap; that one is meant to look unequal.)
+      runtimeSessionCount: 7,
+      liveRuntimeSessionCount: 5,
+      trackedRunCount: 5,
+      untrackedSessions: [
+        {
+          sessionId: 'session-orphan-7c1f',
+          mode: 'macp.mode.decision.v1',
+          state: 'SESSION_STATE_OPEN',
+          startedAtUnixMs: Date.now() - 1000 * 60 * 18,
+          modeVersion: '1.0.0',
+          initiator: 'fraud-agent'
+        }
+      ],
+      missingFromRuntime: [
+        {
+          // A genuinely active run bound to a session the runtime no longer reports as live.
+          // It must be a run `listActiveRuns()` would return — starting/binding_session/running/
+          // suspended — so a terminal run id here would depict an impossible diff.
+          runId: SUSPENDED_RUN_ID,
+          runtimeSessionId: 'session-suspended-005'
+        }
+      ]
+    });
+  return fetchJson<RuntimeSessionDriftResponse>('macp-control-plane', '/admin/runtime/sessions');
 }
 
 /* ─── Agent metrics from control plane ─── */
