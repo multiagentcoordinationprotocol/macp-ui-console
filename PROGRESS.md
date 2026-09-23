@@ -24,7 +24,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P5 | Runtime session drift: Infrastructure-tab UI | DONE | 2 | Opus | `8149d9d` | pending /ship |
 | P6 | Constrain policy `schemaVersion` to {1,2,3} | DONE | 1 | Opus | `e7fbb08` | pending /ship |
 | P7 | Absorb `controlPlaneRun` from the playground bootstrap | DONE | 3 | Opus | `4dd89cf` | pending /ship |
-| P8a | SSE resume-cursor correctness | TODO | — | — | — | — |
+| P8a | SSE resume-cursor correctness | DONE | 2 | Opus | `pending` | pending /ship |
 | P8b | Gap visibility (`historyGap`, client gaps) + `policy.denied` detail | TODO | — | — | — | — |
 | P9 | Repoint the dev/e2e stack at runtime v0.8.0 | TODO | — | — | — | — |
 | P10 | Documentation refresh | TODO | — | — | — | — |
@@ -337,6 +337,9 @@ _(`/implement` appends; `/plan` seeded the five below — full reasoning in the 
 | D22 | The bootstrap redirect navigates by `controlPlaneRun.runId`, never by `sessionId` | `POST /runs` mints a fresh run id and stores the session id in a separate column (`run-executor.service.ts:141` passes no `explicitRunId`), and `/runs/live/:id` resolves by run id — so the plan's `sessionId`-first fallback 404'd on the phase's own happy path (P7 verify R1, gap 1) |
 | D23 | The "not registered" banner offers the session route as a **link**, and says it reports an error until discovery lands | Session discovery (default on) registers observed sessions keyed *by session id*, so the route may start working — but not instantly, and never if the submission reached the CP and only the reply was lost. A redirect would move the load failure behind a click; silence would hide a reachable run (P7 verify R1 gap 2, R2 gap 1) |
 | D24 | Ids render in `<code>`, not through `Badge` | `Badge` title-cases its label, turning `run-abc` into `Run Abc` and mangling a UUID outright. The pre-existing session badge had the same defect (P7 verify R2, obs) |
+| D25 | The resume cursor is guarded with `Number.isFinite`, not `typeof === 'number'` | `Math.max` is absorbing over **both** NaN and Infinity. A missing `seq` yields NaN (`Math.max(9, undefined)`) and an overflowing JSON number yields Infinity (`JSON.parse('{"seq":1e999}')`); either pins the cursor permanently, sends `afterSeq=NaN\|Infinity`, and every reconnect is rejected by the CP's `@IsInt()` until the 8-attempt limit — a one-off bad frame becomes a dead stream. The plan's own prescribed `Math.max(prev, payload.seq)` introduced this; the unguarded assignment it replaced self-healed (P8a verify R1 gap B4, R2 obs 1) |
+| D26 | The cold-mount rail truncation is **knowingly deferred to P8b**, not fixed in P8a | `effectiveEvents` swaps rather than unions (`run-workbench.tsx:116-120`) and `useLiveRun` reads `initialEvents` at mount only, so on `/runs/live/:id` the fetched history shows until the first live event lands and then collapses to that one event. Real and user-visible — but bit-for-bit identical before and after this diff, in a file outside the phase's scope, and fixing it is a UI change with its own ordering/dedup surface, against a phase charter of "correctness only — no UI change" (P8a verify R2, cold-mount ruling) |
+| D27 | Bounding the warm-remount backfill burst is deferred to P8b | P8a converts silent loss into delivery, so re-entering a long run within `gcTime` now replays the entire remainder, one React render per frame. The fix (floor the seed at `latestSeq - MAX_EVENT_BUFFER` and report the skipped range) needs the gap notice P8b builds, so it belongs there (P8a verify R2, obs 4) |
 
 ## Assumptions to reconcile
 
@@ -628,6 +631,59 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
 - **Gates:** typecheck clean · 38 files / 475 tests passing · 5 files / 95 integration tests passing ·
   lint clean · format:check clean · `next build` clean.
 - **Next:** P8a — SSE resume-cursor correctness.
+
+### P8a — SSE resume-cursor correctness — **PASS**
+
+- **Verify rounds:** 2 (fresh Opus each). R1 returned **five** blocking gaps; R2 returned PASS with no
+  blocking gaps and six non-blocking observations, three of which were adopted.
+- **The defect, restated:** `lastSeq` is what goes out as `?afterSeq=` on every reconnect, and it was
+  derived from `timeline.latestSeq` — the *server's* head — in three places. The load-bearing one is the
+  `snapshot` handler: the control plane republishes a snapshot on **every commit batch**, not once per
+  connection, so the cursor was dragged to the server head continuously during normal streaming. Anything
+  not yet delivered was then skipped on the next reconnect and never arrived by any path. Fixed by
+  deriving the cursor **only from events actually received** (`highestSeq(initialEvents)` at the seed and
+  in `reset()`; the snapshot handler keeps `setState` and no longer touches the cursor).
+- **The plan was wrong about the control plane in three places, and R1 caught all three.** `afterSeq=0`
+  does **not** request everything — replay is gated on `afterSeq > 0`
+  (`runs.controller.ts:226`) and the bound is exclusive (`event.repository.ts:74`, and the DTO's own doc
+  string says "exclusive"), so `0` yields a snapshot plus the live tail and replays nothing. The docs
+  draft's claim that "the stream does not backfill" was also false — the CP pages through every persisted
+  event after the cursor in a `while(true)` loop and re-emits each as `canonical_event`, which is exactly
+  why the fix works. And the stated recovery mechanism (a manual refetch of `['run-events', …]`) does not
+  exist in the product. All three rewritten against source; every CORRECTED block written back into the
+  plan so P8b cannot re-copy them.
+- **A regression the plan itself prescribed (R1 gap B4).** The plan said to make the cursor monotonic with
+  `setLastSeq(prev => Math.max(prev, payload.seq))`. Unguarded, that is **strictly worse** than the
+  unconditional assignment it replaces: `Math.max` is absorbing over NaN, so one frame with a missing
+  `seq` pins the cursor at NaN forever, sends `afterSeq=NaN`, and the CP's `@IsInt()` rejects every
+  reconnect until the 8-attempt limit — a one-off bad frame becomes a permanently dead stream. The old
+  code self-healed on the next good event. Guarded, tested, mutation-proved (**D25**).
+- **R2 hardened the guard and caught an unfalsifiable test of my own (obs 1).** `typeof === 'number'`
+  still admits `Infinity`, which `Math.max` absorbs identically; `JSON.parse` can't produce a `NaN` or
+  `Infinity` *literal* (both throw) but does produce `Infinity` from an overflowing number
+  (`{"seq":1e999}`). Both sites moved to `Number.isFinite`. The first test written for it **passed under
+  the mutant**: the harness `dispatchEvent` serializes, and `JSON.stringify({seq: Infinity})` is
+  `{"seq":null}` — so it was really testing `null`. Fixed by adding `MockEventSource.dispatchRaw`, which
+  injects raw JSON text. Both new tests now kill the `typeof` mutant, and only those two.
+- **Also corrected: a justification citing a consumer that does not exist (R1 gap B5).** The plan argued
+  monotonicity matters because a regressed cursor "makes the `stream:` seq shown to users jump backwards".
+  `lastSeq` has **no reader outside the hook** (`grep -rn lastSeq app components lib test` minus the hook:
+  zero hits). Reworded to the true, narrower reason — a regressed cursor makes the next reconnect
+  re-request a range already held.
+- **Test-harness change shipped with the phase:** `dispatchEvent('error')` was a no-op because the hook
+  assigned `source.onerror = …` rather than registering a listener, so **the reconnect path was undrivable
+  and had never been tested**. The hook now uses `addEventListener('error', …)`, making all five event
+  paths uniform, and the harness also fires `on*` handlers so a property-assigned handler stays testable.
+- **Known limitations, deliberately not fixed here:** the cold-mount rail truncation (**D26**) and the
+  now-unbounded warm-remount backfill burst (**D27**), both routed to P8b with the fix sketched.
+- **Mutation coverage:** six mutants, each killed by exactly the intended test — seed from `latestSeq`,
+  snapshot writes the cursor, non-monotonic assign, `reset()` from `latestSeq`, `highestSeq` → `at(-1)`,
+  and dropping the finite guard.
+- **Files touched:** `lib/hooks/use-live-run.ts`, `lib/hooks/use-live-run.test.ts`,
+  `docs/api-integration.md`, `PROGRESS.md`.
+- **Gates:** typecheck clean · 38 files / 486 tests passing · 5 files / 95 integration tests passing ·
+  lint clean · format:check clean · `next build` clean.
+- **Next:** P8b — gap visibility (`historyGap`, client-side gap detection) + `policy.denied` detail.
 
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 

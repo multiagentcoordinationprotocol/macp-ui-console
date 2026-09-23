@@ -403,6 +403,39 @@ GET /api/proxy/macp-control-plane/runs/:id/stream?includeSnapshot=true&afterSeq=
 - Incoming `canonical_event` payloads run through `normalizeEvent` before being appended.
 - Connection state surfaced to the UI: `idle | connecting | live | reconnecting | ended | error`.
 
+**The resume cursor derives only from events actually received — never from a snapshot.** `afterSeq`
+is seeded from the highest `seq` among the events already in hand, advanced only by
+`canonical_event`, and never allowed to decrease.
+
+`afterSeq` is exclusive, and the control plane gates its replay on `afterSeq > 0`: passing `0` yields
+the snapshot plus the live tail and replays **nothing**. So a cold mount, where the console holds no
+events yet, gets its history from the separate `getRunEvents` query rather than from the stream — and
+a resume with a real cursor is what makes the stream replay the range in between.
+
+Two things make that rule load-bearing rather than stylistic:
+
+- **`timeline.latestSeq` is the server's head, not a description of what the client holds.**
+  `getRunEvents` fetches at most 500 events, oldest first, so on a longer run the head is far beyond
+  the newest event the console has. Opening the stream at the head asks for events *after* a range
+  that was never delivered, and nothing else ever requests it — the gap is permanent and silent.
+- **Snapshots arrive on every commit, not once per connection.** The control plane republishes the
+  projection once per commit batch, so writing `latestSeq` from the `snapshot` handler would drag the
+  cursor up to the head continuously during normal streaming, not merely in a reconnect window. The
+  handler still applies the payload to state — that is what lets every projection panel self-heal —
+  it just does not touch the cursor.
+
+Correcting the cursor is what makes recovery possible at all: on reconnect the control plane pages
+through every persisted event after `afterSeq` and re-emits it as `canonical_event`, so a resume at
+the newest event actually held replays the range that was missed. Resuming at the server head asked
+for events after ones that were never delivered, and nothing else ever requested them.
+
+`timeline.latestSeq` remains available on the returned `state` as the server's high-water mark, which
+is the right thing to compare a received `seq` against when detecting a gap.
+
+Two limits worth knowing: the client buffer holds 500 events (`MAX_EVENT_BUFFER`), so a long backfill
+evicts the oldest rather than growing without bound; and the feed appends in arrival order without
+sorting, so a replayed range lands after the events already shown rather than being merged by `seq`.
+
 The CP-side stream contract (passive-subscribe frame, replay-from-`afterSeq`, heartbeat
 cadence) is documented in
 [`macp-control-plane/docs/API.md § SSE Streaming`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md#sse-streaming)
