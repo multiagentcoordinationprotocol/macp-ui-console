@@ -6,6 +6,14 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
+    // jsdom refuses `localStorage` on an opaque origin, and its default document URL
+    // (`about:blank`) is opaque — accessing the property throws
+    // `SecurityError: localStorage is not available for opaque origins`. Zustand's
+    // `persist` middleware touches it at import time, so every test importing a
+    // preferences/presets store fails without a real origin here.
+    environmentOptions: {
+      jsdom: { url: 'http://localhost:3000' }
+    },
     globals: true,
     setupFiles: ['./test/setup.ts'],
     include: ['**/*.test.{ts,tsx}'],
