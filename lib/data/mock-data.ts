@@ -1392,8 +1392,10 @@ export const MOCK_RUN_EVENTS: Record<string, CanonicalEvent[]> = {
     event(SUSPENDED_RUN_ID, 5, 'run.suspended', { status: 'suspended' }, { kind: 'run', id: SUSPENDED_RUN_ID }),
     // The event that PRODUCES `historyGap: true` on this run's projection. The control plane is the
     // sole writer of that flag and writes it only from this event's reducer, so a fixture carrying
-    // the flag without the event depicts a state the backend cannot reach — and leaves the gap
-    // notice and the `/logs` filter entry unreachable in demo mode, which is the default. Payload
+    // the flag without the event depicts a state the backend cannot reach — and left the
+    // `/logs` filter entry for this type matching nothing in demo mode, which is the default.
+    // (The feed's gap notice was already reachable: it keys off the projection's `historyGap`,
+    // not off this event.) `subject.id` must be the run's own `runtimeSessionId`. Payload
     // copied field-for-field from the emit site (`stream-consumer.service.ts:310-317`), including
     // the `detail` sentence, which the summary renders verbatim.
     {
@@ -1405,7 +1407,7 @@ export const MOCK_RUN_EVENTS: Record<string, CanonicalEvent[]> = {
           requestedAfter: 4,
           detail: 'session history before the resume point was compacted; some envelope-level events may be missing'
         },
-        { kind: 'session', id: 'sess-suspended-001' }
+        { kind: 'session', id: 'session-suspended-005' }
       ),
       source: { kind: 'macp-control-plane', name: 'stream-consumer' }
     }

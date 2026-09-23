@@ -349,7 +349,7 @@ the verbatim `body`, an `isNotFound` getter, and the two structured accessors be
 Client functions branch on `ApiError.isNotFound` to return `undefined` for a missing entity, and
 `listEvents`' fallback is the one degradation path that really is 404-gated. `getDashboardOverview`
 and `getAgentMetrics` are **not**: both swallow *every* error and degrade (`client.ts:833`,
-`:1266`), so a 500 or a network failure there is indistinguishable from an absent endpoint — the
+`:1277`), so a 500 or a network failure there is indistinguishable from an absent endpoint — the
 capability simply reports itself unavailable. Everything else propagates and is caught by React
 Query / error boundaries.
 
