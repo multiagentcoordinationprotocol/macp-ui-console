@@ -800,6 +800,35 @@ export interface RunExampleResult {
   compiled: CompileLaunchResult;
   hostedAgents: Array<Record<string, unknown>>;
   sessionId?: string;
+  /**
+   * The control plane's `POST /runs` response, when the playground succeeded in registering the run.
+   *
+   * **Absence is not an error signal, and carries no cause.** The playground submits this
+   * best-effort and non-fatally, concurrently with agent bootstrap: an unset control-plane URL, a
+   * network failure, a timeout, a non-2xx, a malformed body, or a response missing `runId`,
+   * `status` or `sessionId` — or whose `sessionId` disagrees with the descriptor's — all make it
+   * omit the field rather than fail the request. A playground old enough never to send it looks
+   * identical. So the console can say "not registered" but must never say why.
+   *
+   * **`runId` here is NOT the session id.** `POST /runs` makes the control plane mint a fresh run
+   * id and keep the session id in a separate column, so this is the only id that resolves at
+   * `/runs/live/:runId` on this path. The reverse holds for runs the control plane auto-discovers
+   * from a runtime session: those it keys *by* session id. Its `sessionId`, meanwhile, is
+   * guaranteed equal to {@link RunExampleResult.sessionId} — the playground rejects any response
+   * where the two disagree — so that field carries no information this type does not already have.
+   *
+   * Reuses {@link CreateRunResponse} — this is literally the CP `POST /runs` response already
+   * modelled here. One caveat follows from that reuse: `status` is typed as {@link RunStatus} while
+   * the upstream union is open (`| string`). Since this payload is cast rather than validated, that
+   * type is an assertion about the backend, not a proof — never switch exhaustively on `status`
+   * without a default, and never gate the redirect on it. Gate on the presence of this field, which
+   * is the actual signal.
+   *
+   * Also absent — along with `sessionId` — when `bootstrapAgents: false` short-circuits upstream.
+   * That is "nothing was bootstrapped", not "bootstrap went unregistered", and must not be reported
+   * as drift from the control plane.
+   */
+  controlPlaneRun?: CreateRunResponse;
 }
 
 export interface CreateArtifactResult {

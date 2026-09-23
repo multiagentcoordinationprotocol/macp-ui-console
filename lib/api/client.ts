@@ -206,7 +206,12 @@ export async function runExample(
         participantId: agent.agentRef,
         status: 'bootstrapped'
       })),
-      sessionId: LIVE_RUN_ID
+      sessionId: LIVE_RUN_ID,
+      // Demo mode models the *successful* registration, which is the normal case — without this the
+      // demo bootstrap would permanently take the "not registered with the control plane" branch and
+      // never redirect. `runId` matches the demo `sessionId` so the redirect lands on a live run the
+      // rest of the demo dataset actually has.
+      controlPlaneRun: MOCK_CREATE_RUN_RESPONSE
     });
   }
 

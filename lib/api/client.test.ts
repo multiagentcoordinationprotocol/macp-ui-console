@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   listPacks,
   listRuns,
+  runExample,
   getRun,
   getDashboardOverview,
   compileLaunch,
@@ -302,6 +303,21 @@ describe('demo mode API client', () => {
     expect(drift.liveRuntimeSessionCount).toBeLessThanOrEqual(drift.runtimeSessionCount);
     expect(untracked).toBeLessThanOrEqual(drift.liveRuntimeSessionCount);
     expect(drift.liveRuntimeSessionCount - untracked + missing).toBeLessThanOrEqual(drift.trackedRunCount);
+  });
+
+  it('runExample demo mode returns a controlPlaneRun pointing at a real demo run', async () => {
+    // Without this field the demo bootstrap would permanently take the "not registered with the
+    // control plane" branch and never redirect — the highest-probability bug in this phase, and one
+    // no page test catches because the page mocks the client.
+    const result = await runExample(
+      { scenarioRef: 'fraud/high-value-new-device@1.0.0', templateId: 'default', mode: 'live', inputs: {} },
+      DEMO
+    );
+
+    expect(result.controlPlaneRun).toBeDefined();
+    // The redirect navigates by this id, so it has to resolve against the demo dataset.
+    const runs = await listRuns(DEMO);
+    expect(runs.some((run) => run.id === result.controlPlaneRun!.runId)).toBe(true);
   });
 
   it('getRuntimeSessionDrift demo sessions carry the fields the UI renders', async () => {

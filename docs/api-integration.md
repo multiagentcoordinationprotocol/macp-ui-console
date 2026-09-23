@@ -85,7 +85,15 @@ The UI calls the following subset:
 - `POST /launch/compile` — validates inputs against the scenario JSON Schema and returns a whitelisted-safe `runDescriptor` (for CP `POST /runs`), a `scenarioSpec` (for agent bootstrap), and a pre-allocated UUID v4 `sessionId`
 
 ### Optional one-shot bootstrap
-- `POST /examples/run` — compiles, spawns the example agents with per-agent JWTs (minted via auth-service), and optionally submits to the CP. Response: `{ compiled, hostedAgents[], sessionId }`. Under observer-only CP, `sessionId` doubles as the run ID for navigation.
+- `POST /examples/run` — compiles, spawns the example agents with per-agent JWTs (minted via auth-service), and submits the run to the CP. Response (201): `{ compiled, hostedAgents[], sessionId, controlPlaneRun? }`.
+
+  **`controlPlaneRun` is the CP's `POST /runs` response, and its absence is the only registration signal the console gets.** Submission is best-effort and non-fatal by design: it runs concurrently with agent bootstrap, and an unset `MACP_CONTROL_PLANE_URL`, a network error, a timeout, a non-2xx (including a 401 from a missing API key), a malformed body, or a response missing `runId`/`status`/`sessionId` or whose `sessionId` disagrees with the descriptor's, all cause the field to be **omitted** while the request still succeeds with live agents. A playground old enough never to send it is indistinguishable. The field is also absent, along with `sessionId`, when `bootstrapAgents: false` short-circuits the flow; that is "nothing was bootstrapped", not a registration failure.
+
+  **Navigate by `controlPlaneRun.runId`, never by `sessionId` — the two are different ids on this path.** `POST /runs` makes the CP mint a fresh run id and store the session id separately, so `/runs/live/<sessionId>` does not resolve. (`controlPlaneRun.sessionId`, by contrast, is guaranteed equal to the top-level `sessionId`: the playground rejects any response where they disagree.)
+
+  **When the field is absent, the run is not necessarily unreachable.** With `SESSION_DISCOVERY_ENABLED` (default **true**), the CP registers runs it observes directly from the runtime, and those it keys **by session id** — so `/runs/live/<sessionId>` starts resolving once discovery has seen the session. Discovery is neither instant nor guaranteed: if the submission reached the CP and only the reply was lost, a run already exists under a different id and discovery finds it by session id, so no session-keyed run is ever created and that route stays dead. The console therefore does not redirect; it reports that the Example Service did not register the run, declines to attribute a cause, and offers the session route as a link that may or may not resolve.
+
+  For local real-mode work both `MACP_CONTROL_PLANE_URL` and `MACP_CONTROL_PLANE_API_KEY` must be set on the playground service — the CP's auth guard rejects a *missing* Authorization header before it reaches the empty-`AUTH_API_KEYS` bypass, so an unset key silently yields the omitted field. `docker-compose.e2e.yml` sets both.
 
 ---
 
@@ -255,7 +263,7 @@ proxy.
 ### Examples Service
 - `listPacks`, `listScenarios`
 - `getLaunchSchema`, `compileLaunch`
-- `runExample` — one-shot bootstrap via `/examples/run`
+- `runExample` — one-shot bootstrap via `/examples/run`; returns `controlPlaneRun` only when the run reached the control plane (demo mode always includes it)
 - `getAgentProfiles`, `getAgentProfile` (returns `undefined` on 404)
 
 ### Control Plane — run lifecycle
@@ -411,5 +419,6 @@ and [`macp-control-plane/docs/INTEGRATION.md § Consuming SSE Streams`](https://
 
 ### One-shot bootstrap flow
 1. Call Examples Service `POST /examples/run`
-2. Examples Service compiles, mints per-agent JWTs, spawns worker processes with bootstrap files, and optionally submits the run to the CP (see [`macp-playground/docs/direct-agent-auth.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/direct-agent-auth.md))
-3. UI redirects to the returned `sessionId` (= run ID under observer-only CP)
+2. Examples Service compiles, mints per-agent JWTs, spawns worker processes with bootstrap files, and submits the run to the CP best-effort (see [`macp-playground/docs/direct-agent-auth.md`](https://github.com/multiagentcoordinationprotocol/macp-playground/blob/main/docs/direct-agent-auth.md))
+3. **If `controlPlaneRun` came back**, the UI redirects to `/runs/live/<controlPlaneRun.runId>` — the CP's own run id, which is **not** the session id on this path
+4. **If it did not**, the UI stays on the page and warns that the Example Service did not register the run, without attributing a cause. The run may still be picked up by session discovery, which keys it by session id, so the session route is offered as a link rather than an automatic redirect. See `POST /examples/run` above.

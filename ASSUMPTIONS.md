@@ -59,3 +59,28 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
   enforcement (the console never enforces policy — it displays it). Cost to reverse: none; this is an
   absence of behaviour, not a behaviour.
 - **Status:** UNCONFIRMED
+
+---
+
+## "Agents are live" is asserted, not checked, on the bootstrap result
+
+- **Plan:** plans/absorb-control-plane-playground-sep-2026.md
+- **Phase:** 7
+- **Assumed:** The new no-registration banner opens with "Agents are live, but the Example Service did
+  not register this run." Phase 7 made every *other* clause of that banner checkable, but this one is
+  inferred from `sessionId` being present rather than verified. It is not always true: the playground's
+  process host can return `status: 'resolved'` with `processAttached: false` on a manifest-validation
+  failure **without throwing**, so `/examples/run` still answers 201 with a `sessionId` for an agent
+  that never launched. In that case the console says agents are live when none are.
+- **Chose:** Ship the banner as written and record the gap. The page already holds `hostedAgents`, but
+  it is typed `Array<Record<string, unknown>>` (`lib/types.ts`), so reading `processAttached` means
+  modelling the upstream host result — a type change with its own demo-parity and test surface, and
+  outside a phase already at its three-round verification cap. The failure mode it would catch is a
+  packaging error in an example agent, which is loud by other means.
+- **Alternatives:** (1) Model `hostedAgents` and gate the headline on `processAttached` — the right fix,
+  deferred rather than rejected. (2) Soften the copy to "the bootstrap reported agents as started" —
+  rejected for now: vaguer for the common case, and it hides the defect instead of fixing it.
+- **Blast radius if wrong:** One misleading sentence in a warning banner, on a path that is already the
+  unhappy one. No navigation, data, or state depends on it — the redirect is gated on `controlPlaneRun`,
+  not on this claim. Cost to reverse: a type change plus one condition.
+- **Status:** UNCONFIRMED

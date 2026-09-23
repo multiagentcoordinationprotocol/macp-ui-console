@@ -23,7 +23,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P4 | Runtime session drift: types, client, demo data | DONE | 2 | Opus | `032a6f0` | pending /ship |
 | P5 | Runtime session drift: Infrastructure-tab UI | DONE | 2 | Opus | `8149d9d` | pending /ship |
 | P6 | Constrain policy `schemaVersion` to {1,2,3} | DONE | 1 | Opus | `e7fbb08` | pending /ship |
-| P7 | Absorb `controlPlaneRun` from the playground bootstrap | TODO | — | — | — | — |
+| P7 | Absorb `controlPlaneRun` from the playground bootstrap | DONE | 3 | Opus | `pending` | pending /ship |
 | P8a | SSE resume-cursor correctness | TODO | — | — | — | — |
 | P8b | Gap visibility (`historyGap`, client gaps) + `policy.denied` detail | TODO | — | — | — | — |
 | P9 | Repoint the dev/e2e stack at runtime v0.8.0 | TODO | — | — | — | — |
@@ -334,6 +334,9 @@ _(`/implement` appends; `/plan` seeded the five below — full reasoning in the 
 | D19 | The drift card stamps results with `dataUpdatedAt` and clears the badge on a later failure | `tabs.tsx:48` unmounts inactive tabs while the page's observer keeps the cache entry alive, so a returning operator re-reads old numbers as live; and React Query retains `data` across an error, which would otherwise show "Full session list" beside "Drift check failed" (P5 verify R1 obs 2, R2 obs 3) |
 | D20 | The schema-version `<option>` list is generated from `POLICY_SCHEMA_VERSIONS`, the constant the union derives from | The submit site casts (`as PolicySchemaVersion`), so a hand-written 4th option would typecheck while being rejected by the CP. Generating them makes widening the union the only way to add one (P6 verify, obs 2) |
 | D21 | `PolicySchemaVersion` constrains the **request** type only; the descriptor stays `number` | A CP that later accepts 4 must not make already-registered policies unrenderable. Pinned by a test that renders a `schemaVersion: 7` policy — the claim was previously made only by a comment (P6 verify, obs 6) |
+| D22 | The bootstrap redirect navigates by `controlPlaneRun.runId`, never by `sessionId` | `POST /runs` mints a fresh run id and stores the session id in a separate column (`run-executor.service.ts:141` passes no `explicitRunId`), and `/runs/live/:id` resolves by run id — so the plan's `sessionId`-first fallback 404'd on the phase's own happy path (P7 verify R1, gap 1) |
+| D23 | The "not registered" banner offers the session route as a **link**, and says it reports an error until discovery lands | Session discovery (default on) registers observed sessions keyed *by session id*, so the route may start working — but not instantly, and never if the submission reached the CP and only the reply was lost. A redirect would move the load failure behind a click; silence would hide a reachable run (P7 verify R1 gap 2, R2 gap 1) |
+| D24 | Ids render in `<code>`, not through `Badge` | `Badge` title-cases its label, turning `run-abc` into `Run Abc` and mangling a UUID outright. The pre-existing session badge had the same defect (P7 verify R2, obs) |
 
 ## Assumptions to reconcile
 
@@ -574,6 +577,57 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
 - **Gates:** typecheck clean · 37 files / 463 tests passing · lint clean · format:check clean ·
   `next build` clean.
 - **Next:** P7 — absorb `controlPlaneRun` from the playground bootstrap.
+
+### P7 — Absorb `controlPlaneRun` from the playground bootstrap — **PASS**
+
+- **When:** 2026-09-23 · **Verifier:** fresh Opus subagent, all three rounds · **Rounds:** 3 (the cap)
+- **Why Opus (not Fable):** no trust boundary and no cross-repo write — the compose file edited here is
+  this repo's own. The redirect change is user-visible but fully reversible.
+- **The most consequential finding of the whole run, and the plan pointed straight past it.** The plan
+  warned that `controlPlaneRun.runId` and `sessionId` are different ids — then applied that warning
+  only to an *unreachable* branch ("`controlPlaneRun` present but `sessionId` absent", which the
+  playground never produces) and left the reachable path redirecting to `sessionId` first. Verified at
+  source: `run-executor.service.ts:141` calls `createRun(request, sessionId)` with **no**
+  `explicitRunId`, so `run-manager.service.ts:39` mints a fresh UUID and keeps the session id in a
+  separate column. `/runs/live/:id` resolves by run id, so the phase's own happy path 404'd. Now
+  navigates by `controlPlaneRun.runId` only (**D22**).
+- **The inverse is true on the other branch, which made the first warning copy false.** Session
+  discovery — `SESSION_DISCOVERY_ENABLED`, default **true** — registers runs it observes from the
+  runtime with `createRun(descriptor, sessionId, sessionId)`, i.e. keyed *by session id*. So when the
+  Example Service fails to register, `/runs/live/<sessionId>` is exactly the route that eventually
+  works. The banner had asserted the run "will not appear under Runs" and the live view "has nothing
+  to load" — both false in the default configuration.
+- **Round 2 caught the rewrite repeating the error in softer words** ("shows nothing until then"): the
+  live route renders an `ErrorPanel`, not an empty page. That is the same gap surviving two rounds, so
+  round 3 was scoped narrowly to the copy and treated as final. The banner now states only what is
+  checkable: what the Example Service returned, that the page cannot tell whether discovery has run,
+  that the route reports an error until it does, and that it may never — if the submission reached the
+  CP and only the reply was lost, a run exists under another id and discovery short-circuits on
+  `findBySessionId` rather than creating a second (**D23**).
+- **Three more plan errors**, all confirmed: the omitted-field failure list was missing three classes
+  (missing `status`, missing `sessionId`, session-id mismatch); `controlPlaneRun.sessionId` is
+  *guaranteed equal* to the top-level one (the playground rejects a mismatch) so the plan's "lossy in
+  the safe direction" note was aimed at the wrong field; and `docker-compose.local.yml:22` already set
+  `MACP_CONTROL_PLANE_API_KEY`, so only the **URL** was actually missing from `local:up`.
+- **Also fixed while here:** `Badge` title-cases its label, so ids rendered as `Run Abc` and a UUID was
+  mangled outright — ids now render in `<code>` (**D24**), which also repairs the pre-existing session
+  badge; a `next/link` replaced the only raw internal `<a href>` in `app/`; the previous attempt is
+  cleared when a new bootstrap starts, so a failure cannot render beside a stale success; and the flow
+  gained its first error surface at all — a failed bootstrap previously just stopped the spinner.
+- **Two tests added for claims nothing defended:** demo mode returns a `controlPlaneRun` whose `runId`
+  actually exists in `MOCK_RUNS` (deleting the field had survived the entire suite — the plan called
+  this "the single highest-probability bug in the phase"), and the success path shows no warning.
+- **Known limitation, not fixed:** "Agents are live" is itself unchecked. The playground's host provider
+  can return `status: 'resolved'` with `processAttached: false` on a manifest-validation failure, so an
+  agent may never have launched. Checking needs `hostedAgents` to stop being
+  `Array<Record<string, unknown>>` — a type change beyond this phase's scope. Recorded for /reconcile.
+- **Files touched:** `lib/types.ts`, `lib/api/client.ts`, `lib/api/client.test.ts`,
+  `app/runs/new/page.tsx`, `app/runs/new/page.test.tsx` (new — the repo's first test under `app/`),
+  `test/integration/scenarios-catalog.integration.test.ts`, `docker-compose.e2e.yml`,
+  `docs/api-integration.md`, `PROGRESS.md`.
+- **Gates:** typecheck clean · 38 files / 475 tests passing · 5 files / 95 integration tests passing ·
+  lint clean · format:check clean · `next build` clean.
+- **Next:** P8a — SSE resume-cursor correctness.
 
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 

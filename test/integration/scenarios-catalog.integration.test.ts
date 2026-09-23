@@ -191,6 +191,57 @@ describe('Scenarios Catalog (integration)', () => {
       expect(result.sessionId).toBeDefined();
       expect(result.hostedAgents).toBeDefined();
     });
+
+    it('passes through controlPlaneRun when the playground registered the run', async () => {
+      mocker.on('POST', '/api/proxy/macp-playground/examples/run', () => ({
+        // The playground returns 201 here, not 200 — a bare @Post with no @HttpCode.
+        status: 201,
+        body: {
+          compiled: compileLaunchResult(),
+          hostedAgents: [{ agentRef: 'fraud-detector', participantId: 'fraud-detector', status: 'bootstrapped' }],
+          sessionId: '00000000-0000-0000-0000-000000000001',
+          controlPlaneRun: {
+            runId: '00000000-0000-0000-0000-0000000000cp',
+            status: 'running',
+            traceId: 'trace-cp-001'
+          }
+        }
+      }));
+
+      const { runExample } = await import('@/lib/api/client');
+      const result = await runExample(
+        { scenarioRef: 'fraud/high-value-new-device@1.0.0', inputs: {}, bootstrapAgents: true },
+        false
+      );
+
+      // The real branch is a raw pass-through, so this proves the field survives the proxy hop
+      // rather than being dropped by a transform.
+      expect(result.controlPlaneRun?.runId).toBe('00000000-0000-0000-0000-0000000000cp');
+      expect(result.controlPlaneRun?.status).toBe('running');
+    });
+
+    it('omits controlPlaneRun when registration did not land, without failing the bootstrap', async () => {
+      // The playground submits best-effort: every failure class omits the field and still returns
+      // 201 with live agents. The client must not treat that as an error.
+      mocker.on('POST', '/api/proxy/macp-playground/examples/run', () => ({
+        status: 201,
+        body: {
+          compiled: compileLaunchResult(),
+          hostedAgents: [{ agentRef: 'fraud-detector', participantId: 'fraud-detector', status: 'bootstrapped' }],
+          sessionId: '00000000-0000-0000-0000-000000000001'
+        }
+      }));
+
+      const { runExample } = await import('@/lib/api/client');
+      const result = await runExample(
+        { scenarioRef: 'fraud/high-value-new-device@1.0.0', inputs: {}, bootstrapAgents: true },
+        false
+      );
+
+      expect(result.controlPlaneRun).toBeUndefined();
+      expect(result.sessionId).toBe('00000000-0000-0000-0000-000000000001');
+      expect(result.hostedAgents).toHaveLength(1);
+    });
   });
 
   describe('Agent profiles', () => {

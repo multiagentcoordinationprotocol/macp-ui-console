@@ -176,10 +176,22 @@ services:
       AUTH_API_KEYS: ""
       LOG_LEVEL: info
       REGISTRY_CACHE_TTL_MS: "0"
+      # Without these the playground's control-plane submission is a no-op, so /examples/run never
+      # returns `controlPlaneRun` and every real-mode bootstrap from /runs/new takes the
+      # "not registered" branch — the feature would look broken in the only stack that exercises it.
+      MACP_CONTROL_PLANE_URL: "http://macp-control-plane:3001"
+      # Required even though the control plane runs with AUTH_API_KEYS: "". Its guard rejects a
+      # *missing* Authorization header before it ever reaches the empty-keys bypass, so an unset key
+      # yields 401 and the same silent no-op. Any non-empty value works while AUTH_API_KEYS is empty.
+      # `npm run local:up` layers docker-compose.local.yml over this file, which sets its own
+      # "local-dev" value here; only the URL above was actually missing from that path.
+      MACP_CONTROL_PLANE_API_KEY: "e2e-test"
     depends_on:
       auth-service:
         condition: service_healthy
       runtime:
+        condition: service_healthy
+      macp-control-plane:
         condition: service_healthy
     healthcheck:
       test: >-
