@@ -19,7 +19,7 @@ _(one checkpoint per phase; `/implement` appends)_
 |---|---|---|---|---|---|---|
 | P1 | Correct the `CommitmentAuthority` wire value | DONE | 2 | Opus | `68d80db` | pending /ship |
 | P2 | Surface non-canonical supersedes hashes | DONE | 2 | Opus | `6178633` | pending /ship |
-| P3 | Structured error codes on `ApiError` | TODO | — | — | — | — |
+| P3 | Structured error codes on `ApiError` | DONE | 3 | Opus | _(this commit)_ | pending /ship |
 | P4 | Runtime session drift: types, client, demo data | TODO | — | — | — | — |
 | P5 | Runtime session drift: Infrastructure-tab UI | TODO | — | — | — | — |
 | P6 | Constrain policy `schemaVersion` to {1,2,3} | TODO | — | — | — | — |
@@ -408,6 +408,43 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
   ASSUMPTIONS P6 rather than assumed here.
 - **Gates:** typecheck clean · 36 files / 404 tests passing · lint clean · format:check clean.
 - **Next:** P3 — structured error codes on `ApiError` (P4, P5, P6 all depend on it).
+
+### P3 — Structured error codes on `ApiError` — **PASS**
+
+- **When:** 2026-09-23 · **Verifier:** fresh Opus subagent, all three rounds · **Rounds:** 3
+- **Why Opus (not Fable):** additive changes to one error class. No public contract, no migration,
+  no trust boundary. `.message` semantics were explicitly preserved, so nothing one-way.
+- **Round 1 → GAPS (7).** Again the biggest finding was a **false claim inherited from the plan**:
+  that the CP's throttler 429 uses the no-`errorCode` envelope. It does not.
+  `GlobalExceptionFilter` has a **third** path the plan never mentioned — a *string*-bodied
+  `HttpException`, and any unhandled error, are rewritten to
+  `{statusCode, errorCode: 'INTERNAL_ERROR', message}` (`exception.filter.ts:19-37`) — and
+  `ThrottlerException` carries a string body, so **a rate limit arrives labelled `INTERNAL_ERROR`**.
+  That matters directly for P4/P5/P6, which branch on `errorCode`: a *present* code is not always a
+  real classification. Documented in the type, the docs and the plan.
+- **Other round-1 gaps closed:** `describeApiError` returned an unbounded upstream body from a
+  function explicitly labelled "fit for a user" — a multi-MB nginx page could reach the UI; now
+  capped at 500 chars while `detail`/`message` stay uncapped for logging and matching. The
+  `#parsed` null-memo branch was untested — proven by a mutant that made every non-JSON body
+  re-parse on every access and still passed 37/37; now killed by a spy test.
+  `isRegistryReadOnlyError`'s new structured check sat *after* the 405 short-circuit while being
+  called the "preferred path" — reordered and honestly commented, with a non-405 test. Plus a weak
+  assertion that would have passed for `undefined`, four untested guards, and an undocumented
+  contract row.
+- **Round 2 → GAPS (2, doc-only).** The corrected docs table over-generalised in the other
+  direction: an object-bodied Nest exception is emitted *verbatim*, so a hand-built one keeps its
+  own code — the CP does exactly that for `ENDPOINT_REMOVED`. And the "parsed object with no usable
+  `message` → raw JSON" fallback was tested but undocumented in all three places it should appear.
+- **Round 3 → PASS.** Both closed; wording independently re-derived from CP source, including that
+  the three `ENDPOINT_REMOVED` routes really are `POST /runs/:id/{messages,signal,context}`.
+- **Files touched:** `lib/api/fetcher.ts`, `lib/api/fetcher.test.ts`, `docs/api-integration.md`,
+  plan, `PROGRESS.md`.
+- **Assumptions logged:** none new.
+- **Note for later phases:** `describeApiError` has no production caller yet — P6 is the first, by
+  design. P4/P5 should branch on `errorCode` only for codes they handle (`CIRCUIT_BREAKER_OPEN`,
+  `RUNTIME_UNAVAILABLE`) and treat everything else, `INTERNAL_ERROR` included, as unclassified.
+- **Gates:** typecheck clean · 36 files / 423 tests passing · lint clean · format:check clean.
+- **Next:** P4 — runtime session drift types, client and demo data.
 
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 

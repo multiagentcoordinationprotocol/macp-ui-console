@@ -308,10 +308,59 @@ consistent type vocabulary regardless of whether rows came from CP or from mock 
 ## Error handling
 
 `lib/api/fetcher.ts` exports `ApiError` with `status`, `statusText`, `service`, `path`,
-and an `isNotFound` getter. Client functions branch on `ApiError.isNotFound` to return
-`undefined` (missing entity) or to mark a capability as degraded
-(`getDashboardOverview`, `listEvents` fallback, `getAgentMetrics`). Non-404 errors
-propagate and are caught by React Query / error boundaries.
+the verbatim `body`, an `isNotFound` getter, and the two structured accessors below.
+Client functions branch on `ApiError.isNotFound` to return `undefined` (missing entity)
+or to mark a capability as degraded (`getDashboardOverview`, `listEvents` fallback,
+`getAgentMetrics`). Non-404 errors propagate and are caught by React Query / error
+boundaries.
+
+### The two control-plane error envelopes
+
+The control plane's `GlobalExceptionFilter` emits **three** different bodies, and code that
+understands only the first renders nothing for the second.
+
+| Raised as | Body | `errorCode` |
+|---|---|---|
+| `AppException` | `{ statusCode, errorCode, message, metadata? }` | present, and meaningful |
+| a Nest exception with an **object** body | emitted **verbatim** — the framework default is `{ statusCode, message, error }` | absent when Nest built the body; present when the thrower hand-built one |
+| a Nest exception with a **string** body, or any unhandled error | `{ statusCode, errorCode: 'INTERNAL_ERROR', message }` | present, but **synthesized** |
+
+The second row is a pass-through, not a shape. When Nest builds the body — 401 from the auth
+guard, and **every `POST /runtime/policies` validation rejection**, including `schemaVersion
+must be one of 1, 2, 3` — there is no `errorCode`. But a caller that throws
+`new HttpException({ statusCode, errorCode, message }, status)` keeps its own code: the CP does
+exactly this for its removed agent endpoints (`ENDPOINT_REMOVED` on `POST /runs/:id/messages`,
+`/signal`, `/context`). Note the key is `errorCode`, not `code`.
+
+> **A present `errorCode` is not always a real classification.** The third path rewrites a
+> string-bodied `HttpException` into the `AppException` shape with a hardcoded
+> `INTERNAL_ERROR`. A throttled **429 goes down that path**, so a rate limit arrives labelled
+> `INTERNAL_ERROR`. When branching on `errorCode`, switch on the codes you actually handle and
+> treat everything else — `INTERNAL_ERROR` included — as unclassified.
+
+- **`ApiError.errorCode: string | undefined`** — the machine-readable code, present only on
+  the `AppException` envelope. `undefined` means "the backend did not classify this", never
+  "unknown code". Use it to tell apart failures that share a status: `CIRCUIT_BREAKER_OPEN`
+  and `RUNTIME_UNAVAILABLE` are both 503 but mean different things to an operator.
+- **`ApiError.detail: string | undefined`** — the human sentence, read from `message` in
+  any envelope (an array `message`, the `ValidationPipe` shape, is joined). It deliberately does
+  **not** fall back to the Nest `error` field (`"Bad Request"`, `"Unauthorized"`) — that restates
+  the status rather than describing the failure. Fallbacks, in order: the raw body when it is not
+  JSON; **the raw body when it parses to an object carrying no usable `message`** (so a
+  pathological envelope still shows *something* rather than nothing — the trade-off is that the
+  user may see raw JSON); `undefined` when there is no body at all.
+- **`describeApiError(error: unknown): string`** — renders any thrown value to a sentence fit
+  for a user: an `ApiError`'s `detail`, else its `Request failed with status N`; a plain
+  `Error`'s `message`; a non-empty `string` verbatim; else a generic fallback. Never returns
+  `''` or `[object Object]`. The plain-`Error` row is the commonest input, not an edge case —
+  a network failure rejects before `fetchJson` reaches its status check, so it arrives as a
+  bare `TypeError`. The result is **capped at 500 characters**, because an upstream body is
+  arbitrary bytes (a multi-megabyte nginx page, a full stack trace) and this is the
+  show-it-to-a-user boundary; `detail` and `message` stay uncapped for logging and matching.
+
+Parsing is lazy and memoised: constructing an `ApiError` costs no `JSON.parse`, and an empty
+body is never parsed at all. `.message` is unchanged — it is still the raw body, or
+`Request failed with status N` when the body is empty.
 
 ## Demo mode
 
