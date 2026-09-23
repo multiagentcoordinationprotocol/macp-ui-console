@@ -230,7 +230,10 @@ export function runtimeManifest() {
     title: 'MACP Rust Runtime',
     description: 'Multi-Agent Coordination Protocol runtime',
     supportedModes: ['macp.mode.decision.v1', 'macp.mode.task.v1'],
-    metadata: { version: '0.5.0' }
+    // A fixture value only — the integration suite runs against an in-process MockBackend and never
+    // starts the runtime, so this asserts nothing about the pinned image. Kept in step with the
+    // compose pin (v0.8.0) so a reader does not infer a version skew that does not exist.
+    metadata: { version: '0.8.0' }
   };
 }
 

@@ -114,9 +114,11 @@ npm run local:status   # Check health of running services
 | Examples Service | 3100 | `/healthz` |
 | UI Console | 3000 | — |
 
-The stack pins the runtime to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.5.0`
-(override with `MACP_RUNTIME_IMAGE` for local builds). The v0.5.0 image no longer bakes
-`MACP_ALLOW_INSECURE` — the compose file sets it explicitly, along with
+The stack pins the runtime to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:f97fd15`
+(override with `MACP_RUNTIME_IMAGE` for local builds). That SHA tag is runtime v0.8.0 — the runtime
+repo moved to per-crate tags, so there is no monolithic `v0.8.0` tag to pin — and it is the same
+image `macp-control-plane` and `macp-playground` pin, so all three stacks run one runtime build.
+The published image does not bake `MACP_ALLOW_INSECURE` — the compose file sets it explicitly, along with
 `MACP_METRICS_ADDR=0.0.0.0:9464` so the runtime exposes per-mode Prometheus counters
 (`macp_messages_*`, `macp_sessions_*`, `macp_commitments_*`, `macp_replay_mismatches_total`)
 on port 9464 for local debugging (`curl localhost:9464/metrics`). These runtime-process

@@ -26,7 +26,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P7 | Absorb `controlPlaneRun` from the playground bootstrap | DONE | 3 | Opus | `4dd89cf` | pending /ship |
 | P8a | SSE resume-cursor correctness | DONE | 2 | Opus | `fd2ed50` | pending /ship |
 | P8b | Gap visibility (`historyGap`) + `policy.denied` detail | DONE | 2 | Opus | `3c6d3fc` | pending /ship |
-| P9 | Repoint the dev/e2e stack at runtime v0.8.0 | TODO | — | — | — | — |
+| P9 | Repoint the dev/e2e stack at runtime v0.8.0 | DONE | 1 | Opus | `pending` | pending /ship |
 | P10 | Documentation refresh | TODO | — | — | — | — |
 
 Dependency edges: P4→P3, P5→P4, **P5→P3** (Phase 5 reads `errorCode` directly, so the edge is real and not
@@ -744,6 +744,57 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
 - **Gates:** typecheck clean · 39 files / 512 tests passing · 5 files / 95 integration tests passing ·
   lint clean · format:check clean · `next build` clean.
 - **Next:** P9 — repoint the dev/e2e stack at runtime v0.8.0.
+
+### P9 — Repoint the dev/e2e stack at runtime v0.8.0 — **PASS**
+
+- **Verified the plan's claims before acting**, given the prior phases' record: both siblings really do
+  pin `ghcr.io/…/macp-runtime:f97fd15` (`macp-control-plane/docker-compose.test.yml:40`,
+  `macp-playground/docker-compose.fullstack.yml:58`), this repo really did pin `0.5.0`, and all three
+  `RUNTIME_LIST_SESSIONS_*` names and defaults match the CP's own config
+  (`app-config.service.ts:138-140`), including the trap that an **empty string** fails startup while
+  unset falls back to the default (`:243-257`). The only plan inaccuracy was a line-number drift: the
+  integration fixture is at `:233`, not `:231`.
+- **Shipped.** The compose default is now `macp-runtime:f97fd15`, byte-identical to both siblings, with
+  the `MACP_RUNTIME_IMAGE` override intact; the three v0.5.0 comments and the README prose are rewritten
+  (`grep -n "v0\.5\.0\|0\.5\.0" docker-compose.e2e.yml README.md` now returns nothing, AC2); the
+  three `listSessions` knobs are present as commented-out entries with the recipe for forcing the drift
+  table's `complete: false` branch and the empty-string trap called out; and the integration fixture's
+  version string moved to `0.8.0` with a comment stating it is a fixture value that asserts nothing
+  about the real runtime.
+- **That fixture comment is now confirmed true**, incidentally: the live runtime's manifest came back
+  with `metadata: {}` — it carries no version field at all.
+- **The boot did not happen here, and the record says so.** What is verified is **image-pair
+  compatibility**, not AC4: the image pulls from GHCR by digest (and `0.8.0`/`v0.8.0` are confirmed not
+  to be published tags), and a running stack on this machine using the *identical* pair (CP `0.8.0` +
+  runtime `f97fd15`) reports `/readyz → runtime.ok: true, "connected to runtime:50051"`. An earlier
+  draft of this entry called that "AC4's substantive claim verified"; the P9 verifier pushed back that
+  this quietly redefines AC4 from *this stack boots* to *these two images talk*, and it was right —
+  reworded. But `npm run local:up` could not run here: the local override expects pre-built images
+  whose source build needs `NODE_AUTH_TOKEN` for GitHub Packages, and the required ports are held by a
+  sibling stack that is not this session's to tear down. **AC5 (a scenario run reaching a terminal
+  state) was not verified.** Logged UNCONFIRMED in `ASSUMPTIONS.md`.
+- **Found while booting, not fixed — a real defect, root-caused by the verifier.**
+  `docker-compose.local.yml:11,16,20` defaults to `macp-ui-console-control-plane:latest`, but the build
+  produces `macp-ui-console-macp-control-plane:latest` (compose's `<project>-<service>` naming). With
+  `build: !reset null` alongside it, compose can only pull a name nothing ever produces — so `local:up`
+  **cannot succeed even with a valid token and free ports**. The missing `--build` is a symptom. Out of
+  this phase's file list, and unverifiable here, so recorded rather than patched blind (**see
+  ASSUMPTIONS.md**).
+- **Three of the plan's flagged v0.8.0 risks were closed by inspecting the image** rather than booting
+  it: the `bash` healthcheck works (Debian bookworm; two services `depends_on` it as `service_healthy`,
+  so a missing shell would have hung `--wait`), all eight `MACP_*` runtime vars still exist at
+  `f97fd15`, and `MACP_AUTH_TOKENS_JSON` still deserialises field-for-field — which mattered, because a
+  sibling var was removed upstream in this range.
+- **Files touched:** `docker-compose.e2e.yml`, `README.md`,
+  `test/integration/fixtures/backend-responses.ts`, `ASSUMPTIONS.md`, `PROGRESS.md`.
+- **Corrected after verification (N1):** the `complete: false` recipe named the wrong branch. A 1ms
+  timeout does force it, but via the **mid-page** path (the gRPC call fails `DEADLINE_EXCEEDED`), not
+  the between-pages check, which sees `remainingMs === 1` and does not fire. Each attempt also counts
+  against the CircuitBreaker (5 consecutive, 30s reset), after which `listSessions` throws instead.
+  Both the compose comment and the plan now say so.
+- **Gates:** typecheck clean · 39 files / 512 tests passing · 5 files / 95 integration tests passing ·
+  lint clean · format:check clean · `next build` clean · `docker compose config` parses.
+- **Next:** P10 — documentation refresh.
 
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 
