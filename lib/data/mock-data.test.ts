@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { MOCK_POLICY_DEFINITIONS, MOCK_RUNTIME_POLICIES } from '@/lib/data/mock-data';
+import {
+  COMPLETED_RUN_ID,
+  DECLINED_RUN_ID,
+  MOCK_POLICY_DEFINITIONS,
+  MOCK_RUNTIME_POLICIES,
+  MOCK_RUN_STATES,
+  MOCK_RUNS
+} from '@/lib/data/mock-data';
 import type { CommitmentAuthority } from '@/lib/types';
 
 /**
@@ -93,5 +100,34 @@ describe('MOCK_RUNTIME_POLICIES', () => {
       (policy) => (policy.rules as (typeof MOCK_POLICY_DEFINITIONS)[number]['rules']).commitment.authority
     );
     expect(authorities).toContain('designated_role');
+  });
+});
+
+describe('MOCK_RUN_STATES — supersedes canonicality fixtures', () => {
+  // Demo mode is the only backend-free path to the "Legacy hash format" badge. Without both
+  // branches present the badge is unreachable without a running control plane, and a fixture
+  // edit would silently remove the only way to see it.
+  it('exercises the canonical branch on the completed run', () => {
+    expect(MOCK_RUN_STATES[COMPLETED_RUN_ID].decision.current?.supersedes?.canonical).toBe(true);
+  });
+
+  it('exercises the non-canonical branch on the declined run', () => {
+    expect(MOCK_RUN_STATES[DECLINED_RUN_ID].decision.current?.supersedes?.canonical).toBe(false);
+  });
+
+  it('uses a visibly non-canonical hash shape for the false branch', () => {
+    // RFC-MACP-0013 §9: literally `sha256:` + exactly 64 lowercase hex.
+    const CANONICAL = /^sha256:[0-9a-f]{64}$/;
+    const legacy = MOCK_RUN_STATES[DECLINED_RUN_ID].decision.current?.supersedes?.commitmentHash;
+    const canonical = MOCK_RUN_STATES[COMPLETED_RUN_ID].decision.current?.supersedes?.commitmentHash;
+    expect(legacy).toBeDefined();
+    expect(CANONICAL.test(legacy as string)).toBe(false);
+    expect(CANONICAL.test(canonical as string)).toBe(true);
+  });
+
+  it('attaches both fixtures to runs that are listed, so they are reachable from the runs table', () => {
+    const listedIds = MOCK_RUNS.map((run) => run.id);
+    expect(listedIds).toContain(COMPLETED_RUN_ID);
+    expect(listedIds).toContain(DECLINED_RUN_ID);
   });
 });

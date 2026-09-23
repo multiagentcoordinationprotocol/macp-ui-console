@@ -58,6 +58,31 @@ export interface PolicyHints {
 export interface CommitmentSupersedes {
   sessionId: string;
   commitmentHash: string;
+  /**
+   * Whether `commitmentHash` is in the canonical form defined by RFC-MACP-0013 §9:
+   * literally `sha256:` followed by exactly 64 **lowercase** hex characters.
+   *
+   * `false` means the hash is a legacy pre-0013 value. The control plane deliberately
+   * surfaces such rows rather than dropping them, so the lineage stays visible — the
+   * console's job is to label the format, not to hide the hash.
+   *
+   * **Optional here on purpose, and the badge must gate on `=== false`, never on falsiness —
+   * the reason is control-plane version skew, not a hole in the current CP.**
+   *
+   * The current control plane declares this field *required* and backfills it on read
+   * (`deriveMissingCanonical` in `ProjectionService.get()`), and every UI-visible path runs
+   * through there — including the streaming one, since `applyAndPersist` calls `get()` to load
+   * the base state before reducing. So against a current CP, `undefined` should not arrive.
+   *
+   * It arrives from an **older** control plane, one deployed before that backfill existed.
+   * The CP's own `ASSUMPTIONS.md` P6 records the hazard and names *this* file as the blast
+   * radius: projections persisted before that change deserialize with `canonical === undefined`,
+   * such a row "is never rewritten (it is re-derived only when a *new* `decision.finalized`
+   * arrives)", and "a consumer writing `if (!s.canonical) badge()` could badge
+   * legacy-but-actually-canonical history as suspect". Optional typing costs nothing and the
+   * `=== false` gate is what makes us not be that consumer.
+   */
+  canonical?: boolean;
 }
 
 export interface CommitmentEvaluation {

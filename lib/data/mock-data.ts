@@ -734,9 +734,11 @@ const completedState: RunStateProjection = {
       resolvedAt: isoMinutesAgo(55),
       resolvedBy: 'risk-agent',
       // macp-proto 0.1.3 (§7.3) — this commitment supersedes a prior cross-session one.
+      // The CANONICAL branch: `sha256:` + 64 lowercase hex, per RFC-MACP-0013 §9. No badge.
       supersedes: {
         sessionId: 'session-prior-fraud-000',
-        commitmentHash: 'sha256:9f2c1ab7e4d8c3061f5a2b9d7e0c4a18b6d35f92ac71e0d4b8f6a23c1e5079db'
+        commitmentHash: 'sha256:9f2c1ab7e4d8c3061f5a2b9d7e0c4a18b6d35f92ac71e0d4b8f6a23c1e5079db',
+        canonical: true
       },
       proposals: [
         {
@@ -995,7 +997,17 @@ const opsState: RunStateProjection = {
       // Resolved-but-declined: a negative committed outcome (RFC-MACP-0007 §6).
       // The session resolved (run.status 'completed'), but the decision was "no".
       outcomePositive: false,
-      proposalId: 'incident-ops-004'
+      proposalId: 'incident-ops-004',
+      // The NON-CANONICAL branch: a legacy pre-RFC-MACP-0013 hash — no `sha256:` prefix and
+      // uppercase hex, so it fails the §9 format check on two counts. The control plane surfaces
+      // such rows rather than dropping them; the console badges the format and keeps the hash.
+      // Deliberately a visibly different shape from the canonical fixture above, so the badge is
+      // obviously correlated with the value it describes.
+      supersedes: {
+        sessionId: 'session-prior-incident-000',
+        commitmentHash: 'A41F09C7B2E5D8306',
+        canonical: false
+      }
     }
   },
   signals: {

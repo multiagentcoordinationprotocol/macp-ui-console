@@ -176,3 +176,111 @@ describe('DecisionPanel — prompt, reasons, contributors (BE-5/6/7)', () => {
     expect(link).toHaveAttribute('href', '/logs?runId=run-test-1&seq=42');
   });
 });
+
+describe('DecisionPanel — supersession lineage canonicality (RFC-MACP-0013 §9)', () => {
+  const CANONICAL_HASH = 'sha256:9f2c1ab7e4d8c3061f5a2b9d7e0c4a18b6d35f92ac71e0d4b8f6a23c1e5079db';
+  const LEGACY_HASH = 'A41F09C7B2E5D8306';
+
+  // Badge runs titleCase over its label, so "Legacy hash format" → "Legacy Hash Format".
+  const BADGE_TEXT = 'Legacy Hash Format';
+  const EXPLAINER = /predates RFC-MACP-0013/;
+
+  it('badges a non-canonical hash with warning tone and still renders the hash and session id', () => {
+    renderWithProviders(
+      <DecisionPanel
+        run={baseRun()}
+        state={baseState({
+          supersedes: {
+            sessionId: 'session-prior-incident-000',
+            commitmentHash: LEGACY_HASH,
+            canonical: false
+          }
+        })}
+      />
+    );
+
+    const badge = screen.getByText(BADGE_TEXT);
+    expect(badge).toBeInTheDocument();
+    // Tone is part of the acceptance criterion, not decoration — a silent regression to
+    // neutral/danger would otherwise ship green.
+    expect(badge).toHaveClass('badge-warning');
+    // The point of the upstream change was to badge the format, not to drop the lineage.
+    expect(screen.getByText(LEGACY_HASH)).toBeInTheDocument();
+    expect(screen.getByText('session-prior-incident-000')).toBeInTheDocument();
+    expect(screen.getByText('Supersedes prior commitment')).toBeInTheDocument();
+    // The explanatory copy is what makes the badge intelligible; it is a second `=== false`
+    // gate that must stay in sync with the first.
+    expect(screen.getByText(EXPLAINER)).toBeInTheDocument();
+  });
+
+  it('exposes the full hash via title even when the rendered value is truncated', () => {
+    // A production non-canonical hash can be long enough that the badged defect sits past the
+    // 24-char cut, leaving an operator unable to see what was flagged.
+    const LONG_LEGACY_HASH = 'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    renderWithProviders(
+      <DecisionPanel
+        run={baseRun()}
+        state={baseState({
+          supersedes: {
+            sessionId: 'session-prior-incident-001',
+            commitmentHash: LONG_LEGACY_HASH,
+            canonical: false
+          }
+        })}
+      />
+    );
+
+    expect(screen.getByText(BADGE_TEXT)).toBeInTheDocument();
+    // Truncated in the DOM text...
+    expect(screen.queryByText(LONG_LEGACY_HASH)).not.toBeInTheDocument();
+    // ...but recoverable in full from the title attribute.
+    expect(screen.getByTitle(LONG_LEGACY_HASH)).toBeInTheDocument();
+  });
+
+  it('renders no badge when the hash is canonical', () => {
+    renderWithProviders(
+      <DecisionPanel
+        run={baseRun()}
+        state={baseState({
+          supersedes: {
+            sessionId: 'session-prior-fraud-000',
+            commitmentHash: CANONICAL_HASH,
+            canonical: true
+          }
+        })}
+      />
+    );
+
+    expect(screen.queryByText(BADGE_TEXT)).not.toBeInTheDocument();
+    expect(screen.queryByText(EXPLAINER)).not.toBeInTheDocument();
+    expect(screen.getByText('Supersedes prior commitment')).toBeInTheDocument();
+  });
+
+  it('renders no badge when canonical is absent — the version-skew regression guard', () => {
+    // `undefined` means an OLDER control plane, one deployed before the canonical backfill —
+    // not a non-canonical hash. The CP's own ASSUMPTIONS.md P6 names this component as the
+    // blast radius and warns that `if (!s.canonical) badge()` would mis-label
+    // legacy-but-actually-canonical history. This test is what stops us being that consumer.
+    renderWithProviders(
+      <DecisionPanel
+        run={baseRun()}
+        state={baseState({
+          supersedes: {
+            sessionId: 'session-prior-fraud-000',
+            commitmentHash: CANONICAL_HASH
+          }
+        })}
+      />
+    );
+
+    expect(screen.queryByText(BADGE_TEXT)).not.toBeInTheDocument();
+    expect(screen.queryByText(EXPLAINER)).not.toBeInTheDocument();
+    expect(screen.getByText('Supersedes prior commitment')).toBeInTheDocument();
+  });
+
+  it('renders no supersession block at all when supersedes is absent', () => {
+    renderWithProviders(<DecisionPanel run={baseRun()} state={baseState()} />);
+    expect(screen.queryByText('Supersedes prior commitment')).not.toBeInTheDocument();
+    expect(screen.queryByText(BADGE_TEXT)).not.toBeInTheDocument();
+  });
+});

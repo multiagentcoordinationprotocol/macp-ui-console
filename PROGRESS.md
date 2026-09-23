@@ -18,7 +18,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | Phase | Title | Status | Rounds | Verifier | Commit | PR |
 |---|---|---|---|---|---|---|
 | P1 | Correct the `CommitmentAuthority` wire value | DONE | 2 | Opus | `68d80db` | pending /ship |
-| P2 | Surface non-canonical supersedes hashes | TODO | — | — | — | — |
+| P2 | Surface non-canonical supersedes hashes | DONE | 2 | Opus | _(this commit)_ | pending /ship |
 | P3 | Structured error codes on `ApiError` | TODO | — | — | — | — |
 | P4 | Runtime session drift: types, client, demo data | TODO | — | — | — | — |
 | P5 | Runtime session drift: Infrastructure-tab UI | TODO | — | — | — | — |
@@ -370,6 +370,44 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
   arrive as `Record<string, unknown>` and are never narrowed. UNCONFIRMED.
 - **Gates:** typecheck clean · 36 files / 395 tests passing · lint clean · format:check clean.
 - **Next:** P2 — surface non-canonical supersedes hashes.
+
+### P2 — Surface non-canonical supersedes hashes — **PASS**
+
+- **When:** 2026-09-23 · **Verifier:** fresh Opus subagent, both rounds · **Rounds:** 2
+- **Why Opus (not Fable):** no one-way door — an optional field on a mirrored type plus a display badge.
+  Nothing irreversible, no trust boundary.
+- **Round 1 → GAPS (6). The headline finding is that the PLAN'S OWN PREMISE WAS FALSE.** The plan
+  asserted that the mid-stream SSE snapshot bypasses `ProjectionService.get()`, so `canonical ===
+  undefined` reaches the console from a *current* control plane. It does not: `applyAndPersist` calls
+  `this.get(runId)` on its first line (`macp-control-plane/src/projection/projection.service.ts:72`) to
+  load the base state before reducing, so the backfill at `:46` runs on the streaming path too, and the
+  `upsert` at `:75` persists the healed value. I had faithfully copied that false claim into four
+  places, one of them shipped documentation.
+- **The conclusion survived; only the justification was wrong.** The real reason to type `canonical`
+  optional and gate on `=== false` is **control-plane version skew**: a CP deployed before the backfill
+  existed genuinely sends `undefined`, and such a row is never rewritten — only re-derived when a new
+  `decision.finalized` arrives. The CP's own `ASSUMPTIONS.md` P6 documents exactly this and names *this
+  repo's* `decision-panel.tsx` as the blast radius, warning that `if (!canonical) badge()` would
+  mis-label legacy-but-actually-canonical history. That is a stronger justification than the draft's,
+  and the current CP contract declares the field required
+  (`macp-control-plane/src/contracts/control-plane.ts:296`), which the docs now say.
+- **Other gaps closed:** badge `tone="warning"` was unasserted (a regression to any other tone shipped
+  green) — now pinned with `toHaveClass('badge-warning')`; the explanatory copy and its second
+  `=== false` gate had zero assertions — now asserted present/absent across all three states; demo
+  fixtures had no test despite being the only backend-free path to the badge — now four tests,
+  including a hash-shape check using the CP's own `CANONICAL_COMMITMENT_HASH_RE` verbatim; and a
+  truncated hash could hide the very defect being badged — the full value now rides on a `title`
+  attribute, tested with a 71-char hash.
+- **Round 2 → PASS.** All six confirmed closed, and the reviewer independently re-derived the corrected
+  control-plane claims from source rather than accepting the edit. Negative control re-run: flipping the
+  gate to `!canonical` fails exactly the `undefined` test.
+- **Files touched:** `lib/types.ts`, `components/runs/decision-panel.tsx`,
+  `components/runs/decision-panel.test.tsx`, `lib/data/mock-data.ts`, `lib/data/mock-data.test.ts`,
+  `docs/api-integration.md`, plan, `PROGRESS.md`.
+- **Assumptions logged:** none new — the version-skew rationale is now sourced to the CP's own
+  ASSUMPTIONS P6 rather than assumed here.
+- **Gates:** typecheck clean · 36 files / 404 tests passing · lint clean · format:check clean.
+- **Next:** P3 — structured error codes on `ApiError` (P4, P5, P6 all depend on it).
 
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 
