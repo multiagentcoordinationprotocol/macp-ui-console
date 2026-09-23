@@ -920,6 +920,66 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
   95 integration tests passing · lint clean · format:check clean.
 - **Next:** §4 finalization pass.
 
+### §4 Finalization — **PASS** (2 rounds)
+
+- **Full suite from a clean install.** `node_modules` deleted, `npm ci`, then every gate: typecheck
+  clean · lint clean · format:check clean · **39 files / 512 unit tests** · **5 files / 95
+  integration tests** · `next build` clean, every route emitted. No test was skipped, and nothing
+  depended on incremental state left over from the phases. (No route count is quoted: the first
+  draft of this line guessed one and was wrong, which is the same defect P10 spent its time
+  deleting from the docs.)
+- **Cross-phase integration.** The phases touch three shared seams and none of them conflict:
+  `lib/utils/events.ts` (P8b) is consumed by `run-workbench.tsx`, which P7 also edits; `ApiError`
+  (P3) is read by the drift card (P5) and the policy form (P6); and the SSE cursor (P8a) feeds the
+  merge P8b added. The integration suite covers the client/proxy seam and passes from clean.
+- **Docs sweep, repo-wide rather than per-file.** Greps for every class of error this run found —
+  the stale `example` proxy identifier, the four non-existent env var names, `v0.5.0` current-state
+  claims, `/settings` policy references, the invented failure-reason field, source line counts —
+  return only historical mentions inside older changelog entries and comments that exist to explain
+  why an old value was wrong. The `example` sweep is what caught `docs/architecture.md` and
+  `docs/backend-repo-notes.md:11` after two verifiers had each looked at only the file they were
+  pointed at.
+- **Tracked-file closeout.** `PROGRESS.md` and `ASSUMPTIONS.md` are committed. `CLAUDE.md` and
+  `plans/` are gitignored (`.gitignore:46-47`), so their corrections ship in no commit and appear in
+  no PR — deliberate, and stated in the changelog so a reviewer is not left looking for them.
+- **What this run is actually about.** Eleven phases landed, but the recurring finding was not in
+  the code: **the plan asserted things about the sibling repos that were false**, and every one was
+  caught only because each phase was verified by a fresh agent that checked claims against source
+  rather than against the plan. P8b had to delete a whole feature because AC2's premise (contiguous
+  seqs) was false and its own worked example was the healthy pattern. P10 failed twice on the same
+  bullet — a false claim, then an over-absolute fix for it. Three tests in the run could not fail
+  and were found by mutation, not review. Every correction is written back into the plan as an
+  inline `CORRECTED` block so a later phase cannot re-copy it.
+- **The final cumulative verify failed first time, on two more unfalsifiable tests** — the fourth
+  and fifth of the run, and the only findings a whole-branch review could have produced. Both were
+  at phase seams that no single phase's verifier owned:
+  - `lib/api/fetcher.test.ts` claimed to pin P3's structured `errorCode` path independently of the
+    regex fallback. It did not: `ApiError.message` *is* the raw JSON body, so a plainly-spelled
+    `REGISTRY_READ_ONLY` in the fixture satisfied the regex too. Deleting the structured check left
+    41/41 green. The fixture now escapes the final character (`\u0059`), which survives
+    `JSON.parse` but defeats a text search — proved by mutation: 1 failed / 40 passed with the
+    check removed, 41/41 with it restored.
+  - `app/runs/new/page.test.tsx` forbade, in its own comment, accusing the control plane of losing
+    a run that was never submitted — but asserted only on the *badge*, while the *banner* lives in
+    a separate JSX block with its own gate. Relaxing that gate rendered the accusation with all
+    nine tests still green. Added the missing assertion; likewise mutation-proved.
+- **Seven further accuracy fixes**, most of them false claims this branch itself introduced: the
+  drift endpoint doc omitted that `missingFromRuntime` is `null` (not `[]`) on an incomplete sweep —
+  the one semantic the console insists consumers render differently; the error doc said
+  `getDashboardOverview` / `getAgentMetrics` branch on `isNotFound` when both swallow every error;
+  `docs/api-integration.md` and `README.md` still instructed the wrong playground port that this
+  very branch had documented as wrong elsewhere; two feature-matrix rows had become
+  indistinguishable; and the changelog omitted four user-visible changes the branch does make.
+- **Two demo-fidelity gaps closed or priced.** `MOCK_RUN_EVENTS` set `historyGap: true` with no
+  `session.stream.gap` event — a state the control plane cannot produce, since that reducer is the
+  flag's only writer, and it left P8b's two new gap surfaces dead in demo mode, which is the
+  default. The event is now present, copied field-for-field from the emit site. The drift panel's
+  incomplete-sweep UI is still unreachable in demo (`complete` is hard-coded `true`) and its counts
+  disagree with `MOCK_RUNS`; both are now stated in the fixture rather than left silent.
+- **Not done here, by design:** no push, no PR, no merge — that is `/ship`. No sibling repo was
+  written to; the three upstream defects found are recorded in the plan's Open questions for a
+  human to decide on, not filed.
+
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 
 `lib/stores/preferences-store.test.ts` was failing 8/8 on `main` before any plan work (verified by

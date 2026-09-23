@@ -1389,7 +1389,26 @@ export const MOCK_RUN_EVENTS: Record<string, CanonicalEvent[]> = {
         decodedPayload: { implicit: true, handoffId: 'handoff-005' }
       }
     },
-    event(SUSPENDED_RUN_ID, 5, 'run.suspended', { status: 'suspended' }, { kind: 'run', id: SUSPENDED_RUN_ID })
+    event(SUSPENDED_RUN_ID, 5, 'run.suspended', { status: 'suspended' }, { kind: 'run', id: SUSPENDED_RUN_ID }),
+    // The event that PRODUCES `historyGap: true` on this run's projection. The control plane is the
+    // sole writer of that flag and writes it only from this event's reducer, so a fixture carrying
+    // the flag without the event depicts a state the backend cannot reach — and leaves the gap
+    // notice and the `/logs` filter entry unreachable in demo mode, which is the default. Payload
+    // copied field-for-field from the emit site (`stream-consumer.service.ts:310-317`), including
+    // the `detail` sentence, which the summary renders verbatim.
+    {
+      ...event(
+        SUSPENDED_RUN_ID,
+        6,
+        'session.stream.gap',
+        {
+          requestedAfter: 4,
+          detail: 'session history before the resume point was compacted; some envelope-level events may be missing'
+        },
+        { kind: 'session', id: 'sess-suspended-001' }
+      ),
+      source: { kind: 'macp-control-plane', name: 'stream-consumer' }
+    }
   ]
 };
 

@@ -44,7 +44,7 @@ Supported upstream service identifiers (`[service]` segment): `macp-playground`,
 ### Environment variables
 
 ```bash
-MACP_PLAYGROUND_BASE_URL=http://localhost:3000
+MACP_PLAYGROUND_BASE_URL=http://localhost:3100
 MACP_PLAYGROUND_API_KEY=
 MACP_CONTROL_PLANE_BASE_URL=http://localhost:3001
 MACP_CONTROL_PLANE_API_KEY=
@@ -244,6 +244,10 @@ a dead-end error toast.
 - `GET /admin/runtime/sessions` — runtime session drift: sessions the runtime holds that the control
   plane has no run for, and vice versa. Carries `complete: false` when the sweep was cut short by its
   page or time budget rather than finishing, so a partial answer is never mistaken for "no drift".
+  **When `complete` is `false`, `missingFromRuntime` is `null`, not `[]`** — the reverse direction
+  cannot be computed from a partial session list, and an empty array would assert "no runs are
+  missing", which is exactly the false reassurance the flag exists to prevent. Render the `null` as
+  "not computed", never as zero.
 
 ### Chart series
 
@@ -342,10 +346,12 @@ consistent type vocabulary regardless of whether rows came from CP or from mock 
 
 `lib/api/fetcher.ts` exports `ApiError` with `status`, `statusText`, `service`, `path`,
 the verbatim `body`, an `isNotFound` getter, and the two structured accessors below.
-Client functions branch on `ApiError.isNotFound` to return `undefined` (missing entity)
-or to mark a capability as degraded (`getDashboardOverview`, `listEvents` fallback,
-`getAgentMetrics`). Non-404 errors propagate and are caught by React Query / error
-boundaries.
+Client functions branch on `ApiError.isNotFound` to return `undefined` for a missing entity, and
+`listEvents`' fallback is the one degradation path that really is 404-gated. `getDashboardOverview`
+and `getAgentMetrics` are **not**: both swallow *every* error and degrade (`client.ts:833`,
+`:1266`), so a 500 or a network failure there is indistinguishable from an absent endpoint — the
+capability simply reports itself unavailable. Everything else propagates and is caught by React
+Query / error boundaries.
 
 ### The three control-plane error envelopes
 

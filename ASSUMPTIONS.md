@@ -170,14 +170,18 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
 
 ## `MACP_PLAYGROUND_BASE_URL`'s code default points at the console, not the playground
 
+_(Narrowed during §4 finalization: the docs were corrected to `3100`, so only the code default is
+still open. Kept UNCONFIRMED because changing a runtime default is a behaviour change, not a doc fix.)_
+
 - **Plan:** plans/absorb-control-plane-playground-sep-2026.md
 - **Phase:** 10 (found while sweeping docs; **not** introduced by this branch)
 - **Assumed:** That leaving `lib/server/integrations.ts:37`'s fallback at `http://localhost:3000`
   is safe because every supported way of running the stack sets the variable explicitly. Four
-  sources disagree about this value: `.env.example:11` says `3100`, while the code's fallback,
-  `docs/api-integration.md:47` and `README.md:77` all say `3000`. `3100` is the right one — the
-  compose stacks publish the playground there (`docker-compose.e2e.yml` maps `3100:3000`, so the
-  container's own port really is `3000`) — while host-side `3000` is the Next.js dev server —
+  sources disagreed about this value. `3100` is the right one — the compose stacks publish the
+  playground there (`docker-compose.e2e.yml` maps `3100:3000`, so the container's own port really is
+  `3000`) — while host-side `3000` is the Next.js dev server. The **documentation** half is now
+  settled: `.env.example`, `docs/api-integration.md` and `README.md` all say `3100`. What remains
+  unconfirmed is only the code fallback at `lib/server/integrations.ts:37`, still `3000` —
   so with the variable unset, the proxy forwards Examples Service calls **to the console itself**.
   The likely symptom is not a connection error but a confusing 404 from Next's own router.
 - **Chose:** Document the disagreement in `CLAUDE.md` and record it here rather than change the

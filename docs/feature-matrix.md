@@ -14,8 +14,8 @@
 | Run creation | Raw JSON editor | ✅ | Switchable input mode |
 | Run creation | Compile launch request | ✅ | Examples Service integration |
 | Run creation | Validate execution request | ✅ | Control Plane integration |
-| Run creation | Submit run | ✅ | Redirects to live workbench |
-| Run creation | Example end-to-end bootstrap | ✅ | Optional quick path |
+| Run creation | Submit run | ✅ | Redirects to the live workbench when the response carries `controlPlaneRun`; otherwise stays put and explains what is and is not known |
+| Run creation | Example end-to-end bootstrap | ✅ | Optional quick path — shares one mutation with the main submit, so both behave identically |
 | Run creation | Saved launch presets | ✅ | Save/load/delete from localStorage |
 | Live runs | Active runs list | ✅ | Quick watch cards |
 | Live runs | SSE auto-reconnect | ✅ | Exponential backoff, heartbeat timeout, bounded buffer |

@@ -1197,6 +1197,17 @@ export interface RuntimeSessionDriftResponse {
 export async function getRuntimeSessionDrift(demoMode: boolean): Promise<RuntimeSessionDriftResponse> {
   if (demoMode)
     return maybeDelay({
+      // KNOWN DEMO LIMITATIONS, both deliberate:
+      //  1. `complete` is always `true`, so the panel's `Partial session list` badge and the
+      //     `missingFromRuntime === null` "Not computed" block never render in demo. Those paths
+      //     are exercised by tests, not by clicking around. Forcing them against a real stack is
+      //     documented in `docker-compose.e2e.yml` (`RUNTIME_LIST_SESSIONS_TIMEOUT_MS`).
+      //  2. These counts are internally coherent (see below) but do NOT agree with `MOCK_RUNS`,
+      //     which has only 2 non-terminal runs against the 5 tracked here. Upstream,
+      //     `trackedRunCount` is `activeRuns.length` (`admin.controller.ts:129`). Making the two
+      //     agree would mean either adding active runs to `MOCK_RUNS` or shrinking the session
+      //     numbers below the point where the untracked/missing split is illustrative at all;
+      //     the drift fixture is a standalone illustration, and this note is the honest price.
       complete: true,
       // These numbers must describe a state the control plane could actually produce. With 5 live
       // sessions of which 1 is untracked, 4 live sessions are bound to tracked runs — so there

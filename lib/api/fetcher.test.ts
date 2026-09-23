@@ -206,10 +206,16 @@ describe('isRegistryReadOnlyError', () => {
     // Today's CP always pairs REGISTRY_READ_ONLY with 405, so the status check alone would
     // suffice against it — this pins the structured path independently, so the function keeps
     // working if the CP ever raises the same code with a different status.
+    //
+    // The code is written with an escaped `Y` on purpose. `ApiError.message` is the *raw* body,
+    // so a plainly-spelled body would also satisfy the regex fallback below — and this test would
+    // then pass even with the structured check deleted, pinning nothing. `\\u0059` survives
+    // `JSON.parse` (so `errorCode` really is `REGISTRY_READ_ONLY`) but defeats a text search,
+    // leaving the structured path as the only thing that can make this assertion true.
     const err = new ApiError(
       409,
       'Conflict',
-      JSON.stringify({ statusCode: 409, errorCode: 'REGISTRY_READ_ONLY', message: 'registry is file-managed' }),
+      '{"statusCode":409,"errorCode":"REGISTRY_READ_ONL\\u0059","message":"registry is file-managed"}',
       'macp-control-plane',
       '/runtime/policies'
     );

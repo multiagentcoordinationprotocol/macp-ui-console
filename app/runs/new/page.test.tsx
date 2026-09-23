@@ -166,6 +166,10 @@ describe('NewRunPage control-plane registration', () => {
 
     await waitFor(() => expect(mockedRunExample).toHaveBeenCalled());
     expect(screen.queryByText('Not Registered With The Control Plane')).not.toBeInTheDocument();
+    // The badge and the banner are two separate JSX blocks with two separate gates. Asserting only
+    // the badge left the banner's gate unpinned — relaxing it to `bootstrapResult && !controlPlaneRun`
+    // kept all nine tests green while the accusation this test exists to forbid rendered anyway.
+    expect(screen.queryByText(/did not register this run/i)).not.toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
   });
 

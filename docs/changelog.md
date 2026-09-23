@@ -48,6 +48,10 @@ no data migration and no wire-contract change on the console side.
   ignored it. The notice offers no retry, because those envelopes were never recorded: after emitting
   the gap the control plane degrades to poll-only, and polling returns session state, never the
   missing events.
+- **Event summaries no longer render half-built strings.** `formatEventSubject` returned a dangling
+  `kind:` when a subject carried a kind but an empty id, and the outcome suffix on
+  `policy.resolved` / `policy.violated` / `policy.commitment.evaluated` carried its own separator,
+  producing a doubled ` ·  · `. Both fixed.
 - `policy.denied` now shows its reasons. The inline denial path populates none of the fields the old
   summary read, so a denial rendered as the bare words "Policy denied" with the reasons unread in the
   payload. `session.stream.gap` gained a label and a `/logs` filter entry.
@@ -66,6 +70,10 @@ no data migration and no wire-contract change on the console side.
 
 ### Launch flow
 
+- **A failed bootstrap now says so.** Previously the spinner simply stopped; the page now surfaces
+  the failure and does not navigate. Both launch triggers — the main submit and the quick-run
+  button — were byte-identical duplicate mutations, so a fix to one would have left the other on
+  the old behaviour; they now share a single mutation.
 - `/examples/run` responses carry `controlPlaneRun`, and the new-run page redirects to the live view
   using `controlPlaneRun.runId`. That id is **not** the session id: `POST /runs` mints a fresh run id
   and stores the session id separately, and the live route resolves by run id. When the field is
