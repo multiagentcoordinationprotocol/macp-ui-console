@@ -920,7 +920,7 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
   95 integration tests passing · lint clean · format:check clean.
 - **Next:** §4 finalization pass.
 
-### §4 Finalization — **PASS** (2 rounds)
+### §4 Finalization — **PASS** (2 verify rounds + a closeout pass)
 
 - **Full suite from a clean install.** `node_modules` deleted, `npm ci`, then every gate: typecheck
   clean · lint clean · format:check clean · **39 files / 512 unit tests** · **5 files / 95
@@ -976,6 +976,13 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
   default. The event is now present, copied field-for-field from the emit site. The drift panel's
   incomplete-sweep UI is still unreachable in demo (`complete` is hard-coded `true`) and its counts
   disagree with `MOCK_RUNS`; both are now stated in the fixture rather than left silent.
+- **Round 2 of finalization passed, with three more of my own fixture/doc errors fixed after it.**
+  The most telling: the `session.stream.gap` event I had just added to fix a fixture inconsistency
+  introduced a new one — it invented a `subject.id` (`sess-suspended-001`) where the run's real
+  session is `session-suspended-005` everywhere else, so `/logs` and the run detail page would have
+  disagreed. Upstream binds that subject to the run's own session id. The same comment also
+  overstated the bug it was fixing: the feed's gap notice was already reachable, because it keys
+  off the projection flag rather than the event; only the `/logs` filter entry matched nothing.
 - **Not done here, by design:** no push, no PR, no merge — that is `/ship`. No sibling repo was
   written to; the three upstream defects found are recorded in the plan's Open questions for a
   human to decide on, not filed.
