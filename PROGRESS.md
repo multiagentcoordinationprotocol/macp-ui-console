@@ -23,7 +23,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P4 | Runtime session drift: types, client, demo data | DONE | 2 | Opus | `032a6f0` | pending /ship |
 | P5 | Runtime session drift: Infrastructure-tab UI | DONE | 2 | Opus | `8149d9d` | pending /ship |
 | P6 | Constrain policy `schemaVersion` to {1,2,3} | DONE | 1 | Opus | `e7fbb08` | pending /ship |
-| P7 | Absorb `controlPlaneRun` from the playground bootstrap | DONE | 3 | Opus | `pending` | pending /ship |
+| P7 | Absorb `controlPlaneRun` from the playground bootstrap | DONE | 3 | Opus | `4dd89cf` | pending /ship |
 | P8a | SSE resume-cursor correctness | TODO | — | — | — | — |
 | P8b | Gap visibility (`historyGap`, client gaps) + `policy.denied` detail | TODO | — | — | — | — |
 | P9 | Repoint the dev/e2e stack at runtime v0.8.0 | TODO | — | — | — | — |
