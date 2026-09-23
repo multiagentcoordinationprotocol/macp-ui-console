@@ -17,7 +17,7 @@ _(one checkpoint per phase; `/implement` appends)_
 
 | Phase | Title | Status | Rounds | Verifier | Commit | PR |
 |---|---|---|---|---|---|---|
-| P1 | Correct the `CommitmentAuthority` wire value | DONE | 2 | Opus | _(this commit)_ | pending /ship |
+| P1 | Correct the `CommitmentAuthority` wire value | DONE | 2 | Opus | `68d80db` | pending /ship |
 | P2 | Surface non-canonical supersedes hashes | TODO | — | — | — | — |
 | P3 | Structured error codes on `ApiError` | TODO | — | — | — | — |
 | P4 | Runtime session drift: types, client, demo data | TODO | — | — | — | — |
