@@ -153,11 +153,28 @@ export interface PolicyDefinition {
   };
 }
 
+/**
+ * The policy schema versions the control plane will accept on registration.
+ *
+ * Mirrors `POLICY_SCHEMA_VERSIONS` in macp-control-plane (`src/contracts/runtime.ts`), which the CP
+ * enforces on `POST /runtime/policies`, rejecting anything outside the set with HTTP 400 and the
+ * message `schemaVersion must be one of 1, 2, 3`.
+ *
+ * Deliberately applied to the **request** type only. {@link RuntimePolicyDescriptor.schemaVersion} is
+ * a *response* field and stays `number`, so a control plane that later accepts 4 can still be read by
+ * this console — an already-registered policy must keep rendering whatever version it was registered
+ * under. Widening is a one-line change here plus one option in the registration form.
+ */
+export const POLICY_SCHEMA_VERSIONS = [1, 2, 3] as const;
+
+export type PolicySchemaVersion = (typeof POLICY_SCHEMA_VERSIONS)[number];
+
 export interface RuntimePolicyDescriptor {
   policyId: string;
   mode: string;
   description: string;
   rules: Record<string, unknown>;
+  /** Response field — intentionally `number`, not {@link PolicySchemaVersion}. See that type. */
   schemaVersion: number;
   registeredAtUnixMs?: number;
 }
@@ -167,7 +184,8 @@ export interface RegisterPolicyRequest {
   mode: string;
   description: string;
   rules: Record<string, unknown>;
-  schemaVersion?: number;
+  /** Omitted defaults to 1 at the control plane, not to the current authoring version. */
+  schemaVersion?: PolicySchemaVersion;
 }
 
 export interface PackSummary {

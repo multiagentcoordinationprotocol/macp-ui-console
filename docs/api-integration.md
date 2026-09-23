@@ -191,7 +191,16 @@ Notes for runtime v0.5.0:
 ### Runtime policy registry (RFC-MACP-0012, pass-through)
 - `GET /runtime/policies?mode=<modeId>` — filterable list
 - `GET /runtime/policies/:policyId`
-- `POST /runtime/policies` — `{ policyId, mode, description, rules, schemaVersion? }`
+- `POST /runtime/policies` — `{ policyId, mode, description, rules, schemaVersion? }`.
+  `schemaVersion` must be **1, 2 or 3**; any other value is rejected with HTTP 400 and the message
+  `schemaVersion must be one of 1, 2, 3` (a `null` counts as omitted, not as a bad value). The
+  rejection uses the same no-`errorCode` envelope as every other policy-registration 400 — see
+  "The two control-plane error envelopes" below — so read `message` via `describeApiError` rather
+  than branching on a code. Omitting the field defaults to **1** at the control plane, but the console's
+  registration form defaults to **3**, the current
+  authoring version, and offers only those three values so the constraint cannot be violated from the
+  UI. The response type stays forward-compatible: an already-registered policy reporting a version
+  outside the set still renders.
 - `DELETE /runtime/policies/:policyId`
 
 Rule schemas are opaque to the control plane; the UI renders them descriptively. The

@@ -13,7 +13,8 @@ import { FieldLabel, Input, Select, Textarea } from '@/components/ui/field';
 import { JsonViewer } from '@/components/ui/json-viewer';
 import { PolicyBadge } from '@/components/ui/policy-badge';
 import { listRuntimePolicies, registerRuntimePolicy, unregisterRuntimePolicy } from '@/lib/api/client';
-import { isRegistryReadOnlyError } from '@/lib/api/fetcher';
+import { describeApiError, isRegistryReadOnlyError } from '@/lib/api/fetcher';
+import { POLICY_SCHEMA_VERSIONS, type PolicySchemaVersion } from '@/lib/types';
 import { formatDateTime } from '@/lib/utils/format';
 
 interface PolicyManagementProps {
@@ -189,7 +190,10 @@ function RegisterPolicyForm({
   const [policyId, setPolicyId] = useState('');
   const [mode, setMode] = useState('macp.mode.decision.v1');
   const [description, setDescription] = useState('');
-  const [schemaVersion, setSchemaVersion] = useState('1');
+  // Defaults to the current authoring version, not to the control plane's own fallback of 1: every
+  // sample policy upstream was migrated to schema_version 3 in this window, so 3 is what a new
+  // registration should be. The literal union is what keeps `Number(...)` narrowable below.
+  const [schemaVersion, setSchemaVersion] = useState<`${PolicySchemaVersion}`>('3');
   const [rulesJson, setRulesJson] = useState('{}');
   const [validationError, setValidationError] = useState('');
 
@@ -207,16 +211,22 @@ function RegisterPolicyForm({
           mode,
           description,
           rules,
-          schemaVersion: Number(schemaVersion)
+          // Safe by construction: the select's options are exactly the members of the union, so the
+          // state can only ever hold '1' | '2' | '3'.
+          schemaVersion: Number(schemaVersion) as PolicySchemaVersion
         },
         demoMode
       );
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['runtime-policies'] });
+      // Belt-and-braces, like the three resets above it: `onSuccess` closes the form and the parent
+      // renders it conditionally, so the component unmounts and every field is recreated at its
+      // default anyway. Kept so the resets stay complete if the form is ever left open on success.
       setPolicyId('');
       setDescription('');
       setRulesJson('{}');
+      setSchemaVersion('3');
       toast('success', 'Policy registered successfully.');
       onSuccess();
     },
@@ -225,7 +235,11 @@ function RegisterPolicyForm({
         onReadOnly();
         return;
       }
-      toast('error', `Registration failed.${error instanceof Error ? ` ${error.message}` : ''}`);
+      // `describeApiError` reads the control plane's `message` field, so a rejection renders as
+      // "schemaVersion must be one of 1, 2, 3" rather than the raw `{"statusCode":400,...}` body
+      // that `error.message` carries. Nest's validation errors use the framework-default envelope
+      // with no `errorCode`, so `message` is the only usable prose in them.
+      toast('error', `Registration failed. ${describeApiError(error)}`);
     }
   });
 
@@ -233,8 +247,8 @@ function RegisterPolicyForm({
     if (!policyId.trim()) return 'Policy ID is required';
     if (policyId === 'policy.default') return 'Reserved policy ID: policy.default';
     if (!description.trim()) return 'Description is required';
-    const sv = Number(schemaVersion);
-    if (!Number.isInteger(sv) || sv <= 0) return 'Schema version must be a positive integer';
+    // No schema-version check: the control is a select over exactly the accepted values, so an
+    // invalid one is unrepresentable rather than merely rejected.
     try {
       JSON.parse(rulesJson);
     } catch {
@@ -264,7 +278,9 @@ function RegisterPolicyForm({
           </div>
           <div>
             <FieldLabel>Target mode</FieldLabel>
-            <Select value={mode} onChange={(e) => setMode(e.target.value)}>
+            {/* Same reason as the schema-version select below: `FieldLabel` emits no htmlFor, so
+                without this the control has no accessible name at all. */}
+            <Select aria-label="Target mode" value={mode} onChange={(e) => setMode(e.target.value)}>
               <option value="macp.mode.decision.v1">macp.mode.decision.v1</option>
               <option value="macp.mode.quorum.v1">macp.mode.quorum.v1</option>
             </Select>
@@ -281,7 +297,24 @@ function RegisterPolicyForm({
           </div>
           <div>
             <FieldLabel>Schema version</FieldLabel>
-            <Input type="number" value={schemaVersion} onChange={(e) => setSchemaVersion(e.target.value)} min="1" />
+            {/* A select, not a number input: the control plane accepts only 1, 2 or 3, and a free
+                number field lets an operator type 4 and learn the constraint from a failed round
+                trip. `FieldLabel` emits a bare <label> with no htmlFor, so the accessible name has
+                to come from aria-label. */}
+            <Select
+              aria-label="Schema version"
+              value={schemaVersion}
+              onChange={(e) => setSchemaVersion(e.target.value as `${PolicySchemaVersion}`)}
+            >
+              {/* Driven off the constant the type is derived from, so the options and the union
+                  cannot drift — adding a 4th option means widening the union, which is where the
+                  change belongs. A hand-written list would sail past tsc thanks to the cast below. */}
+              {POLICY_SCHEMA_VERSIONS.map((version) => (
+                <option key={version} value={version}>
+                  {version}
+                </option>
+              ))}
+            </Select>
           </div>
         </div>
         <div>
@@ -290,9 +323,7 @@ function RegisterPolicyForm({
         </div>
         {validationError && <div className="error-text">{validationError}</div>}
         {registerMutation.isError && (
-          <div className="error-text">
-            Registration failed.{registerMutation.error instanceof Error ? ` ${registerMutation.error.message}` : ''}
-          </div>
+          <div className="error-text">Registration failed. {describeApiError(registerMutation.error)}</div>
         )}
         <Button type="submit" disabled={registerMutation.isPending}>
           {registerMutation.isPending ? 'Registering...' : 'Register policy'}

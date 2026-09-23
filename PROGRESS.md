@@ -22,7 +22,7 @@ _(one checkpoint per phase; `/implement` appends)_
 | P3 | Structured error codes on `ApiError` | DONE | 3 | Opus | `4e4f543` | pending /ship |
 | P4 | Runtime session drift: types, client, demo data | DONE | 2 | Opus | `032a6f0` | pending /ship |
 | P5 | Runtime session drift: Infrastructure-tab UI | DONE | 2 | Opus | `8149d9d` | pending /ship |
-| P6 | Constrain policy `schemaVersion` to {1,2,3} | TODO | — | — | — | — |
+| P6 | Constrain policy `schemaVersion` to {1,2,3} | DONE | 1 | Opus | `pending` | pending /ship |
 | P7 | Absorb `controlPlaneRun` from the playground bootstrap | TODO | — | — | — | — |
 | P8a | SSE resume-cursor correctness | TODO | — | — | — | — |
 | P8b | Gap visibility (`historyGap`, client gaps) + `policy.denied` detail | TODO | — | — | — | — |
@@ -332,6 +332,8 @@ _(`/implement` appends; `/plan` seeded the five below — full reasoning in the 
 | D17 | The row cap is one shared `RowCapNote`, used by **both** drift tables | The missing-runs table originally capped at 50 silently while only the untracked table disclosed it. `listActiveRuns()` is unbounded upstream, so a runtime restart really can produce 300 missing runs — a drift panel that under-reports drift 6× without saying so is worse than no cap at all (P5 verify R1, gap 1) |
 | D18 | A test that pins a query option must not run under a client that already supplies it | The `retry: false` test passed under `test-utils`' `retry: false` client even with the component's own option deleted — it could not fail. Tests asserting a React Query option now build a client mirroring `providers.tsx` (`retry: 1`) so the component's option is the only thing under test (P5 verify R1, gap 2) |
 | D19 | The drift card stamps results with `dataUpdatedAt` and clears the badge on a later failure | `tabs.tsx:48` unmounts inactive tabs while the page's observer keeps the cache entry alive, so a returning operator re-reads old numbers as live; and React Query retains `data` across an error, which would otherwise show "Full session list" beside "Drift check failed" (P5 verify R1 obs 2, R2 obs 3) |
+| D20 | The schema-version `<option>` list is generated from `POLICY_SCHEMA_VERSIONS`, the constant the union derives from | The submit site casts (`as PolicySchemaVersion`), so a hand-written 4th option would typecheck while being rejected by the CP. Generating them makes widening the union the only way to add one (P6 verify, obs 2) |
+| D21 | `PolicySchemaVersion` constrains the **request** type only; the descriptor stays `number` | A CP that later accepts 4 must not make already-registered policies unrenderable. Pinned by a test that renders a `schemaVersion: 7` policy — the claim was previously made only by a comment (P6 verify, obs 6) |
 
 ## Assumptions to reconcile
 
@@ -537,6 +539,41 @@ _(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIR
 - **Gates:** typecheck clean · 37 files / 458 tests passing · lint clean · format:check clean ·
   `next build` clean (criterion 6's build half).
 - **Next:** P6 — constrain policy `schemaVersion` to {1,2,3}.
+
+### P6 — Constrain policy `schemaVersion` to {1, 2, 3} — **PASS**
+
+- **When:** 2026-09-23 · **Verifier:** fresh Opus subagent · **Rounds:** 1 (first phase to pass in one)
+- **Why Opus (not Fable):** a form control and a request-type narrowing. The only irreversible-looking
+  part — narrowing a published type — is deliberately confined to the *request* side, so nothing that
+  reads from the CP can be broken by it.
+- **The plan's four line citations into `lib/types.ts` and `lib/api/client.ts` were all stale**
+  (off by 38 and 113 respectively, from P1's and P4's insertions) — found by symbol, as the repo map
+  instructs. Its *behavioural* claims all held.
+- **One plan claim disproved, caught during implementation rather than by the verifier.** The plan
+  says to reset `schemaVersion` in `onSuccess` "so a second registration starts from the default
+  rather than inheriting the last choice". It cannot inherit anything: `onSuccess` closes the form and
+  the parent renders it as `{showForm && <RegisterPolicyForm …/>}`, so the component unmounts and
+  every field is recreated at its default. All four resets there are dead code. The line was kept as
+  documented belt-and-braces, and the test asserts the operator-visible path — register, reopen, see
+  3 — instead of state after submit. The verifier confirmed this three ways, including by deleting
+  all four resets and watching every test stay green.
+- **A claim that was right by luck.** The plan asserts the 400 carries no `errorCode`, citing only the
+  `BadRequestException`. It never mentions the CP's `GlobalExceptionFilter`, whose string-body branch
+  *does* inject `INTERNAL_ERROR`. The claim survives only because `BadRequestException(string)` yields
+  an **object** body, taking the verbatim branch. Verified at source this time rather than assumed.
+- **Verifier observations adopted rather than deferred:** the `<option>` list is now generated from
+  `POLICY_SCHEMA_VERSIONS` so options and union cannot drift (**D20**); forward-compatibility of the
+  *response* type is now pinned by a test rendering a `schemaVersion: 7` policy (**D21**) — previously
+  asserted only by a comment; `undefined as never` mocks replaced with the real return shape; and the
+  Target-mode select got the accessible name the phase had given only to its own control.
+- **Deliberately not done:** the optional demo-mode rejection branch — the plan itself states it is not
+  an acceptance criterion, and once the request type is narrowed an invalid value is unrepresentable
+  without a cast. The four dead `onSuccess` resets are left for a cleanup pass rather than widened here.
+- **Files touched:** `lib/types.ts`, `components/settings/policy-management.tsx`,
+  `components/settings/policy-management.test.tsx`, `docs/api-integration.md`, `PROGRESS.md`.
+- **Gates:** typecheck clean · 37 files / 463 tests passing · lint clean · format:check clean ·
+  `next build` clean.
+- **Next:** P7 — absorb `controlPlaneRun` from the playground bootstrap.
 
 ### Pre-phase — test-infrastructure repair (commit `f704c29`)
 
