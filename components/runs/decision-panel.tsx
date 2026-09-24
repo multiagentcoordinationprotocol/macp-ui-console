@@ -172,10 +172,32 @@ export function DecisionPanel({
             replaced a prior cross-session commitment. Observed-only. */}
         {current?.supersedes ? (
           <div className="list-item">
-            <div className="list-item-title">Supersedes prior commitment</div>
+            <div className="list-item-title">
+              Supersedes prior commitment
+              {/* Gate on `=== false`, never on falsiness. `undefined` means an older control
+                  plane that predates the canonical backfill, NOT a non-canonical hash — badging
+                  it would mis-label ordinary history. See CommitmentSupersedes.canonical in
+                  lib/types.ts for the full reasoning. */}
+              {current.supersedes.canonical === false ? (
+                <>
+                  {' '}
+                  <Badge label="Legacy hash format" tone="warning" />
+                </>
+              ) : null}
+            </div>
             <div className="muted small">
-              Replaces commitment <code>{truncate(current.supersedes.commitmentHash, 24)}</code> from session{' '}
-              <code>{current.supersedes.sessionId}</code>.
+              Replaces commitment{' '}
+              {/* The hash is truncated for layout, but a badged defect may sit past the cut —
+                  the title carries the full value so an operator can see what was flagged. */}
+              <code title={current.supersedes.commitmentHash}>{truncate(current.supersedes.commitmentHash, 24)}</code>{' '}
+              from session <code>{current.supersedes.sessionId}</code>.
+              {current.supersedes.canonical === false ? (
+                <>
+                  {' '}
+                  This hash predates RFC-MACP-0013 §9, which requires <code>sha256:</code> followed by 64 lowercase hex
+                  characters. The lineage is still valid — only the hash format is legacy.
+                </>
+              ) : null}
             </div>
           </div>
         ) : null}

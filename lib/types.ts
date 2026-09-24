@@ -23,7 +23,20 @@ export type SessionState =
 
 export type PolicyType = 'none' | 'majority' | 'supermajority' | 'unanimous' | string;
 export type VotingAlgorithm = 'none' | 'majority' | 'supermajority' | 'unanimous' | 'weighted';
-export type CommitmentAuthority = 'initiator_only' | 'designated_roles' | 'any_participant';
+/**
+ * Who may commit a decision on behalf of the session.
+ *
+ * `designated_role` is **singular**. This is the value the whole stack agrees on — the playground
+ * contract mirror (`macp-playground/src/contracts/policy.ts`), the runtime matcher and registration
+ * validator (`macp-runtime` `macp-core/src/policy/mod.rs`, `macp-policy/src/registry.rs`), and the
+ * control plane's rejection check (`macp-control-plane/src/controllers/runtime.controller.ts`).
+ *
+ * Do not confuse it with the sibling **array** field `rules.commitment.designated_roles` below
+ * (plural, and correct — it is the wire field name), nor with `PolicyHints.designatedRoles`, which is
+ * a separate camelCase advisory hint on the scenario/launch side (RFC-MACP-0012) and holds role
+ * *labels* rather than participant identities.
+ */
+export type CommitmentAuthority = 'initiator_only' | 'designated_role' | 'any_participant';
 
 export interface PolicyHints {
   type?: PolicyType;
@@ -45,6 +58,31 @@ export interface PolicyHints {
 export interface CommitmentSupersedes {
   sessionId: string;
   commitmentHash: string;
+  /**
+   * Whether `commitmentHash` is in the canonical form defined by RFC-MACP-0013 §9:
+   * literally `sha256:` followed by exactly 64 **lowercase** hex characters.
+   *
+   * `false` means the hash is a legacy pre-0013 value. The control plane deliberately
+   * surfaces such rows rather than dropping them, so the lineage stays visible — the
+   * console's job is to label the format, not to hide the hash.
+   *
+   * **Optional here on purpose, and the badge must gate on `=== false`, never on falsiness —
+   * the reason is control-plane version skew, not a hole in the current CP.**
+   *
+   * The current control plane declares this field *required* and backfills it on read
+   * (`deriveMissingCanonical` in `ProjectionService.get()`), and every UI-visible path runs
+   * through there — including the streaming one, since `applyAndPersist` calls `get()` to load
+   * the base state before reducing. So against a current CP, `undefined` should not arrive.
+   *
+   * It arrives from an **older** control plane, one deployed before that backfill existed.
+   * The CP's own `ASSUMPTIONS.md` P6 records the hazard and names *this* file as the blast
+   * radius: projections persisted before that change deserialize with `canonical === undefined`,
+   * such a row "is never rewritten (it is re-derived only when a *new* `decision.finalized`
+   * arrives)", and "a consumer writing `if (!s.canonical) badge()` could badge
+   * legacy-but-actually-canonical history as suspect". Optional typing costs nothing and the
+   * `=== false` gate is what makes us not be that consumer.
+   */
+  canonical?: boolean;
 }
 
 export interface CommitmentEvaluation {
@@ -115,11 +153,28 @@ export interface PolicyDefinition {
   };
 }
 
+/**
+ * The policy schema versions the control plane will accept on registration.
+ *
+ * Mirrors `POLICY_SCHEMA_VERSIONS` in macp-control-plane (`src/contracts/runtime.ts`), which the CP
+ * enforces on `POST /runtime/policies`, rejecting anything outside the set with HTTP 400 and the
+ * message `schemaVersion must be one of 1, 2, 3`.
+ *
+ * Deliberately applied to the **request** type only. {@link RuntimePolicyDescriptor.schemaVersion} is
+ * a *response* field and stays `number`, so a control plane that later accepts 4 can still be read by
+ * this console — an already-registered policy must keep rendering whatever version it was registered
+ * under. Widening is a one-line change here plus one option in the registration form.
+ */
+export const POLICY_SCHEMA_VERSIONS = [1, 2, 3] as const;
+
+export type PolicySchemaVersion = (typeof POLICY_SCHEMA_VERSIONS)[number];
+
 export interface RuntimePolicyDescriptor {
   policyId: string;
   mode: string;
   description: string;
   rules: Record<string, unknown>;
+  /** Response field — intentionally `number`, not {@link PolicySchemaVersion}. See that type. */
   schemaVersion: number;
   registeredAtUnixMs?: number;
 }
@@ -129,7 +184,8 @@ export interface RegisterPolicyRequest {
   mode: string;
   description: string;
   rules: Record<string, unknown>;
-  schemaVersion?: number;
+  /** Omitted defaults to 1 at the control plane, not to the current authoring version. */
+  schemaVersion?: PolicySchemaVersion;
 }
 
 export interface PackSummary {
@@ -460,6 +516,18 @@ export interface RunStateProjection {
     modeName?: string;
     contextId?: string;
     extensionKeys?: string[];
+    /**
+     * True when the control plane could not resume the runtime's per-session `StreamSession` from
+     * its last envelope ordinal, because that history had been compacted away (the runtime answers
+     * `FAILED_PRECONDITION`). Envelope-level events between the compacted base and the reconnect are
+     * missing from this run's event log **permanently** — no reconnect or refetch recovers them.
+     *
+     * Mirrors `RunSummaryProjection.historyGap` in
+     * `macp-control-plane/src/contracts/control-plane.ts:245`, whose own doc comment states that the
+     * console surfaces this as a fidelity warning. Absent or `false` means no known gap; only `true`
+     * warns.
+     */
+    historyGap?: boolean;
   };
   participants: Array<{
     participantId: string;
@@ -744,6 +812,35 @@ export interface RunExampleResult {
   compiled: CompileLaunchResult;
   hostedAgents: Array<Record<string, unknown>>;
   sessionId?: string;
+  /**
+   * The control plane's `POST /runs` response, when the playground succeeded in registering the run.
+   *
+   * **Absence is not an error signal, and carries no cause.** The playground submits this
+   * best-effort and non-fatally, concurrently with agent bootstrap: an unset control-plane URL, a
+   * network failure, a timeout, a non-2xx, a malformed body, or a response missing `runId`,
+   * `status` or `sessionId` — or whose `sessionId` disagrees with the descriptor's — all make it
+   * omit the field rather than fail the request. A playground old enough never to send it looks
+   * identical. So the console can say "not registered" but must never say why.
+   *
+   * **`runId` here is NOT the session id.** `POST /runs` makes the control plane mint a fresh run
+   * id and keep the session id in a separate column, so this is the only id that resolves at
+   * `/runs/live/:runId` on this path. The reverse holds for runs the control plane auto-discovers
+   * from a runtime session: those it keys *by* session id. Its `sessionId`, meanwhile, is
+   * guaranteed equal to {@link RunExampleResult.sessionId} — the playground rejects any response
+   * where the two disagree — so that field carries no information this type does not already have.
+   *
+   * Reuses {@link CreateRunResponse} — this is literally the CP `POST /runs` response already
+   * modelled here. One caveat follows from that reuse: `status` is typed as {@link RunStatus} while
+   * the upstream union is open (`| string`). Since this payload is cast rather than validated, that
+   * type is an assertion about the backend, not a proof — never switch exhaustively on `status`
+   * without a default, and never gate the redirect on it. Gate on the presence of this field, which
+   * is the actual signal.
+   *
+   * Also absent — along with `sessionId` — when `bootstrapAgents: false` short-circuits upstream.
+   * That is "nothing was bootstrapped", not "bootstrap went unregistered", and must not be reported
+   * as drift from the control plane.
+   */
+  controlPlaneRun?: CreateRunResponse;
 }
 
 export interface CreateArtifactResult {

@@ -1,3 +1,5 @@
+import type { RuntimeSessionDriftResponse } from '@/lib/api/client';
+
 /**
  * Canned backend responses matching the shapes returned by
  * the macp-control-plane and example-service APIs.
@@ -228,7 +230,10 @@ export function runtimeManifest() {
     title: 'MACP Rust Runtime',
     description: 'Multi-Agent Coordination Protocol runtime',
     supportedModes: ['macp.mode.decision.v1', 'macp.mode.task.v1'],
-    metadata: { version: '0.5.0' }
+    // A fixture value only — the integration suite runs against an in-process MockBackend and never
+    // starts the runtime, so this asserts nothing about the pinned image. Kept in step with the
+    // compose pin (v0.8.0) so a reader does not infer a version skew that does not exist.
+    metadata: { version: '0.8.0' }
   };
 }
 
@@ -311,6 +316,43 @@ export function readinessProbe() {
     runtime: { ok: true, runtimeKind: 'rust', detail: 'Healthy' },
     streamConsumer: 'ok',
     circuitBreaker: 'CLOSED'
+  };
+}
+
+/**
+ * CP `GET /admin/runtime/sessions`. Defaults to the complete, drift-present case.
+ *
+ * Pass `{ complete: false, missingFromRuntime: null }` for the truncated drain — the CP always
+ * pairs those two, because a partial session prefix cannot prove a run is absent from the runtime.
+ */
+export function runtimeSessionDrift(overrides: Partial<RuntimeSessionDriftResponse> = {}): RuntimeSessionDriftResponse {
+  return { ...runtimeSessionDriftBase(), ...overrides };
+}
+
+// Annotated (not merely `satisfies`) so the declared wire type — not the literal's narrower
+// inferred shape — is what `overrides` widens against. `fetchJson` blind-casts its response, so
+// this annotation is the only thing tying the fixture to the interface it stands in for.
+function runtimeSessionDriftBase(): RuntimeSessionDriftResponse {
+  return {
+    complete: true,
+    // Internally consistent on purpose: 5 live sessions, 1 untracked ⇒ 4 live sessions are bound
+    // to tracked runs, so at least 5 active runs are needed for one to be missing. A fixture the
+    // control plane could not actually emit would teach the wrong contract to everything that
+    // reuses it.
+    runtimeSessionCount: 7,
+    liveRuntimeSessionCount: 5,
+    trackedRunCount: 5,
+    untrackedSessions: [
+      {
+        sessionId: 'session-orphan-7c1f',
+        mode: 'macp.mode.decision.v1',
+        state: 'SESSION_STATE_OPEN',
+        startedAtUnixMs: 1_774_000_000_000,
+        modeVersion: '1.0.0',
+        initiator: 'fraud-agent'
+      }
+    ],
+    missingFromRuntime: [{ runId: RUN_ID_1, runtimeSessionId: 'session-stale-42b9' }]
   };
 }
 

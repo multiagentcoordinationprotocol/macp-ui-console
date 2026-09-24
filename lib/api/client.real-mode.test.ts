@@ -15,6 +15,7 @@ import {
   runtimeModes,
   runtimeRoots,
   readinessProbe,
+  runtimeSessionDrift,
   auditLogs,
   agentMetrics,
   agentProfiles,
@@ -702,6 +703,197 @@ describe('real mode API client', () => {
       const result = await getCircuitBreakerHistory(REAL);
 
       expect(result).toEqual(history);
+    });
+  });
+
+  /* ─── getRuntimeSessionDrift ─── */
+
+  describe('getRuntimeSessionDrift', () => {
+    const URL = '/api/proxy/macp-control-plane/admin/runtime/sessions';
+
+    it('issues exactly one GET to the admin drift endpoint and returns the payload', async () => {
+      mocker.on('GET', URL, () => ({ status: 200, body: runtimeSessionDrift() }));
+
+      const { getRuntimeSessionDrift } = await import('@/lib/api/client');
+      const result = await getRuntimeSessionDrift(REAL);
+
+      expect(mocker.requests.filter((r) => r.url.includes('/admin/runtime/sessions'))).toHaveLength(1);
+      expect(result.complete).toBe(true);
+      expect(result.untrackedSessions).toHaveLength(1);
+      expect(result.missingFromRuntime).toHaveLength(1);
+    });
+
+    it('preserves missingFromRuntime as strictly null on a truncated drain', async () => {
+      // `null` means "not computed" — a partial session prefix cannot prove absence. It must
+      // never arrive as `[]` (which means a real "no drift") or `undefined`.
+      mocker.on('GET', URL, () => ({
+        status: 200,
+        body: runtimeSessionDrift({ complete: false, missingFromRuntime: null })
+      }));
+
+      const { getRuntimeSessionDrift } = await import('@/lib/api/client');
+      const result = await getRuntimeSessionDrift(REAL);
+
+      expect(result.complete).toBe(false);
+      expect(result.missingFromRuntime).toBeNull();
+      expect(result.missingFromRuntime).not.toEqual([]);
+      // untrackedSessions stays sound under truncation and must still be present.
+      expect(result.untrackedSessions).toHaveLength(1);
+    });
+
+    it('preserves an empty missingFromRuntime as [] — a real "no drift" answer', async () => {
+      // Counts adjusted to stay reachable: with nothing untracked, every live session is bound to
+      // a tracked run, so live must not exceed trackedRunCount.
+      mocker.on('GET', URL, () => ({
+        status: 200,
+        body: runtimeSessionDrift({
+          runtimeSessionCount: 6,
+          liveRuntimeSessionCount: 4,
+          trackedRunCount: 4,
+          missingFromRuntime: [],
+          untrackedSessions: []
+        })
+      }));
+
+      const { getRuntimeSessionDrift } = await import('@/lib/api/client');
+      const result = await getRuntimeSessionDrift(REAL);
+
+      expect(result.missingFromRuntime).toEqual([]);
+      expect(result.missingFromRuntime).not.toBeNull();
+    });
+
+    it('surfaces CIRCUIT_BREAKER_OPEN and RUNTIME_UNAVAILABLE as distinguishable 503s', async () => {
+      // Both are HTTP 503. Status alone cannot tell an operator which happened — only errorCode
+      // can, which is why this depends on the structured-error phase.
+      const { getRuntimeSessionDrift } = await import('@/lib/api/client');
+
+      mocker.on('GET', URL, () => ({
+        status: 503,
+        body: { statusCode: 503, errorCode: 'CIRCUIT_BREAKER_OPEN', message: 'runtime circuit breaker is open' }
+      }));
+      const breaker = await getRuntimeSessionDrift(REAL).catch((e: unknown) => e as ApiError);
+      expect(breaker).toBeInstanceOf(ApiError);
+      expect((breaker as ApiError).status).toBe(503);
+      expect((breaker as ApiError).errorCode).toBe('CIRCUIT_BREAKER_OPEN');
+      expect((breaker as ApiError).detail).toBe('runtime circuit breaker is open');
+
+      mocker.on('GET', URL, () => ({
+        status: 503,
+        body: { statusCode: 503, errorCode: 'RUNTIME_UNAVAILABLE', message: 'runtime is not reachable' }
+      }));
+      const unavailable = await getRuntimeSessionDrift(REAL).catch((e: unknown) => e as ApiError);
+      expect((unavailable as ApiError).status).toBe(503);
+      expect((unavailable as ApiError).errorCode).toBe('RUNTIME_UNAVAILABLE');
+
+      // The point of the pair: same status, different code.
+      expect((breaker as ApiError).status).toBe((unavailable as ApiError).status);
+      expect((breaker as ApiError).errorCode).not.toBe((unavailable as ApiError).errorCode);
+    });
+
+    it('surfaces a 504 RUNTIME_TIMEOUT', async () => {
+      mocker.on('GET', URL, () => ({
+        status: 504,
+        body: { statusCode: 504, errorCode: 'RUNTIME_TIMEOUT', message: 'listSessions timed out' }
+      }));
+
+      const { getRuntimeSessionDrift } = await import('@/lib/api/client');
+      const err = await getRuntimeSessionDrift(REAL).catch((e: unknown) => e as ApiError);
+
+      expect((err as ApiError).status).toBe(504);
+      expect((err as ApiError).errorCode).toBe('RUNTIME_TIMEOUT');
+    });
+
+    it('surfaces a 429 RATE_LIMITED, which only the runtime produces', async () => {
+      // The CP maps the runtime's gRPC RESOURCE_EXHAUSTED to this. It is reachable only after the
+      // page-size halving budget is spent, so it means "the runtime is shedding load", not "you
+      // called too often".
+      mocker.on('GET', URL, () => ({
+        status: 429,
+        body: { statusCode: 429, errorCode: 'RATE_LIMITED', message: 'runtime rejected the page as too large' }
+      }));
+
+      const { getRuntimeSessionDrift } = await import('@/lib/api/client');
+      const err = await getRuntimeSessionDrift(REAL).catch((e: unknown) => e as ApiError);
+
+      expect((err as ApiError).status).toBe(429);
+      expect((err as ApiError).errorCode).toBe('RATE_LIMITED');
+    });
+
+    it('surfaces the CP throttler 429, which is mislabelled INTERNAL_ERROR', async () => {
+      // The single most misleading response this endpoint can return. ThrottlerException carries
+      // a STRING body, so the CP's exception filter rewrites it into the AppException shape with
+      // a hardcoded INTERNAL_ERROR. A consumer that renders errorCode would tell an operator the
+      // control plane crashed when it actually rate-limited them. This test exists so a UI
+      // branching on errorCode has a fixture proving the code can lie.
+      mocker.on('GET', URL, () => ({
+        status: 429,
+        body: { statusCode: 429, errorCode: 'INTERNAL_ERROR', message: 'ThrottlerException: Too Many Requests' }
+      }));
+
+      const { getRuntimeSessionDrift } = await import('@/lib/api/client');
+      const err = await getRuntimeSessionDrift(REAL).catch((e: unknown) => e as ApiError);
+
+      expect((err as ApiError).status).toBe(429);
+      // Not RATE_LIMITED, despite being a rate limit — status is the trustworthy signal here.
+      expect((err as ApiError).errorCode).toBe('INTERNAL_ERROR');
+    });
+
+    it('surfaces a 500 INTERNAL_ERROR', async () => {
+      mocker.on('GET', URL, () => ({
+        status: 500,
+        body: { statusCode: 500, errorCode: 'INTERNAL_ERROR', message: 'Internal server error' }
+      }));
+
+      const { getRuntimeSessionDrift } = await import('@/lib/api/client');
+      const err = await getRuntimeSessionDrift(REAL).catch((e: unknown) => e as ApiError);
+
+      expect((err as ApiError).status).toBe(500);
+      expect((err as ApiError).errorCode).toBe('INTERNAL_ERROR');
+    });
+
+    it('handles a snapshot carrying only the three guaranteed fields, and empty-string extras', async () => {
+      // The realistic shape. proto3 string defaults mean modeVersion/initiator arrive as '' rather
+      // than absent, so a consumer using `??` would render blank instead of a placeholder.
+      mocker.on('GET', URL, () => ({
+        status: 200,
+        body: runtimeSessionDrift({
+          untrackedSessions: [
+            { sessionId: 'session-bare-01', mode: 'macp.mode.decision.v1', state: 'SESSION_STATE_SUSPENDED' },
+            {
+              sessionId: 'session-empty-02',
+              mode: 'macp.mode.decision.v1',
+              state: 'SESSION_STATE_OPEN',
+              modeVersion: '',
+              initiator: ''
+            }
+          ]
+        })
+      }));
+
+      const { getRuntimeSessionDrift } = await import('@/lib/api/client');
+      const result = await getRuntimeSessionDrift(REAL);
+
+      expect(result.untrackedSessions[0].startedAtUnixMs).toBeUndefined();
+      expect(result.untrackedSessions[0].modeVersion).toBeUndefined();
+      // Present but empty — the case `??` does not catch.
+      expect(result.untrackedSessions[1].modeVersion).toBe('');
+      expect(result.untrackedSessions[1].initiator).toBe('');
+    });
+
+    it('surfaces a 401 as a status with no errorCode — the CP auth guard uses the Nest default body', async () => {
+      // Callers must treat this as "check the control-plane credential" based on the STATUS;
+      // there is no code to branch on.
+      mocker.on('GET', URL, () => ({
+        status: 401,
+        body: { statusCode: 401, message: 'Missing Authorization header', error: 'Unauthorized' }
+      }));
+
+      const { getRuntimeSessionDrift } = await import('@/lib/api/client');
+      const err = await getRuntimeSessionDrift(REAL).catch((e: unknown) => e as ApiError);
+
+      expect((err as ApiError).status).toBe(401);
+      expect((err as ApiError).errorCode).toBeUndefined();
+      expect((err as ApiError).detail).toBe('Missing Authorization header');
     });
   });
 

@@ -49,6 +49,7 @@ import {
 import { useLiveRun } from '@/lib/hooks/use-live-run';
 import { usePreferencesStore } from '@/lib/stores/preferences-store';
 import { formatDateTime, formatRelativeDuration } from '@/lib/utils/format';
+import { mergeEventStreams } from '@/lib/utils/events';
 import { getRunDurationMs } from '@/lib/utils/macp';
 
 export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveMode?: boolean }) {
@@ -113,11 +114,13 @@ export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveM
   });
 
   const effectiveState = liveMode ? (live.state ?? stateQuery.data) : stateQuery.data;
-  const effectiveEvents = liveMode
-    ? live.events.length
-      ? live.events
-      : (eventsQuery.data ?? [])
-    : (eventsQuery.data ?? []);
+  // Union, not a swap — see `mergeEventStreams`. The previous expression
+  // (`live.events.length ? live.events : eventsQuery.data`) showed the fetched history only until the
+  // first live event arrived, then collapsed the rail to that single event for the rest of the mount.
+  const effectiveEvents = useMemo(
+    () => (liveMode ? mergeEventStreams(eventsQuery.data ?? [], live.events) : (eventsQuery.data ?? [])),
+    [liveMode, live.events, eventsQuery.data]
+  );
   const connectionStatus = liveMode ? live.connectionStatus : 'ended';
 
   useEffect(() => {
@@ -425,6 +428,7 @@ export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveM
           <LiveEventFeed
             events={projectedEvents}
             runId={runId}
+            historyGap={effectiveState?.run.historyGap}
             title={liveMode ? 'Live event rail' : 'Canonical event history'}
           />
         </ErrorBoundary>

@@ -1,5 +1,172 @@
 # Changelog
 
+## 2026-09-23 — Absorb macp-control-plane / macp-playground (Jul–Sep 2026), runtime v0.8.0
+
+Absorbs the control-plane and playground work landed since the v0.5.0 window, and repoints the
+dev/e2e stack at runtime v0.8.0 (`ghcr.io/multiagentcoordinationprotocol/macp-runtime:f97fd15`,
+the tag both sibling repos pin). Mostly correctness and fidelity work in existing surfaces —
+no data migration and no wire-contract change on the console side.
+
+### Correctness
+
+- `CommitmentAuthority` wire value corrected `designated_roles` → `designated_role`. This repo was
+  the only one in the stack with the plural; the runtime matcher, the runtime validator, the control
+  plane's rejection check, the playground contract mirror and a shipped policy file all use the
+  singular. The playground now rejects the mistake explicitly with
+  `designated_role authority requires a non-empty designated_roles array`. The sibling array field
+  `designated_roles: string[]` keeps its plural — it is a different thing.
+- **SSE resume cursor no longer skips events.** `lastSeq` — what goes out as `?afterSeq=` on every
+  reconnect — was derived from `timeline.latestSeq`, the *server's* head, in three places. The
+  load-bearing one was the `snapshot` handler: the control plane republishes a snapshot on every
+  commit batch, so the cursor was dragged to the head continuously during normal streaming and
+  anything not yet delivered was skipped permanently. The cursor is now derived only from events
+  actually received. Note `afterSeq` is **exclusive** and replay is gated on `afterSeq > 0`, so `0`
+  means "snapshot plus live tail", not "send everything".
+- The live event rail no longer collapses to a single row. The hook reads its seed events at mount
+  only, and the live route mounts before the history query settles, so the fetched history was shown
+  until the first live event arrived and then discarded. The two sources are now merged by id and
+  ordered by seq.
+- That merge no longer orders on a comparator that can return `NaN`. `seq` is typed `number` but
+  reaches the console through `JSON.parse` of an SSE frame, so the type is a claim about the wire,
+  not a guarantee — which is why the resume cursor above is `Number.isFinite`-guarded. `a.seq -
+  b.seq` returns `NaN` against a missing or non-numeric `seq`, and a `NaN`-returning comparator is
+  not a valid ordering: the engine may leave the array in any order at all, so a single malformed
+  frame could scramble the whole rail rather than merely misplace itself. Unusable values now sort
+  to the end, in arrival order.
+
+### Fidelity & errors
+
+- `decision.current.supersedes` surfaces the non-canonical/canonical distinction.
+- Structured `errorCode` on `ApiError`, with the control plane's **three** error envelopes handled
+  distinctly: an `AppException` carries a real code; a Nest exception with an **object** body is
+  emitted verbatim and usually has *no* `errorCode` (this is what every `POST /runtime/policies`
+  validation rejection looks like); and a **string** body or unhandled error is rewritten with a
+  hardcoded `INTERNAL_ERROR`. That last one is why a throttled 429 arrives labelled
+  `INTERNAL_ERROR` — a present `errorCode` is not always a real classification. Read `message`
+  via `describeApiError` rather than branching on a code.
+- **Runtime session drift** (`GET /admin/runtime/sessions`) surfaces on the Infrastructure tab:
+  sessions the runtime holds with no control-plane run, and runs whose session the runtime has lost.
+  A sweep cut short by its page or time budget reports `complete: false`, so a partial answer is
+  never read as "no drift".
+- Policy `schemaVersion` constrained to `{1, 2, 3}` in the request type and the registration form.
+- `historyGap` — the control plane's own signal that a run's history is incomplete, set when it could
+  not resume the runtime session because that history had been compacted away — is now surfaced as a
+  fidelity notice in the event feed. Its contract doc had asked for exactly this and the console had
+  ignored it. The notice offers no retry, because those envelopes were never recorded: after emitting
+  the gap the control plane degrades to poll-only, and polling returns session state, never the
+  missing events.
+- **Event summaries no longer render half-built strings.** `formatEventSubject` returned a dangling
+  `kind:` when a subject carried a kind but an empty id, and the outcome suffix on
+  `policy.resolved` / `policy.violated` / `policy.commitment.evaluated` carried its own separator,
+  producing a doubled ` ·  · `. Both fixed.
+- `policy.denied` now shows its reasons. The inline denial path populates none of the fields the old
+  summary read, so a denial rendered as the bare words "Policy denied" with the reasons unread in the
+  payload. `session.stream.gap` gained a label and a `/logs` filter entry.
+- **No client-side seq-gap detector**, deliberately. Canonical `seq` values are **not contiguous per
+  run** — for each runtime envelope persisted, the control plane allocates one sequence span, gives
+  the first value to the raw row and the rest to the canonical events derived from it, and publishes
+  only the canonical ones, so each such batch burns a seq no subscriber ever sees. When a raw
+  envelope yields exactly one canonical event, the published seqs therefore run `2, 4, 6, 8` — but
+  that ratio is not fixed either: normalization can emit two canonical events for one envelope, or
+  none at all, so the stride varies as well as skipping. (Control-plane-authored lifecycle events take a different path that
+  allocates exactly what it publishes and burns nothing — which is precisely why a client cannot
+  infer loss from a delta: the two paths interleave in one counter.) A detector on "seq
+  jumped, therefore an event was lost" was built and would have warned once per batch on every
+  healthy run; it was removed, and a regression test pins the hook's return surface so it cannot
+  return under another name.
+
+### Launch flow
+
+- **A failed bootstrap now says so.** Previously the spinner simply stopped; the page now surfaces
+  the failure and does not navigate. Both launch triggers — the main submit and the quick-run
+  button — were byte-identical duplicate mutations, so a fix to one would have left the other on
+  the old behaviour; they now share a single mutation.
+- `/examples/run` responses carry `controlPlaneRun`, and the new-run page redirects to the live view
+  using `controlPlaneRun.runId`. That id is **not** the session id: `POST /runs` mints a fresh run id
+  and stores the session id separately, and the live route resolves by run id. When the field is
+  absent the page explains what it does and does not know rather than redirecting somewhere broken.
+
+### Upstream behaviour worth knowing (no console change needed)
+
+- **Event counts on `/runs/:id/events` can legitimately go down.** The control plane now drops
+  `StreamSession` envelopes whose `sessionId` is empty or belongs to another session; previously a
+  short-circuit let empty ones through. Dropped envelopes are never persisted.
+- **Runs fail faster and more honestly.** A stream-loop crash now finalizes the run as `failed`
+  immediately, bounded by a last-resort timeout, instead of leaving it hanging — narrowed so an
+  intentional shutdown is not misreported as a failure.
+- **Large envelopes now arrive.** The gRPC receive limit is explicit and raised to 16 MiB; it was
+  previously grpc-js's implicit 4 MB default, which surfaced as mysterious gaps or 503s. A send limit
+  was added alongside it.
+- **Proto moved 0.1.9 → 0.1.10 — audited, and it touches nothing the console reads.** The whole
+  delta across every `.proto` file is a four-line *comment* change on
+  `PolicyDescriptor.schema_version` in `policy.proto`, documenting that RFC-MACP-0012 now defines
+  version 3. No field was added, removed, renamed, re-nested or retyped. `policy.proto` is loaded
+  only for the gRPC policy RPCs and is not among the descriptors the control plane decodes into
+  `decodedPayload`, so it cannot reach the event stream at all. The console already implements the
+  semantics that bump documents — `POLICY_SCHEMA_VERSIONS = [1, 2, 3]`, with new registrations
+  defaulting to 3.
+  Worth keeping for next time: mode-payload `decodedPayload` **is** a straight pass-through of the
+  proto decode, so a future bump touching `decision`/`proposal`/`task`/`handoff`/`quorum`/
+  `multi_round` does need this check — which is one command,
+  `git diff proto-v<old> proto-v<new> -- packages/proto-npm` against the monorepo's tags, not the
+  open-ended audit it was first assumed to be. Demo fixtures remain non-evidence for upstream
+  drift, since they are this repo's own mock data.
+
+### Corrections to this repo's own docs
+
+Several long-standing errors were found while verifying the above, and are worth calling out because
+each had been wrong for some time:
+
+- The proxy service identifiers were documented as `example` / `control-plane`. They are
+  `macp-playground` / `macp-control-plane`.
+- The documented backend env var names — `EXAMPLE_SERVICE_BASE_URL`, `CONTROL_PLANE_BASE_URL`,
+  `EXAMPLE_SERVICE_API_KEY`, `CONTROL_PLANE_API_KEY` — **do not exist**. The real names all carry the
+  `MACP_` prefix.
+- `GET /runtime/modes` returns **five** descriptors, not six. The control plane calls the runtime's
+  `ListModes`, which returns the standards-track set only; `ext.multi_round.v1` lives behind
+  `ListExtModes`, for which the control plane exposes no route. Demo mode still shows six — a known
+  divergence, now flagged in the mock data rather than silently disagreeing with production.
+- The runtime advertises `list_changed: false` for roots, so the console never watches them. The
+  previous claim that "there is no change-notification stream" was wrong about the runtime — a
+  `WatchRoots` RPC exists and parks idle — even though the console's behaviour was right.
+- The `Commitment`-terminal rule is now **enforced at registration**, not merely conventional.
+- The runtime exposes **24** gRPC RPCs; the notes said 22.
+- Policy management moved to `/policies`; docs still pointed at `/settings`.
+- Mock runtime manifest `protocolVersion` → `0.1.10`. It tracks the **proto** package, not the
+  runtime build. The previous `0.5.0` came from this changelog's own 2026-07-07 entry, which set it
+  alongside the v0.5.0 image pin and conflated the two. A real runtime returns empty manifest
+  metadata, so the field is illustrative — but not invisible: `/modes` renders the whole manifest as
+  raw JSON, so in demo mode a wrong value here is a wrong value on screen.
+- Source line counts were removed from the docs rather than updated — `client.ts` was documented as
+  ~460 lines against an actual 1346, and counts like these are guaranteed to rot.
+
+### Infra & docs
+
+- `docker-compose.e2e.yml` runtime pinned to
+  `ghcr.io/multiagentcoordinationprotocol/macp-runtime:f97fd15` (runtime v0.8.0, overridable via
+  `MACP_RUNTIME_IMAGE`), matching `macp-control-plane` and `macp-playground` byte for byte. The SHA
+  tag rather than a semver one: the runtime repo moved to per-crate tags, so `macp-runtime:0.8.0` is
+  not a published image. The three `RUNTIME_LIST_SESSIONS_*` knobs are present as commented-out
+  entries, with the recipe for forcing the drift table's incomplete-sweep branch and the
+  CircuitBreaker footgun that comes with it.
+- **Demo timeline counters are derived from the event fixtures instead of restating them.** They
+  were hand-written literals and three of the six runs had drifted, so the demo showed "11 events"
+  beside a 14-row rail. The cancelled run was the worst case: it claimed three events and had no
+  event fixture at all, which also left `/logs`'s `run.cancelled` filter entry matching nothing in
+  demo mode — the default. It now has the three events its projection was already asserting, and
+  `mock-data.test.ts` fails if any counter is restated rather than derived.
+- Updated: `docs/api-integration.md`, `docs/architecture.md`, `docs/feature-matrix.md`,
+  `docs/backend-repo-notes.md`, `README.md`, and two code comments that had gone stale alongside
+  them (`lib/data/mock-data.ts`, `app/modes/page.tsx`). Also `CLAUDE.md`, which is gitignored and
+  so appears in no diff. The in-app `/docs` surface needs no separate edit — it renders `docs/*.md`
+  directly, so there is no second copy to drift.
+- **Not updated, by design:** everything under `docs-content/macp-playground/`. Those files are
+  auto-synced from the upstream playground repo, so hand edits would be clobbered by the next sync.
+  They still carry v0.5.0-era statements, including a stale `"authority": "designated_roles"` that
+  upstream has already corrected; the sync will carry it.
+
+---
+
 ## 2026-07-07 — Absorb macp-runtime v0.5.0 / macp-proto 0.1.6
 
 Absorbs the runtime v0.5.0 release into the console, consumed via the macp-control-plane

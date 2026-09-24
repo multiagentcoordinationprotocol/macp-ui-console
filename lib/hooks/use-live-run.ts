@@ -38,13 +38,37 @@ interface UseLiveRunOptions {
   autoStart?: boolean;
 }
 
+/**
+ * The resume cursor, derived **only from events actually received**.
+ *
+ * Never seed this from `timeline.latestSeq`. That is the server's head, and the console does not
+ * necessarily hold everything below it: `getRunEvents` fetches at most 500 events, oldest first, so on
+ * a longer run the head is far beyond the newest event in hand. Opening the stream at the head then
+ * asks for events *after* the ones that were never delivered, and the range between silently never
+ * arrives by any path.
+ *
+ * `getRunEvents` does not guarantee ordering, so take the maximum rather than the last element. The
+ * unfiltered page really is oldest-first (`event.repository.ts:75` orders by `asc(seq)`), but the filtered
+ * path — `afterTs`, `beforeTs` or `type` — orders by `asc(ts), asc(seq)` (`:121`, `:137`), which can
+ * diverge from seq order. `Math.max` is correct for both; `at(-1)` is correct only for the first.
+ *
+ * An empty or absent list yields 0. Note what that actually requests: the control plane gates its
+ * replay on `afterSeq > 0`, so `afterSeq=0` means "snapshot plus the live tail", **not** "send
+ * everything". That is the right request on a cold mount — the initial page of history comes from
+ * the separate `getRunEvents` query, not from the stream — but it is not a backfill.
+ */
+function highestSeq(events: CanonicalEvent[] | undefined): number {
+  if (!events?.length) return 0;
+  return events.reduce((max, event) => (Number.isFinite(event.seq) && event.seq > max ? event.seq : max), 0);
+}
+
 export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoStart = true }: UseLiveRunOptions) {
   const [state, setState] = useState<RunStateProjection | undefined>(initialState);
   const [events, setEvents] = useState<CanonicalEvent[]>(initialEvents ?? []);
   const [connectionStatus, setConnectionStatus] = useState<
     'idle' | 'connecting' | 'live' | 'reconnecting' | 'ended' | 'error'
   >('idle');
-  const [lastSeq, setLastSeq] = useState<number>(initialState?.timeline.latestSeq ?? 0);
+  const [lastSeq, setLastSeq] = useState<number>(() => highestSeq(initialEvents));
   const [paused, setPaused] = useState(false);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
@@ -117,14 +141,32 @@ export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoS
     source.addEventListener('snapshot', (event) => {
       const payload = JSON.parse((event as MessageEvent).data) as RunStateProjection;
       setState(payload);
-      setLastSeq(payload.timeline.latestSeq);
+      // Deliberately does NOT touch the cursor. The control plane republishes a snapshot on every
+      // commit, not once per connection, so writing `timeline.latestSeq` here would drag the resume
+      // point up to the server head continuously during normal streaming — skipping anything that had
+      // not yet been delivered. `timeline.latestSeq` remains available on `state` as the server's
+      // high-water mark, which is what gap detection compares against.
       resetHeartbeatTimer();
     });
 
     source.addEventListener('canonical_event', (event) => {
       const payload = normalizeEvent(JSON.parse((event as MessageEvent).data) as Record<string, unknown>);
       appendEvent(payload);
-      setLastSeq(payload.seq);
+      // Monotonic: out-of-order delivery must not walk the cursor backwards, or the next reconnect
+      // re-requests a range already held and the server replays it for nothing.
+      //
+      // The guard is not defensive noise. `Math.max` is absorbing over both NaN and Infinity, so a
+      // single event whose `seq` is not a finite number would pin the cursor there for the rest of
+      // the session, send `afterSeq=NaN` (or `Infinity`), and get every reconnect rejected by the
+      // control plane's `@IsInt()` validation until the attempt limit is reached — turning a one-off
+      // malformed frame into a permanently dead stream. The unguarded assignment this replaced
+      // self-healed on the next good event; monotonicity must not trade that away.
+      //
+      // `Number.isFinite` rather than `typeof === 'number'`: it rejects NaN and Infinity as well as
+      // non-numbers in one predicate, and makes this identical to `highestSeq`. A missing `seq` is
+      // the reachable case (`Math.max(9, undefined)` is NaN); `NaN`/`Infinity` literals cannot come
+      // from `JSON.parse` at all, but an overflowing JSON number (`1e999`) parses to `Infinity`.
+      setLastSeq((previous) => (Number.isFinite(payload.seq) ? Math.max(previous, payload.seq) : previous));
       resetHeartbeatTimer();
     });
 
@@ -133,12 +175,15 @@ export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoS
       resetHeartbeatTimer();
     });
 
-    source.onerror = () => {
+    // `addEventListener`, not `source.onerror =`, so all five event paths on this source (open,
+    // snapshot, canonical_event, heartbeat, error) are registered the same way. A fresh EventSource
+    // is constructed on every connect, so listeners cannot accumulate across reconnects.
+    source.addEventListener('error', () => {
       source.close();
       eventSourceRef.current = null;
       if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
       attemptReconnect();
-    };
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
 
@@ -194,7 +239,8 @@ export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoS
     reset: () => {
       setEvents(initialEvents ?? []);
       setState(initialState);
-      setLastSeq(initialState?.timeline.latestSeq ?? 0);
+      // Same rule as the initial seed: the cursor tracks what we hold, not what the server has.
+      setLastSeq(highestSeq(initialEvents));
       setConnectionStatus('idle');
       setReconnectAttempt(0);
       reconnectAttemptRef.current = 0;

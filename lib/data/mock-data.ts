@@ -734,9 +734,11 @@ const completedState: RunStateProjection = {
       resolvedAt: isoMinutesAgo(55),
       resolvedBy: 'risk-agent',
       // macp-proto 0.1.3 (§7.3) — this commitment supersedes a prior cross-session one.
+      // The CANONICAL branch: `sha256:` + 64 lowercase hex, per RFC-MACP-0013 §9. No badge.
       supersedes: {
         sessionId: 'session-prior-fraud-000',
-        commitmentHash: 'sha256:9f2c1ab7e4d8c3061f5a2b9d7e0c4a18b6d35f92ac71e0d4b8f6a23c1e5079db'
+        commitmentHash: 'sha256:9f2c1ab7e4d8c3061f5a2b9d7e0c4a18b6d35f92ac71e0d4b8f6a23c1e5079db',
+        canonical: true
       },
       proposals: [
         {
@@ -995,7 +997,17 @@ const opsState: RunStateProjection = {
       // Resolved-but-declined: a negative committed outcome (RFC-MACP-0007 §6).
       // The session resolved (run.status 'completed'), but the decision was "no".
       outcomePositive: false,
-      proposalId: 'incident-ops-004'
+      proposalId: 'incident-ops-004',
+      // The NON-CANONICAL branch: a legacy pre-RFC-MACP-0013 hash — no `sha256:` prefix and
+      // uppercase hex, so it fails the §9 format check on two counts. The control plane surfaces
+      // such rows rather than dropping them; the console badges the format and keeps the hash.
+      // Deliberately a visibly different shape from the canonical fixture above, so the badge is
+      // obviously correlated with the value it describes.
+      supersedes: {
+        sessionId: 'session-prior-incident-000',
+        commitmentHash: 'A41F09C7B2E5D8306',
+        canonical: false
+      }
     }
   },
   signals: {
@@ -1054,6 +1066,25 @@ function buildRecent(events: CanonicalEvent[]) {
     type: event.type,
     subject: event.subject
   }));
+}
+
+/**
+ * Derives a projection's timeline counters from its event fixture rather than restating them.
+ *
+ * `recent` was already derived; `latestSeq` and `totalEvents` were hand-written literals, and three
+ * of the six runs had drifted — the badge beside the rail disagreed with the rows in it (11 against
+ * 14, 8 against 12, 5 against 6). Restating a number the fixture already carries is a drift source
+ * with no upside, so nothing restates it now: adding an event moves the counters with it.
+ *
+ * `latestSeq` is the max seq rather than the count. They coincide in these fixtures, which are
+ * contiguous, but they do not coincide upstream — the control plane allocates one seq span per
+ * persisted batch, hands the first value to the raw row and publishes only the rest, so real
+ * canonical seqs skip. Pinned by `mock-data.test.ts`.
+ */
+function syncTimeline(state: RunStateProjection, events: CanonicalEvent[]) {
+  state.timeline.recent = buildRecent(events);
+  state.timeline.totalEvents = events.length;
+  state.timeline.latestSeq = events.reduce((max, item) => Math.max(max, item.seq), 0);
 }
 
 function event(
@@ -1377,7 +1408,54 @@ export const MOCK_RUN_EVENTS: Record<string, CanonicalEvent[]> = {
         decodedPayload: { implicit: true, handoffId: 'handoff-005' }
       }
     },
-    event(SUSPENDED_RUN_ID, 5, 'run.suspended', { status: 'suspended' }, { kind: 'run', id: SUSPENDED_RUN_ID })
+    event(SUSPENDED_RUN_ID, 5, 'run.suspended', { status: 'suspended' }, { kind: 'run', id: SUSPENDED_RUN_ID }),
+    // The event that PRODUCES `historyGap: true` on this run's projection. The control plane is the
+    // sole writer of that flag and writes it only from this event's reducer, so a fixture carrying
+    // the flag without the event depicts a state the backend cannot reach — and left the
+    // `/logs` filter entry for this type matching nothing in demo mode, which is the default.
+    // (The feed's gap notice was already reachable: it keys off the projection's `historyGap`,
+    // not off this event.) `subject.id` must be the run's own `runtimeSessionId`. Payload
+    // copied field-for-field from the emit site (`stream-consumer.service.ts:310-317`), including
+    // the `detail` sentence, which the summary renders verbatim.
+    {
+      ...event(
+        SUSPENDED_RUN_ID,
+        6,
+        'session.stream.gap',
+        {
+          requestedAfter: 4,
+          detail: 'session history before the resume point was compacted; some envelope-level events may be missing'
+        },
+        { kind: 'session', id: 'session-suspended-005' }
+      ),
+      source: { kind: 'macp-control-plane', name: 'stream-consumer' }
+    }
+  ],
+  // The cancelled run had no event fixture at all, while its projection claimed three events — so
+  // the badge read "3 events" beside an empty rail, and `/logs`'s `run.cancelled` filter entry
+  // (`app/logs/page.tsx:35`) matched nothing in demo mode, which is the default. These are the three
+  // the projection was already asserting. Timestamps are written out rather than taken from the
+  // `event()` helper, whose `ts` is a function of `seq` alone and would place this run's events
+  // ~25 minutes ago — an hour inside a window that closed at 94.
+  [CANCELLED_RUN_ID]: [
+    {
+      ...event(CANCELLED_RUN_ID, 1, 'run.created', { status: 'queued' }, { kind: 'run', id: CANCELLED_RUN_ID }),
+      ts: isoMinutesAgo(96)
+    },
+    {
+      ...event(CANCELLED_RUN_ID, 2, 'run.started', { status: 'running' }, { kind: 'run', id: CANCELLED_RUN_ID }),
+      ts: isoMinutesAgo(95)
+    },
+    {
+      ...event(
+        CANCELLED_RUN_ID,
+        3,
+        'run.cancelled',
+        { status: 'cancelled', reason: 'cancelled by operator during triage' },
+        { kind: 'run', id: CANCELLED_RUN_ID }
+      ),
+      ts: isoMinutesAgo(94)
+    }
   ]
 };
 
@@ -1390,7 +1468,11 @@ const suspendedState: RunStateProjection = {
     runtimeSessionId: 'session-suspended-005',
     startedAt: isoMinutesAgo(22),
     traceId: 'trace-suspended-005',
-    modeName: 'macp.mode.decision.v1'
+    modeName: 'macp.mode.decision.v1',
+    // The suspended run is the natural demo home for this: a long pause is exactly when the runtime
+    // compacts the session history out from under the control plane's resume ordinal. Makes the
+    // event-feed fidelity notice reachable with no backend running.
+    historyGap: true
   },
   participants: [
     { participantId: 'fraud-agent', role: 'fraud', status: 'completed', latestSummary: 'Device graph evaluated.' },
@@ -1487,11 +1569,12 @@ const cancelledState: RunStateProjection = {
   }
 };
 
-liveBaseState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[LIVE_RUN_ID]);
-completedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[COMPLETED_RUN_ID]);
-failedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[FAILED_RUN_ID]);
-opsState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[DECLINED_RUN_ID]);
-suspendedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[SUSPENDED_RUN_ID]);
+syncTimeline(liveBaseState, MOCK_RUN_EVENTS[LIVE_RUN_ID]);
+syncTimeline(completedState, MOCK_RUN_EVENTS[COMPLETED_RUN_ID]);
+syncTimeline(failedState, MOCK_RUN_EVENTS[FAILED_RUN_ID]);
+syncTimeline(opsState, MOCK_RUN_EVENTS[DECLINED_RUN_ID]);
+syncTimeline(suspendedState, MOCK_RUN_EVENTS[SUSPENDED_RUN_ID]);
+syncTimeline(cancelledState, MOCK_RUN_EVENTS[CANCELLED_RUN_ID]);
 
 export const MOCK_RUN_STATES: Record<string, RunStateProjection> = {
   [LIVE_RUN_ID]: liveBaseState,
@@ -1761,10 +1844,21 @@ export const MOCK_AGENT_PROFILES: AgentProfile[] = [
   }
 ];
 
-// Mirrors macp-runtime v0.5.0 `all_mode_descriptors()`
-// (crates/macp-modes/src/mode/mod.rs): five standards-track modes + the multi-round
-// extension. Every mode's terminal type is exactly `Commitment` (a v0.5.0 registration
-// invariant), and each message-type list leads with `SessionStart`.
+// Mirrors macp-runtime `all_mode_descriptors()` (crates/macp-modes/src/mode/mod.rs): five
+// standards-track modes + the multi-round extension. Every mode's terminal type is exactly
+// `Commitment` — a registration invariant that has since been *enforced*: since v0.8.0 the
+// registry rejects any extension descriptor with empty terminal types, and any terminal other
+// than `Commitment` (crates/macp-modes/src/mode_registry.rs:481-499). Each message-type list
+// leads with `SessionStart`.
+//
+// KNOWN DEMO/REAL DIVERGENCE — this list has six entries; a real backend returns five.
+// `GET /runtime/modes` proxies the control plane, which calls the runtime's `ListModes`, and
+// that RPC returns `standard_mode_descriptors()` only (macp-runtime/src/server.rs:1136-1143;
+// its own test asserts a length of 5 at :2042 and `ext.multi_round.v1`'s absence at :2049).
+// The extension is reachable
+// only via `ListExtModes`, and the control plane exposes no endpoint for it. So `/modes` shows
+// six in demo mode and five against a real stack. Left as-is deliberately: trimming the mock
+// would hide the extension from the only place it is currently visible. See docs/changelog.md.
 export const MOCK_RUNTIME_MODES: RuntimeModeDescriptor[] = [
   {
     mode: 'macp.mode.decision.v1',
@@ -1847,8 +1941,18 @@ export const MOCK_RUNTIME_MANIFEST: RuntimeManifestResult = {
   title: 'MACP Rust Runtime',
   description: 'Reference runtime with file-backed replay and dynamic mode registry.',
   supportedModes: MOCK_RUNTIME_MODES.map((mode) => mode.mode),
+  // Illustrative only. A real runtime returns `metadata: {}` — the live manifest carries no
+  // version field at all — so nothing here is contract-bearing. No *code* reads this field, but
+  // it is not invisible: `/modes` renders the whole manifest as raw JSON through `JsonViewer`
+  // (app/modes/page.tsx:95), so a wrong value here is a wrong value on screen in demo mode.
+  //
+  // `protocolVersion` tracks the **proto/spec** package, currently `0.1.10`
+  // (`macp-control-plane/package.json` depends on `@multiagentcoordinationprotocol/proto@^0.1.10`),
+  // not the runtime build. The previous value `0.5.0` was a runtime image version: docs/changelog.md
+  // set it alongside the v0.5.0 image pin, conflating the two. A field named `protocolVersion`
+  // should name the protocol, so it now does.
   metadata: {
-    protocolVersion: '0.5.0',
+    protocolVersion: '0.1.10',
     storage: 'file-backend',
     transport: 'grpc'
   }
@@ -1953,15 +2057,28 @@ export const MOCK_POLICY_DEFINITIONS: PolicyDefinition[] = [
     }
   },
   {
+    // This entry is a faithful mirror of the real shipped policy at
+    // macp-playground/policies/policy.lending.conservative.json — every field, not just the
+    // commitment block. It is the one entry in this catalogue kept in lockstep with upstream, so
+    // that the demo surface exercises a real policy shape rather than an invented one. If upstream
+    // changes, change this with it.
     policy_id: 'policy.lending.conservative',
     mode: 'macp.mode.decision.v1',
-    schema_version: 1,
-    description: 'Conservative lending: supermajority with confidence floor',
+    schema_version: 3,
+    description: 'Lending: supermajority with compliance veto and mandatory evaluations before voting',
     rules: {
-      voting: { algorithm: 'supermajority', threshold: 0.67, quorum: { type: 'percentage', value: 0.67 } },
+      voting: { algorithm: 'supermajority', threshold: 0.67, quorum: { type: 'count', value: 3 } },
       objection_handling: { critical_severity_vetoes: true, veto_threshold: 1 },
       evaluation: { minimum_confidence: 0.6, required_before_voting: true },
-      commitment: { authority: 'initiator_only', require_vote_quorum: true, designated_roles: [] }
+      // NOTE: `designated_roles` here holds raw *participant identities*, matched literally against the
+      // envelope sender — not role labels. (`PolicyHints.designatedRoles`, a different field entirely,
+      // is the one that holds role labels; upstream's policy-authoring guide is explicit that the two
+      // are unrelated.) Do not "harmonize" the two.
+      commitment: {
+        authority: 'designated_role',
+        require_vote_quorum: true,
+        designated_roles: ['risk-agent', 'compliance-agent']
+      }
     }
   },
   {
@@ -2002,6 +2119,18 @@ export const MOCK_RUNTIME_POLICIES: RuntimePolicyDescriptor[] = [
     rules: MOCK_POLICY_DEFINITIONS[3].rules,
     schemaVersion: 1,
     registeredAtUnixMs: Date.now() - 86400000
+  },
+  {
+    // The only registered policy using `authority: 'designated_role'`. Without it the demo
+    // `/policies` surface renders nothing but `initiator_only`, and the corrected authority value
+    // would be data that never reaches a screen. Mirrors the real upstream policy — see
+    // MOCK_POLICY_DEFINITIONS[4].
+    policyId: MOCK_POLICY_DEFINITIONS[4].policy_id,
+    mode: MOCK_POLICY_DEFINITIONS[4].mode,
+    description: MOCK_POLICY_DEFINITIONS[4].description,
+    rules: MOCK_POLICY_DEFINITIONS[4].rules,
+    schemaVersion: MOCK_POLICY_DEFINITIONS[4].schema_version,
+    registeredAtUnixMs: Date.now() - 86400000 * 2
   }
 ];
 

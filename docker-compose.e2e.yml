@@ -58,18 +58,28 @@ services:
         condition: service_healthy
 
   runtime:
-    # Pinned to the v0.5.0 release. Override with MACP_RUNTIME_IMAGE for local builds
-    # (e.g. `export MACP_RUNTIME_IMAGE=macp-runtime:latest`). This is the single switch
-    # that brings v0.5.0 runtime behavior into every console dev/e2e stack.
-    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.5.0}
+    # Pinned to runtime v0.8.0 by its commit SHA tag, matching macp-control-plane's
+    # docker-compose.test.yml and macp-playground's docker-compose.fullstack.yml byte for byte —
+    # running this stack against an older runtime behind a control plane built and tested against
+    # v0.8.0 is the drift this pin exists to remove.
+    #
+    # The SHA tag, not a semver one: the runtime repo moved to per-crate tags, so there is no
+    # `v0.8.0` monolithic tag and `macp-runtime:0.8.0` is not a published image.
+    #
+    # Override with MACP_RUNTIME_IMAGE for local builds
+    # (e.g. `export MACP_RUNTIME_IMAGE=macp-runtime:latest`).
+    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:f97fd15}
     ports:
       - "50051:50051"
       # Runtime Prometheus metrics (opt-in via MACP_METRICS_ADDR below). Harmless until
       # a consumer scrapes it; lets `curl localhost:9464/metrics` return runtime series.
       - "9464:9464"
     environment:
-      MACP_BIND_ADDR: "[::]:50051"
-      # v0.5.0 image no longer bakes MACP_ALLOW_INSECURE — now load-bearing, keep it.
+      # Matches the image's own default and the sibling stacks. Was "[::]:50051", which works
+      # on a dual-stack host but fails EADDRNOTAVAIL where IPv6 is disabled — taking the control
+      # plane and playground down with it, since both depend_on the runtime as service_healthy.
+      MACP_BIND_ADDR: "0.0.0.0:50051"
+      # The published runtime image does not bake MACP_ALLOW_INSECURE — load-bearing, keep it.
       MACP_ALLOW_INSECURE: "1"
       # Expose per-mode runtime counters (macp_messages_*, macp_sessions_*, macp_commitments_*,
       # macp_replay_mismatches_total) as Prometheus text on :9464.
@@ -125,6 +135,26 @@ services:
       RUNTIME_BEARER_TOKEN: "tok-cp-observer"
       AUTH_API_KEYS: ""
       SESSION_DISCOVERY_ENABLED: "true"
+      # Pagination/budget knobs for the runtime `listSessions` sweep that backs the Infrastructure
+      # tab's session-drift table. Left commented so the control plane uses its own defaults.
+      #
+      # These are how you make the drift table's `complete: false` branch observable by hand: the
+      # control plane reports an incomplete sweep when its overall budget runs out between pages,
+      # mid-page, or when the page cap is hit. Setting the timeout to 1ms gets you there without
+      # needing any sessions at all — but via the MID-PAGE branch, not the between-pages one: the
+      # deadline clamps the gRPC call, which then fails DEADLINE_EXCEEDED. (The between-pages check
+      # sees `remainingMs === 1`, not 0, so it does not fire on the opening iteration.)
+      #
+      # Footgun: each of those failures counts against the shared CircuitBreaker (threshold 5,
+      # consecutive, 30s reset). Five sweeps in a row with no intervening successful runtime call
+      # open it, after which `listSessions` THROWS instead of returning `complete: false` and
+      # /readyz reports circuitBreaker OPEN. Unset the var once you have seen the branch.
+      #
+      # Trap worth knowing: unset falls back to the default, but an EMPTY STRING fails startup.
+      # Comment the line out; do not blank it.
+      # RUNTIME_LIST_SESSIONS_PAGE_SIZE: "200"
+      # RUNTIME_LIST_SESSIONS_MAX_PAGES: "200"
+      # RUNTIME_LIST_SESSIONS_TIMEOUT_MS: "60000"
       CORS_ORIGIN: http://localhost:3000
       LOG_LEVEL: info
       OTEL_ENABLED: "true"
@@ -176,10 +206,22 @@ services:
       AUTH_API_KEYS: ""
       LOG_LEVEL: info
       REGISTRY_CACHE_TTL_MS: "0"
+      # Without these the playground's control-plane submission is a no-op, so /examples/run never
+      # returns `controlPlaneRun` and every real-mode bootstrap from /runs/new takes the
+      # "not registered" branch — the feature would look broken in the only stack that exercises it.
+      MACP_CONTROL_PLANE_URL: "http://macp-control-plane:3001"
+      # Required even though the control plane runs with AUTH_API_KEYS: "". Its guard rejects a
+      # *missing* Authorization header before it ever reaches the empty-keys bypass, so an unset key
+      # yields 401 and the same silent no-op. Any non-empty value works while AUTH_API_KEYS is empty.
+      # `npm run local:up` layers docker-compose.local.yml over this file, which sets its own
+      # "local-dev" value here; only the URL above was actually missing from that path.
+      MACP_CONTROL_PLANE_API_KEY: "e2e-test"
     depends_on:
       auth-service:
         condition: service_healthy
       runtime:
+        condition: service_healthy
+      macp-control-plane:
         condition: service_healthy
     healthcheck:
       test: >-

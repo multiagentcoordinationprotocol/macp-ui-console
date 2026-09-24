@@ -40,6 +40,25 @@ class MockEventSource {
   dispatchEvent(type: string, data?: unknown) {
     const event = data !== undefined ? new MessageEvent(type, { data: JSON.stringify(data) }) : new Event(type);
     this.listeners[type]?.forEach((l) => l(event));
+    // Also fire the `on*` property handler. The hook registers everything through
+    // `addEventListener`, so this is redundant for it today — it is here so the harness drives a
+    // source the way a browser does, and a handler assigned as a property (the shape this hook used
+    // to use, and the one `dispatchEvent` silently ignored) stays testable.
+    const handler = type === 'error' ? this.onerror : type === 'open' ? this.onopen : undefined;
+    handler?.(event);
+  }
+
+  /**
+   * Dispatch a frame from raw JSON *text*, bypassing `JSON.stringify`.
+   *
+   * Needed because `dispatchEvent` serializes, and `JSON.stringify` cannot express every value
+   * `JSON.parse` can produce: `JSON.stringify({ seq: Infinity })` is `{"seq":null}`. Injecting the
+   * literal text `{"seq":1e999}` is the only way to drive the hook with a non-finite `seq`, which is
+   * exactly the shape an overflowing number on the wire arrives in.
+   */
+  dispatchRaw(type: string, rawJson: string) {
+    const event = new MessageEvent(type, { data: rawJson });
+    this.listeners[type]?.forEach((l) => l(event));
   }
 
   close() {
@@ -86,6 +105,14 @@ function makeSnapshot(seq: number): RunStateProjection {
 
 function makeFrame(seq: number) {
   return { seq, event: makeEvent(`evt-${seq}`, seq), snapshot: makeSnapshot(seq) };
+}
+
+/** First reconnect backoff: `min(1000 * 2 ** attempt, 30_000)` with attempt 0. */
+const RECONNECT_BACKOFF_MS = 1000;
+
+/** The `afterSeq` the hook opened its most recent stream with. */
+function afterSeqOf(instance: MockEventSource): number {
+  return Number(new URL(instance.url, 'http://localhost').searchParams.get('afterSeq'));
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────
@@ -341,7 +368,11 @@ describe('useLiveRun', () => {
     expect(result.current.events).toHaveLength(2);
     expect(result.current.events[0].id).toBe('init-a');
     expect(result.current.events[1].id).toBe('init-b');
-    expect(result.current.lastSeq).toBe(42);
+    // The cursor seeds from the newest event actually held (20), NOT from the snapshot's
+    // `timeline.latestSeq` (42). This assertion previously read 42 and encoded the bug: seeding at
+    // the server head makes the stream open at `afterSeq=42` while events 21-42 were never
+    // delivered, so that range is skipped permanently.
+    expect(result.current.lastSeq).toBe(20);
     expect(result.current.connectionStatus).toBe('idle');
     expect(result.current.latestEvent?.id).toBe('init-b');
   });
@@ -394,5 +425,264 @@ describe('useLiveRun', () => {
     expect(result.current.state).toEqual(initialSnapshot);
     expect(result.current.lastSeq).toBe(0);
     expect(result.current.connectionStatus).toBe('idle');
+  });
+  // ── SSE-path resume-cursor tests (demoMode: false) ──────────────────
+  //
+  // The first tests in this file to drive MockEventSource with a real stream. Every case below is a
+  // permanent, silent event-loss path before this phase: the cursor was derived from the server's
+  // head rather than from what the client actually holds.
+  describe('resume cursor (SSE path)', () => {
+    it('opens at the newest event held, not at the server head', async () => {
+      // The headline bug. `initialEvents` is capped at 500 by getRunEvents and arrives oldest-first,
+      // so on a long run the head is far past anything the client has. Opening at the head skips
+      // every event in between, by every path — the stream will not resend them and no refetch asks.
+      const useLiveRun = await importHook();
+      renderHook(() =>
+        useLiveRun({
+          runId: 'run-1',
+          demoMode: false,
+          initialState: makeSnapshot(900),
+          initialEvents: [makeEvent('a', 499), makeEvent('b', 500)]
+        })
+      );
+
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(afterSeqOf(MockEventSource.instances[0])).toBe(500);
+    });
+
+    it('does not advance the cursor on a snapshot', async () => {
+      // Snapshots are republished on EVERY commit, not once per connection, so this is not a
+      // reconnect-window edge: writing latestSeq here drags the cursor to the head continuously
+      // during normal streaming.
+      const useLiveRun = await importHook();
+      renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false, initialEvents: [makeEvent('a', 50)] }));
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('snapshot', makeSnapshot(100));
+      });
+      // Reconnect, and check where it resumes from.
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('error');
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(RECONNECT_BACKOFF_MS);
+      });
+      expect(MockEventSource.instances.length).toBeGreaterThan(1);
+      expect(afterSeqOf(MockEventSource.instances.at(-1)!)).toBe(50);
+    });
+
+    it('still applies the snapshot to state — only the cursor is left alone', async () => {
+      // The snapshot is what makes every projection panel self-heal; this phase must not throw that
+      // away while fixing the cursor.
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false }));
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      const snapshot = makeSnapshot(100);
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('snapshot', snapshot);
+      });
+
+      expect(result.current.state).toEqual(snapshot);
+      expect(result.current.state?.timeline.latestSeq).toBe(100);
+    });
+
+    it('never walks the cursor backwards on out-of-order delivery', async () => {
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false }));
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('canonical_event', makeEvent('e5', 5));
+        MockEventSource.instances[0].dispatchEvent('canonical_event', makeEvent('e3', 3));
+      });
+
+      expect(result.current.lastSeq).toBe(5);
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('error');
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(RECONNECT_BACKOFF_MS);
+      });
+      expect(MockEventSource.instances.length).toBeGreaterThan(1);
+      expect(afterSeqOf(MockEventSource.instances.at(-1)!)).toBe(5);
+    });
+
+    it('reset() re-seeds from initialEvents, not from the snapshot head', async () => {
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() =>
+        useLiveRun({
+          runId: 'run-1',
+          demoMode: false,
+          initialState: makeSnapshot(900),
+          initialEvents: [makeEvent('a', 500)],
+          autoStart: false
+        })
+      );
+
+      act(() => {
+        result.current.reset();
+      });
+
+      expect(result.current.lastSeq).toBe(500);
+    });
+
+    it('drops a duplicate id arriving with a different seq, on the SSE path', async () => {
+      // The demo-mode dedup test covers the frame loop only; the real path had never been tested.
+      // Dedup keys on `event.id`, so a redelivery under a new seq must not double up.
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false }));
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('canonical_event', makeEvent('same-id', 7));
+        MockEventSource.instances[0].dispatchEvent('canonical_event', makeEvent('same-id', 8));
+      });
+
+      expect(result.current.events).toHaveLength(1);
+      // The cursor still advances — the event was received even though it was not stored twice.
+      expect(result.current.lastSeq).toBe(8);
+    });
+
+    it('survives an event with no numeric seq, instead of latching the cursor forever', async () => {
+      // Math.max is absorbing over NaN, so without a type guard one malformed frame pins the cursor
+      // at NaN for the rest of the session: every reconnect then sends `afterSeq=NaN`, the control
+      // plane's validation pipe rejects it, and the stream burns its 8 attempts and dies. The
+      // unguarded assignment this replaced self-healed on the next good event, so monotonicity must
+      // not be bought at the cost of a permanent latch.
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false }));
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('canonical_event', makeEvent('good', 4));
+        // `seq` absent entirely — the shape a malformed or partially-decoded frame arrives in.
+        MockEventSource.instances[0].dispatchEvent('canonical_event', {
+          ...makeEvent('bad', 0),
+          seq: undefined
+        });
+        MockEventSource.instances[0].dispatchEvent('canonical_event', makeEvent('good-2', 9));
+      });
+
+      expect(result.current.lastSeq).toBe(9);
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('error');
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(RECONNECT_BACKOFF_MS);
+      });
+      const url = MockEventSource.instances.at(-1)!.url;
+      expect(url).not.toContain('NaN');
+      expect(afterSeqOf(MockEventSource.instances.at(-1)!)).toBe(9);
+    });
+
+    it('survives a non-finite seq, which Math.max absorbs exactly like NaN', async () => {
+      // `NaN` and `Infinity` literals cannot come out of `JSON.parse`, but an overflowing JSON
+      // number does: `JSON.parse('{"seq":1e999}').seq === Infinity`. Math.max absorbs it the same
+      // way, producing `afterSeq=Infinity`, which the control plane's `@IsInt()` rejects — the same
+      // permanently dead stream as the NaN case. Hence `Number.isFinite`, not `typeof === 'number'`.
+      //
+      // Dispatched as raw text: `dispatchEvent` would `JSON.stringify` it back down to `null`, which
+      // `typeof === 'number'` also rejects, and the test would pass either way.
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false }));
+
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('canonical_event', makeEvent('good', 4));
+        MockEventSource.instances[0].dispatchRaw(
+          'canonical_event',
+          JSON.stringify(makeEvent('overflow', 0)).replace('"seq":0', '"seq":1e999')
+        );
+        MockEventSource.instances[0].dispatchEvent('canonical_event', makeEvent('good-2', 9));
+      });
+
+      expect(result.current.lastSeq).toBe(9);
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('error');
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(RECONNECT_BACKOFF_MS);
+      });
+      expect(MockEventSource.instances.at(-1)!.url).not.toContain('Infinity');
+      expect(afterSeqOf(MockEventSource.instances.at(-1)!)).toBe(9);
+    });
+
+    it('ignores a non-finite seq when seeding from initialEvents', async () => {
+      const useLiveRun = await importHook();
+      renderHook(() =>
+        useLiveRun({
+          runId: 'run-1',
+          demoMode: false,
+          initialEvents: [makeEvent('a', 7), { ...makeEvent('b', 0), seq: JSON.parse('{"seq":1e999}').seq }]
+        })
+      );
+
+      expect(afterSeqOf(MockEventSource.instances[0])).toBe(7);
+    });
+
+    it('seeds at 0 when nothing is held', async () => {
+      const useLiveRun = await importHook();
+      renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false, initialState: makeSnapshot(900) }));
+
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(afterSeqOf(MockEventSource.instances[0])).toBe(0);
+    });
+
+    it('takes the highest seq, not the last element, since event order is not guaranteed', async () => {
+      const useLiveRun = await importHook();
+      renderHook(() =>
+        useLiveRun({
+          runId: 'run-1',
+          demoMode: false,
+          initialEvents: [makeEvent('a', 300), makeEvent('b', 120)]
+        })
+      );
+
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(afterSeqOf(MockEventSource.instances[0])).toBe(300);
+    });
+  });
+  describe('seq contiguity (why there is no client-side gap detector)', () => {
+    it('receives canonical seqs with permanent holes on a perfectly healthy stream', async () => {
+      // Load-bearing regression guard. A seq-delta gap detector was built here and removed, because
+      // canonical seqs are NOT contiguous per run and it warned on every healthy run.
+      //
+      // `RunEventService.persistRawAndCanonical` allocates `1 + canonicalEvents.length` seqs from the
+      // single `runs.last_event_seq` counter, gives `startSeq` to the RAW row and `startSeq + i + 1`
+      // to the canonical ones (macp-control-plane/src/events/run-event.service.ts:118-123). Raw and
+      // canonical live in separate tables, and only canonical events are streamed. So every batch
+      // burns one seq that no subscriber will ever see — the CP's own spec pins raw@5 / canonical@6,@7
+      // (run-event.service.spec.ts:339-361).
+      //
+      // This test asserts the hook stays quiet on exactly that pattern. If a gap detector is ever
+      // reintroduced on `seq` deltas, this fails — which is the point.
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false }));
+
+      act(() => {
+        // One canonical event per batch: 2, 4, 6, 8 — a hole at every odd seq, all of them normal.
+        for (const seq of [2, 4, 6, 8]) {
+          MockEventSource.instances[0].dispatchEvent('canonical_event', makeEvent(`e${seq}`, seq));
+        }
+      });
+
+      expect(result.current.events.map((event) => event.seq)).toEqual([2, 4, 6, 8]);
+      expect(result.current.lastSeq).toBe(8);
+      // Pin the whole surface, not just the absence of one name: a reporting-only detector
+      // reintroduced under any other name must fail this too.
+      expect(Object.keys(result.current).sort()).toEqual([
+        'connectionStatus',
+        'events',
+        'lastSeq',
+        'latestEvent',
+        'paused',
+        'reconnectAttempt',
+        'reset',
+        'setPaused',
+        'state'
+      ]);
+    });
   });
 });

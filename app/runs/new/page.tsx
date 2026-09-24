@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle2, FlaskConical, Play, ShieldCheck } from 'lucide-react';
@@ -20,10 +21,11 @@ import {
   runExample,
   validateRun
 } from '@/lib/api/client';
+import { describeApiError } from '@/lib/api/fetcher';
 import { PresetManager } from '@/components/runs/preset-manager';
 import { RunPreviewCard } from '@/components/runs/run-preview-card';
 import { usePreferencesStore } from '@/lib/stores/preferences-store';
-import type { CompileLaunchResult } from '@/lib/types';
+import type { CompileLaunchResult, RunExampleResult } from '@/lib/types';
 import type { LaunchPreset } from '@/lib/stores/launch-presets-store';
 
 function parseJsonInput(text: string) {
@@ -61,7 +63,7 @@ function NewRunPageContent() {
   const [extensionKeysInput, setExtensionKeysInput] = useState('');
   const [compileResult, setCompileResult] = useState<CompileLaunchResult | undefined>();
   const [validationResult, setValidationResult] = useState<Record<string, unknown> | undefined>();
-  const [bootstrapResult, setBootstrapResult] = useState<Record<string, unknown> | undefined>();
+  const [bootstrapResult, setBootstrapResult] = useState<RunExampleResult | undefined>();
 
   const catalogQuery = useQuery({
     queryKey: ['run-launch-catalog', demoMode],
@@ -182,8 +184,17 @@ function NewRunPageContent() {
     }
   });
 
+  /**
+   * The single bootstrap mutation, shared by all three trigger sites (Submit run, Quick Example
+   * Service run, and the preview card). It was previously two byte-identical `useMutation` calls, so
+   * any change to one silently left the other button on the old behaviour.
+   */
   const submitMutation = useMutation({
     mutationFn: async () => {
+      // Drop the previous attempt's result first. Without this, a success followed by a failure
+      // renders the old badge row and warning banner alongside the new failure banner — two live
+      // regions making contradictory claims about the same button press.
+      setBootstrapResult(undefined);
       const result = await runExample(
         {
           scenarioRef: `${packSlug}/${selectedScenario?.scenario}@${version}`,
@@ -194,33 +205,27 @@ function NewRunPageContent() {
         },
         demoMode
       );
-      setBootstrapResult(result as unknown as Record<string, unknown>);
+      setBootstrapResult(result);
       return result;
     },
     onSuccess: (result) => {
-      const sessionId = result.sessionId ?? '';
-      if (sessionId) router.push(`/runs/live/${sessionId}`);
-    }
-  });
-
-  const quickBootstrapMutation = useMutation({
-    mutationFn: async () => {
-      const result = await runExample(
-        {
-          scenarioRef: `${packSlug}/${selectedScenario?.scenario}@${version}`,
-          templateId,
-          mode,
-          inputs: effectiveInputs.value ?? {},
-          bootstrapAgents: true
-        },
-        demoMode
-      );
-      setBootstrapResult(result as unknown as Record<string, unknown>);
-      return result;
-    },
-    onSuccess: (result) => {
-      const sessionId = result.sessionId ?? '';
-      if (sessionId) router.push(`/runs/live/${sessionId}`);
+      // Redirect only when the playground actually registered the run with the control plane.
+      //
+      // The playground submits best-effort and non-fatally: an unset control-plane URL, a network
+      // error, a timeout, a non-2xx or a bad body all make it omit this field rather than fail the
+      // bootstrap. So its absence is the only signal available here, and it cannot be attributed to
+      // a cause. Redirecting anyway would load the live run route against a control plane that has
+      // no such run, which presents as a confusing load failure instead of the real situation —
+      // agents are up, the run just is not tracked. Gate on the field's presence, never on its
+      // `status`: that union is open upstream and is not validated here.
+      if (!result.controlPlaneRun) return;
+      // Navigate by the control plane's OWN run id, never by `sessionId`. When the Example Service
+      // registers a run through `POST /runs`, the control plane mints a fresh run id and keeps the
+      // session id in a separate column — the two are different values, and `/runs/live/:id` looks
+      // the run up by run id. (They coincide only for runs the control plane auto-discovers from a
+      // runtime session, which is the branch below, not this one.)
+      const target = result.controlPlaneRun.runId;
+      if (target) router.push(`/runs/live/${target}`);
     }
   });
 
@@ -483,11 +488,11 @@ function NewRunPageContent() {
               </Button>
               <Button
                 variant="ghost"
-                onClick={() => quickBootstrapMutation.mutate()}
-                disabled={Boolean(effectiveInputs.error) || quickBootstrapMutation.isPending}
+                onClick={() => submitMutation.mutate()}
+                disabled={Boolean(effectiveInputs.error) || submitMutation.isPending}
               >
                 <FlaskConical size={16} />
-                {quickBootstrapMutation.isPending ? 'Launching...' : 'Quick Example Service run'}
+                {submitMutation.isPending ? 'Launching...' : 'Quick Example Service run'}
               </Button>
             </div>
           </CardContent>
@@ -557,12 +562,68 @@ function NewRunPageContent() {
             </CardDescription>
           </CardHeader>
           <CardContent className="stack">
-            {bootstrapResult && typeof bootstrapResult === 'object' && 'sessionId' in bootstrapResult && (
+            {submitMutation.isError && (
+              // The flow had no error surface at all before this: a failed bootstrap just stopped
+              // the spinner. A silent failure here is worse than the gap this phase is about.
+              <div role="status" className="error-text">
+                Bootstrap failed. {describeApiError(submitMutation.error)}
+              </div>
+            )}
+            {bootstrapResult?.sessionId && (
               <div className="inline-list">
-                <Badge
-                  label={`Session: ${(bootstrapResult as { sessionId?: string }).sessionId ?? ''}`}
-                  tone="success"
-                />
+                {/* Ids go in <code>, not in a Badge: `Badge` title-cases its label, which turns
+                    `session-abc` into `Session Abc` and mangles a UUID outright. */}
+                {bootstrapResult.controlPlaneRun ? (
+                  <Badge label="Registered with the control plane" tone="success" />
+                ) : (
+                  <Badge label="Not registered with the control plane" tone="warning" />
+                )}
+                <span className="muted small">
+                  session <code className="mono">{bootstrapResult.sessionId}</code>
+                  {bootstrapResult.controlPlaneRun ? (
+                    <>
+                      {' · run '}
+                      <code className="mono">{bootstrapResult.controlPlaneRun.runId}</code>
+                    </>
+                  ) : null}
+                </span>
+              </div>
+            )}
+            {bootstrapResult?.sessionId && !bootstrapResult.controlPlaneRun && (
+              <div
+                role="status"
+                style={{
+                  border: '1px solid var(--warning)',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  background: 'var(--panel-2)'
+                }}
+              >
+                {/* Deliberately does NOT say "agents are live". The playground can return 201 with a
+                    sessionId for an agent that never attached: on manifest-validation failure its
+                    process host returns `status: 'resolved', processAttached: false` without throwing
+                    (`process-example-agent-host.provider.ts:132-145`), and the caller only rethrows a
+                    *rejected* promise (`example-run.service.ts:76-79`). A `mode: 'mock' | 'deferred'`
+                    agent reaches the same state by design. Both clauses below mirror the render gate
+                    exactly, which is the standard the rest of this banner already holds itself to. */}
+                <strong>The Example Service returned a session but did not register this run.</strong>
+                <p className="muted small" style={{ margin: '6px 0 0' }}>
+                  It submits runs on a best-effort basis and does not report why an attempt did not land — a
+                  connectivity problem, a rejection, and an unconfigured control-plane URL all look identical from here,
+                  so check the Example Service logs. You have not been redirected because the Example Service did not
+                  return a control-plane run id.
+                </p>
+                <p className="muted small" style={{ margin: '6px 0 0' }}>
+                  The run may still turn up on its own: with session discovery enabled, the control plane registers
+                  sessions it observes directly from the runtime, keyed by session id. Whether that has happened yet is
+                  not something this page can tell — so the session route is a link rather than a redirect, and it
+                  reports an error, not an empty page, until the control plane knows the session. It may never: if the
+                  submission actually reached the control plane and only the reply was lost, a run already exists under
+                  a different id, and discovery will not create a second one.
+                </p>
+                <p className="muted small" style={{ margin: '6px 0 0' }}>
+                  <Link href={`/runs/live/${bootstrapResult.sessionId}`}>Open the live view for this session</Link>
+                </p>
               </div>
             )}
             <JsonViewer
