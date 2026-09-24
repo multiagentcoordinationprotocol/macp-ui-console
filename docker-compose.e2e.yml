@@ -75,7 +75,10 @@ services:
       # a consumer scrapes it; lets `curl localhost:9464/metrics` return runtime series.
       - "9464:9464"
     environment:
-      MACP_BIND_ADDR: "[::]:50051"
+      # Matches the image's own default and the sibling stacks. Was "[::]:50051", which works
+      # on a dual-stack host but fails EADDRNOTAVAIL where IPv6 is disabled — taking the control
+      # plane and playground down with it, since both depend_on the runtime as service_healthy.
+      MACP_BIND_ADDR: "0.0.0.0:50051"
       # The published runtime image does not bake MACP_ALLOW_INSECURE — load-bearing, keep it.
       MACP_ALLOW_INSECURE: "1"
       # Expose per-mode runtime counters (macp_messages_*, macp_sessions_*, macp_commitments_*,

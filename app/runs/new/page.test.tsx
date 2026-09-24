@@ -80,7 +80,7 @@ describe('NewRunPage control-plane registration', () => {
     await submit(user);
 
     await waitFor(() => expect(screen.getByText('Not Registered With The Control Plane')).toBeInTheDocument());
-    expect(screen.getByText(/agents are live, but the example service did not register/i)).toBeInTheDocument();
+    expect(screen.getByText(/returned a session but did not register this run/i)).toBeInTheDocument();
     // The falsifiable half: no navigation at all, not merely a different destination.
     expect(push).not.toHaveBeenCalled();
   });
@@ -93,7 +93,7 @@ describe('NewRunPage control-plane registration', () => {
     renderWithProviders(<NewRunPage />);
     await submit(user);
 
-    const banner = await screen.findByText(/agents are live, but the example service did not register/i);
+    const banner = await screen.findByText(/returned a session but did not register this run/i);
     const text = banner.parentElement?.textContent ?? '';
     // It may list the possibilities, but it must say it cannot distinguish them, and must never
     // state one as fact.
@@ -113,7 +113,7 @@ describe('NewRunPage control-plane registration', () => {
     renderWithProviders(<NewRunPage />);
     await submit(user);
 
-    const banner = await screen.findByText(/agents are live, but the example service did not register/i);
+    const banner = await screen.findByText(/returned a session but did not register this run/i);
     const text = banner.parentElement?.textContent ?? '';
     expect(text).toMatch(/session discovery/i);
     expect(text).not.toMatch(/will not appear|nothing to load/i);

@@ -2,66 +2,38 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach } from 'vitest';
 
 /**
- * `localStorage` / `sessionStorage` polyfill for the jsdom test environment.
+ * Re-expose jsdom's native `localStorage` / `sessionStorage` on the test global.
  *
- * Vitest 4 populates the test global from a fixed key list which does **not** include `localStorage`
- * or `sessionStorage`, and it rebinds `window` to `globalThis`, so jsdom's own `Storage` instances
- * are unreachable from a test. Any module that resolves the bare `localStorage` identifier at import
- * time therefore sees `undefined` — which is how Zustand's `persist` middleware
- * (`createJSONStorage(() => localStorage)`) fails with `Cannot read properties of undefined
- * (reading 'setItem')` in `lib/stores/*`.
+ * Vitest copies jsdom's window properties onto `globalThis`, but its `getWindowKeys` filter skips
+ * any key that already exists on the Node global unless that key is on Vitest's own allow-list —
+ * and `localStorage`/`sessionStorage` are not on it. Node >= 22 defines both as globals, so the
+ * copy is skipped, and `globalThis.localStorage` is Node's experimental Web Storage, which is
+ * `undefined` unless the process was started with `--localstorage-file`. Vitest also rebinds
+ * `window` to `globalThis`, so `window.localStorage` resolves to that same `undefined`. That is how
+ * Zustand's `persist` middleware (`createJSONStorage(() => localStorage)`) fails with
+ * `Cannot read properties of undefined (reading 'setItem')` in `lib/stores/*`.
  *
- * This installs a spec-shaped in-memory `Storage` and clears it between tests so persistence state
- * cannot leak across cases. (`vitest.config.ts` additionally gives jsdom a real document origin —
- * jsdom refuses storage on an opaque origin such as the default `about:blank`, so that is the
- * prerequisite for ever using its native implementation instead of this one.)
+ * Pointing the globals at jsdom's own `Storage` instances gives tests the real browser
+ * implementation — storage events, quota errors, origin partitioning — instead of a stand-in, and
+ * keeps storage inside jsdom's per-file isolation rather than Node's process-wide store. Requires a
+ * non-opaque document origin; see `environmentOptions.jsdom.url` in `vitest.config.ts`.
+ *
+ * `sessionStorage` belongs in the loop even though nothing uses it yet: left alone, the global
+ * resolves to Node's *process-wide* store, which sits outside jsdom's per-file isolation.
  */
-class MemoryStorage implements Storage {
-  private store = new Map<string, string>();
+const jsdomWindow = (globalThis as unknown as { jsdom?: { window: Window } }).jsdom?.window;
 
-  get length(): number {
-    return this.store.size;
-  }
-
-  key(index: number): string | null {
-    return Array.from(this.store.keys())[index] ?? null;
-  }
-
-  getItem(key: string): string | null {
-    return this.store.has(String(key)) ? (this.store.get(String(key)) as string) : null;
-  }
-
-  setItem(key: string, value: string): void {
-    this.store.set(String(key), String(value));
-  }
-
-  removeItem(key: string): void {
-    this.store.delete(String(key));
-  }
-
-  clear(): void {
-    this.store.clear();
+if (jsdomWindow) {
+  for (const name of ['localStorage', 'sessionStorage'] as const) {
+    Object.defineProperty(globalThis, name, {
+      value: jsdomWindow[name],
+      writable: true,
+      configurable: true
+    });
   }
 }
-
-function installStorage(name: 'localStorage' | 'sessionStorage'): Storage {
-  const existing = (globalThis as Record<string, unknown>)[name];
-  if (existing && typeof (existing as Storage).setItem === 'function') {
-    return existing as Storage;
-  }
-  const storage = new MemoryStorage();
-  Object.defineProperty(globalThis, name, {
-    value: storage,
-    writable: true,
-    configurable: true
-  });
-  return storage;
-}
-
-const localStorageRef = installStorage('localStorage');
-const sessionStorageRef = installStorage('sessionStorage');
 
 afterEach(() => {
-  localStorageRef.clear();
-  sessionStorageRef.clear();
+  localStorage.clear();
+  sessionStorage.clear();
 });

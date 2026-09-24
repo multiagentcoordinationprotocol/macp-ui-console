@@ -1,5 +1,17 @@
 # Local development overrides — uses pre-built images instead of building from source.
-# This avoids needing NPM_TOKEN for GitHub Packages auth.
+# This avoids needing NPM_TOKEN for GitHub Packages auth *on every run* — but the images must
+# exist first, so build them once with:
+#
+#   docker compose -f docker-compose.e2e.yml build
+#
+# The defaults below are the names that command produces. Compose tags built images
+# `<project>-<service>`, and the project here is `macp-ui-console` while the services are
+# `macp-control-plane` / `macp-playground` — hence the doubled `macp-`. These were previously
+# `macp-ui-console-control-plane` / `macp-ui-console-examples-service`, names nothing in this
+# repo has produced since the services were renamed; combined with `build: !reset null` compose
+# could only ever *pull* them, which is the real source of the misleading
+# `pull access denied for macp-ui-console-control-plane`. Override either with
+# MACP_CONTROL_PLANE_IMAGE / MACP_EXAMPLES_SERVICE_IMAGE to use published images instead.
 #
 # Usage:
 #   docker compose -f docker-compose.e2e.yml -f docker-compose.local.yml up -d --wait
@@ -8,16 +20,16 @@
 services:
   migrate:
     build: !reset null
-    image: ${MACP_CONTROL_PLANE_IMAGE:-macp-ui-console-control-plane:latest}
+    image: ${MACP_CONTROL_PLANE_IMAGE:-macp-ui-console-macp-control-plane:latest}
     command: node dist/db/migrate.js
 
   macp-control-plane:
     build: !reset null
-    image: ${MACP_CONTROL_PLANE_IMAGE:-macp-ui-console-control-plane:latest}
+    image: ${MACP_CONTROL_PLANE_IMAGE:-macp-ui-console-macp-control-plane:latest}
 
   macp-playground:
     build: !reset null
-    image: ${MACP_EXAMPLES_SERVICE_IMAGE:-macp-ui-console-examples-service:latest}
+    image: ${MACP_EXAMPLES_SERVICE_IMAGE:-macp-ui-console-macp-playground:latest}
     environment:
       MACP_CONTROL_PLANE_API_KEY: "local-dev"
       OPENAI_API_KEY: "${OPENAI_API_KEY}"

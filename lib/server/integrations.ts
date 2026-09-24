@@ -34,7 +34,7 @@ export function getIntegrationConfig(service: ProxyService): ServiceConfig {
   if (service === 'macp-playground') {
     return {
       service,
-      baseUrl: resolveBaseUrl('MACP_PLAYGROUND_BASE_URL', 'http://localhost:3000', service),
+      baseUrl: resolveBaseUrl('MACP_PLAYGROUND_BASE_URL', 'http://localhost:3100', service),
       authHeaderName: 'x-api-key',
       authToken: resolveAuthToken('MACP_PLAYGROUND_API_KEY', service)
     };

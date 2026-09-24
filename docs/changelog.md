@@ -90,8 +90,20 @@ no data migration and no wire-contract change on the console side.
 - **Large envelopes now arrive.** The gRPC receive limit is explicit and raised to 16 MiB; it was
   previously grpc-js's implicit 4 MB default, which surfaced as mysterious gaps or 503s. A send limit
   was added alongside it.
-- **Proto moved 0.1.9 → 0.1.10**, which governs `event.data.decodedPayload` shapes. **Not audited in
-  this pass** — recorded as a known-unverified edge rather than implied to be checked.
+- **Proto moved 0.1.9 → 0.1.10 — audited, and it touches nothing the console reads.** The whole
+  delta across every `.proto` file is a four-line *comment* change on
+  `PolicyDescriptor.schema_version` in `policy.proto`, documenting that RFC-MACP-0012 now defines
+  version 3. No field was added, removed, renamed, re-nested or retyped. `policy.proto` is loaded
+  only for the gRPC policy RPCs and is not among the descriptors the control plane decodes into
+  `decodedPayload`, so it cannot reach the event stream at all. The console already implements the
+  semantics that bump documents — `POLICY_SCHEMA_VERSIONS = [1, 2, 3]`, with new registrations
+  defaulting to 3.
+  Worth keeping for next time: mode-payload `decodedPayload` **is** a straight pass-through of the
+  proto decode, so a future bump touching `decision`/`proposal`/`task`/`handoff`/`quorum`/
+  `multi_round` does need this check — which is one command,
+  `git diff proto-v<old> proto-v<new> -- packages/proto-npm` against the monorepo's tags, not the
+  open-ended audit it was first assumed to be. Demo fixtures remain non-evidence for upstream
+  drift, since they are this repo's own mock data.
 
 ### Corrections to this repo's own docs
 

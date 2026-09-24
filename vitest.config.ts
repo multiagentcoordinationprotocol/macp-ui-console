@@ -6,11 +6,11 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    // jsdom refuses `localStorage` on an opaque origin, and its default document URL
-    // (`about:blank`) is opaque — accessing the property throws
-    // `SecurityError: localStorage is not available for opaque origins`. Zustand's
-    // `persist` middleware touches it at import time, so every test importing a
-    // preferences/presets store fails without a real origin here.
+    // jsdom refuses `localStorage` on an opaque origin (`about:blank`), throwing
+    // `SecurityError: localStorage is not available for opaque origins`. Vitest's jsdom
+    // environment already defaults this to `http://localhost:3000`, so this line is a pin,
+    // not a fix — but `test/setup.ts` hands jsdom's native Storage to the test global, so a
+    // real origin is a hard prerequisite. Keep it explicit rather than inherited.
     environmentOptions: {
       jsdom: { url: 'http://localhost:3000' }
     },

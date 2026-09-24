@@ -41,8 +41,9 @@ agent profile catalog, and optional one-shot bootstrap + spawn of example agents
 - **Endpoints the UI calls** — see [`api-integration.md`](./api-integration.md#example-service-endpoints-used-by-the-ui)
 - **Observed characteristics**
   - NestJS service; listens on `3000` inside its container, published on `3100` by the compose
-    stacks (`docker-compose.e2e.yml`). Set `MACP_PLAYGROUND_BASE_URL` explicitly — the code's
-    fallback is `http://localhost:3000`, which is the Next.js dev server, not this service.
+    stacks (`docker-compose.e2e.yml`). The code's dev-only fallback is `http://localhost:3100` to
+    match, pinned by `lib/server/integrations.test.ts`; production requires the variable explicitly
+    (`resolveBaseUrl` throws rather than guessing).
   - Optional `x-api-key` auth (forwarded by the UI proxy)
   - Built-in example agent catalog: `fraud-agent`, `growth-agent`, `compliance-agent`, `risk-agent` across LangGraph / LangChain / CrewAI / custom Node frameworks
   - Agent metrics are fetched from the control plane and merged client-side into agent profiles

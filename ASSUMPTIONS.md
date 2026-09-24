@@ -31,7 +31,20 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
   errors, no cross-origin partitioning), so a future test that asserts *browser* storage semantics
   rather than "a store round-trips its state" could pass here and fail in a real browser. No production
   code path is affected. Reversing is deleting two files' worth of additions.
-- **Status:** UNCONFIRMED
+- **Resolved (2026-09-23) — CHANGED.** The polyfill was necessary but not the best available option, and two
+  of the entry's own claims were wrong. (a) The root cause is not Vitest's key list alone: that filter
+  skips a key only when it already exists on the Node global, and **Node >= 22 defines
+  `localStorage`/`sessionStorage` itself** as experimental Web Storage that returns `undefined`
+  without `--localstorage-file`. (b) `environmentOptions.jsdom.url` was a **no-op** — Vitest's jsdom
+  environment already defaults to that exact string — so the comment calling it the fix was false.
+  (c) Worse, `installStorage` never replaced `sessionStorage` at all: Node's version returns a
+  working object, so the guard handed it back, silently binding tests to a **process-wide** store
+  outside jsdom's per-file isolation. Replaced the hand-rolled `Storage` with a bridge to jsdom's
+  native instances (`test/setup.ts`), which closes the spec-fidelity gap this entry named as its only
+  risk, fixes the `sessionStorage` leak, and drops the per-run `ExperimentalWarning`. The `jsdom.url`
+  pin is kept — under the native bridge a non-opaque origin is a genuine prerequisite — with an
+  honest comment. Added `test/setup.test.ts`, which fails 2/5 against the exact previous bug.
+- **Status:** RESOLVED (2026-09-23) — superseded by the change above
 
 ---
 
@@ -58,7 +71,24 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
   in the policy detail panel rather than being flagged. No crash, no data loss, no incorrect
   enforcement (the console never enforces policy — it displays it). Cost to reverse: none; this is an
   absence of behaviour, not a behaviour.
-- **Status:** UNCONFIRMED
+- **Reconciled (2026-09-23) — CONFIRMED, with two amendments.** The core claim verified and is stronger than
+  written: `PolicyDefinition` has exactly two consumers in the repo, both demo (`MOCK_POLICY_DEFINITIONS`
+  and its test). The entry's own hedge about the registration body is also wrong — that form is a
+  free-text JSON textarea typed `Record<string, unknown>`, so `PolicyDefinition` is demo-only, full
+  stop. `grep -rn "authority"` hits only `lib/types.ts` and the mock data; no component reads it.
+  The singular `designated_role` is confirmed correct against four independent sources plus the
+  canonical JSON schema. **Amendment 1:** the exhaustiveness anchor is at `lib/data/mock-data.test.ts:36`,
+  not `lib/types.ts`, and it is load-bearing — verified empirically (adding a member gives TS2741,
+  removing one TS2353), reached by `npm run typecheck` in CI. It is only the *annotation site* that
+  makes it work; hoisting the literal off it silently kills the gate. **Amendment 2:** the blast
+  radius understated one thing — nothing anywhere in the stack enum-checks `commitment.authority`
+  (the runtime hand-checks only the `designated_role` -> non-empty-roles pairing), so an unknown
+  value is registrable and the runtime's `_ =>` arm silently treats it as `initiator_only`. That is
+  an upstream validation gap, out of scope here, and it does not change the console's behaviour.
+  A display-only "unrecognized authority" badge was considered and **not** taken: it is cheap in code
+  but unreachable against current mocks, and making it reachable needs a deliberately-invalid fixture
+  on the user-visible `/policies` catalog — a product decision, not a type fix.
+- **Status:** CONFIRMED (2026-09-23)
 
 ---
 
@@ -83,7 +113,23 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
 - **Blast radius if wrong:** One misleading sentence in a warning banner, on a path that is already the
   unhappy one. No navigation, data, or state depends on it — the redirect is gated on `controlPlaneRun`,
   not on this claim. Cost to reverse: a type change plus one condition.
-- **Status:** UNCONFIRMED
+- **Resolved (2026-09-23) — CHANGED.** The premise verified TRUE and reaches further than the entry said.
+  On manifest-validation failure the playground's host returns `status: 'resolved'` with
+  `processAttached: false` and **does not throw**
+  (`process-example-agent-host.provider.ts:132-145`); the caller rethrows only a *rejected* promise
+  (`example-run.service.ts:76-79`), so 201 + `sessionId` + no `controlPlaneRun` + zero agents
+  attached is reachable. A second path was missed entirely: a `mode: 'mock' | 'deferred'` agent
+  returns `processAttached: false` **by design**, so the sentence would be false on a perfectly
+  healthy run once such an agent is added. Decisively, the deferred "right fix" would not have fixed
+  it either — `processAttached: true` is set immediately after spawn, alongside
+  `healthStatus: 'starting'`, so it means "a process was spawned", never "an agent is live".
+  Took the previously-rejected option instead: reworded to "The Example Service returned a session
+  but did not register this run." Both clauses now mirror the render gate exactly, which is the
+  standard every other sentence in this banner already held itself to. No type change, no
+  demo-parity work, no new failure mode; the rationale is pinned in a comment at the call site so it
+  is not "improved" back. The upstream defect (201 for an agent that never attached) is a playground
+  issue and is listed for filing — **awaiting explicit go-ahead**, per the cross-repo rule.
+- **Status:** RESOLVED (2026-09-23) — superseded by the reword above
 
 ---
 
@@ -137,7 +183,26 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
   alone here because `docker-compose.local.yml` and `scripts/local-stack.sh` are outside this phase's
   file list **and because the fix is unverifiable in this environment** — the name can be shown to
   match, but not that the stack then boots. Strong candidate for its own change.
-- **Status:** UNCONFIRMED
+- **Reconciled (2026-09-23) — CONFIRMED, and the gap is closed: the stack was actually booted.** Both
+  original blockers had lifted (the sibling stack was gone; every required port was free), so the
+  full stack was brought up with `docker compose -f docker-compose.e2e.yml -f docker-compose.local.yml
+  up -d --wait` using only documented env overrides, no file edits. Every service reported healthy.
+  **AC4 is now genuinely met**: `/readyz` returned `ok: true` with
+  `runtime: { ok: true, runtimeKind: "rust", detail: "connected to runtime:50051" }` and
+  `circuitBreaker: CLOSED`. The pin itself is confirmed four ways: `f97fd15…` is exactly
+  `git rev-list -n1 macp-runtime-v0.8.0`, the commit is "chore: release v0.8.0 (#172)", the image's
+  `org.opencontainers.image.revision` label matches, and the container logs
+  `macp-runtime v0.8.0 listening`. The three risks previously closed by inspection are now closed by
+  execution — the boot logged `static bearer resolver initialized count=1`, so `MACP_AUTH_TOKENS_JSON`
+  really does deserialise, and all eight `MACP_*` vars were consumed.
+  The `MACP_BIND_ADDR` delta was measured, not argued: `bindv6only=0`, a `::` dual-stack listener,
+  the exact compose healthcheck exiting 0, and a peer container connecting over IPv4 — **no live
+  risk**. It was still changed to `0.0.0.0:50051`, as cleanup rather than mitigation: it matches the
+  image's own default and the sibling stacks, and the only environment it breaks is one with IPv6
+  disabled, where it would take down the two services that `depend_on` the runtime.
+  **AC5**: a scenario launched through the same path `/runs/new` uses reached a terminal state, but
+  `failed` — and *not* because of the pin. See the separate GetSession-race item below.
+- **Status:** CONFIRMED (2026-09-23)
 
 ---
 
@@ -164,7 +229,22 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
   unaffected because it never touches proto. No crash path: every read site is a lookup on a possibly-
   absent field with a fallback. Detection would come from an operator noticing a blank summary, which
   is why the changelog names the risk rather than burying it.
-- **Status:** UNCONFIRMED
+- **Resolved (2026-09-23) — AUDITED; the risk is verified absent for this bump.** The blocker recorded above
+  ("it would need the 0.1.9 package to diff against") was simply wrong: the monorepo carries tags
+  `proto-v0.1.9` and `proto-v0.1.10`, and `git archive proto-v0.1.10 packages/proto-npm` is
+  **byte-identical** to the published 0.1.10 installed in the control plane, so the tags are faithful.
+  The entire delta across every `.proto` file is a four-line **comment** change on
+  `PolicyDescriptor.schema_version` in `policy.proto` — no field added, removed, renamed, re-nested
+  or retyped. That message cannot reach `decodedPayload` at all: `ProtoRegistryService` loads only
+  the envelope and mode descriptors for `decodeKnown()`, while `policy.proto` is loaded separately
+  for the gRPC policy RPCs. Zero overlap with the fields the console reads. The audit took about ten
+  minutes, not "a phase of its own".
+  Two things worth keeping: mode-payload `decodedPayload` **is** a genuine pass-through of the proto
+  decode, so a future bump touching the mode descriptors needs this same check — now a one-command
+  recipe rather than an open-ended audit; and the console already implements the one substantive
+  thing 0.1.10 documents (`schema_version` 3). The changelog was rewritten from "not audited" to the
+  finding, since leaving it would now understate what is known.
+- **Status:** RESOLVED (2026-09-23) — verified absent, not merely unverified
 
 ---
 
@@ -202,4 +282,16 @@ still open. Kept UNCONFIRMED because changing a runtime default is a behaviour c
   it. A developer who runs `dev:real` without having written an env file gets the self-proxy. If the
   fallback is in fact correct and `.env.example` is the wrong one, the cost of this entry is a
   paragraph of prose. Nothing in the branch depends on either value.
-- **Status:** UNCONFIRMED
+- **Resolved (2026-09-23) — CHANGED; fixed rather than deferred again.** `lib/server/integrations.ts:37`
+  now falls back to `http://localhost:3100`. Deferring a second time was the wrong instinct: the
+  change is one character-range, reversible, and it makes the code agree with the three docs this
+  branch already corrected. Option (b) — delete the fallback and fail hard — was rejected on a fact
+  that corrects the original note: `getIntegrationConfig` is called at **request** time from the
+  proxy route, so removing the fallback yields a request-time 500, not a startup error, which is
+  worse than the 404 it replaces. It would also leave an asymmetric pair, since the control plane's
+  `3001` fallback is correct and stays. With `3100`, `local:up` + `dev:real` with no env file simply
+  works. A breakage sweep found nothing depending on the old value: `.env.e2e`, `local-stack.sh`,
+  every compose file and the one integration test all set the variable explicitly.
+  Pinned by a new `lib/server/integrations.test.ts` (4 cases), mutation-proved: reverting the
+  fallback to `3000` fails 2 of them.
+- **Status:** CONFIRMED (2026-09-23) — changed and pinned

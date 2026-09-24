@@ -599,7 +599,14 @@ function NewRunPageContent() {
                   background: 'var(--panel-2)'
                 }}
               >
-                <strong>Agents are live, but the Example Service did not register this run.</strong>
+                {/* Deliberately does NOT say "agents are live". The playground can return 201 with a
+                    sessionId for an agent that never attached: on manifest-validation failure its
+                    process host returns `status: 'resolved', processAttached: false` without throwing
+                    (`process-example-agent-host.provider.ts:132-145`), and the caller only rethrows a
+                    *rejected* promise (`example-run.service.ts:76-79`). A `mode: 'mock' | 'deferred'`
+                    agent reaches the same state by design. Both clauses below mirror the render gate
+                    exactly, which is the standard the rest of this banner already holds itself to. */}
+                <strong>The Example Service returned a session but did not register this run.</strong>
                 <p className="muted small" style={{ margin: '6px 0 0' }}>
                   It submits runs on a best-effort basis and does not report why an attempt did not land — a
                   connectivity problem, a rejection, and an unconfigured control-plane URL all look identical from here,
