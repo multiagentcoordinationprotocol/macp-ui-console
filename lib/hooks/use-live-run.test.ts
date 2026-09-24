@@ -110,6 +110,12 @@ function makeFrame(seq: number) {
 /** First reconnect backoff: `min(1000 * 2 ** attempt, 30_000)` with attempt 0. */
 const RECONNECT_BACKOFF_MS = 1000;
 
+/** Must match the private constant of the same name in `use-live-run.ts`. */
+const HEARTBEAT_TIMEOUT_MS = 45_000;
+
+/** Must match the private constant of the same name in `use-live-run.ts`. */
+const MAX_RECONNECT_ATTEMPTS = 8;
+
 /** The `afterSeq` the hook opened its most recent stream with. */
 function afterSeqOf(instance: MockEventSource): number {
   return Number(new URL(instance.url, 'http://localhost').searchParams.get('afterSeq'));
@@ -683,6 +689,159 @@ describe('useLiveRun', () => {
         'setPaused',
         'state'
       ]);
+    });
+  });
+
+  describe('reconnect targeting across a runId change (no remount)', () => {
+    // App Router does not remount `RunWorkbench` just because a dynamic route segment's value
+    // changed — navigating from one live run's page to another's, client-side, re-renders the same
+    // component with a new `runId` prop. `attemptReconnect`/`resetHeartbeatTimer` are memoized with a
+    // permanently empty dependency array so their identity survives reconnects; before the
+    // `connectSSERef` fix, that meant they closed over the *first* `connectSSE` this hook instance
+    // ever created — a later reconnect would silently re-open a stream for the *original* run and
+    // splice its events into whatever run is currently on screen.
+    it('a reconnect triggered by a fresh error targets the new run, not the one mounted with', async () => {
+      const useLiveRun = await importHook();
+      const { rerender } = renderHook(({ runId }: { runId: string }) => useLiveRun({ runId, demoMode: false }), {
+        initialProps: { runId: 'run-1' }
+      });
+
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(MockEventSource.instances[0].url).toContain('/runs/run-1/stream');
+
+      // Simulate the App Router reuse case: same hook instance, new runId.
+      rerender({ runId: 'run-2' });
+
+      expect(MockEventSource.instances).toHaveLength(2);
+      expect(MockEventSource.instances[1].url).toContain('/runs/run-2/stream');
+
+      // The run-2 connection drops on its own, independent of the run change.
+      act(() => {
+        MockEventSource.instances[1].dispatchEvent('error');
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(RECONNECT_BACKOFF_MS);
+      });
+
+      // The reconnect must still target run-2 — not the run-1 closure `attemptReconnect` was
+      // originally created against.
+      expect(MockEventSource.instances).toHaveLength(3);
+      expect(MockEventSource.instances[2].url).toContain('/runs/run-2/stream');
+      expect(MockEventSource.instances[2].url).not.toContain('run-1');
+    });
+
+    it('a reconnect triggered by a heartbeat timeout also targets the new run', async () => {
+      // Same hazard, via the other caller of the stale closure: resetHeartbeatTimer -> attemptReconnect.
+      const useLiveRun = await importHook();
+      const { rerender } = renderHook(({ runId }: { runId: string }) => useLiveRun({ runId, demoMode: false }), {
+        initialProps: { runId: 'run-1' }
+      });
+
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('open');
+      });
+
+      rerender({ runId: 'run-2' });
+      expect(MockEventSource.instances).toHaveLength(2);
+
+      act(() => {
+        MockEventSource.instances[1].dispatchEvent('open');
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(HEARTBEAT_TIMEOUT_MS);
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(RECONNECT_BACKOFF_MS);
+      });
+
+      expect(MockEventSource.instances).toHaveLength(3);
+      expect(MockEventSource.instances[2].url).toContain('/runs/run-2/stream');
+      expect(MockEventSource.instances[2].url).not.toContain('run-1');
+    });
+  });
+
+  describe('heartbeat timeout', () => {
+    it('reconnects when no heartbeat or event arrives within HEARTBEAT_TIMEOUT_MS', async () => {
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false }));
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('open');
+      });
+      expect(result.current.connectionStatus).toBe('live');
+
+      // Silence for the full heartbeat window — no 'heartbeat', 'snapshot', or 'canonical_event'.
+      await act(async () => {
+        vi.advanceTimersByTime(HEARTBEAT_TIMEOUT_MS);
+      });
+      expect(result.current.connectionStatus).toBe('reconnecting');
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(RECONNECT_BACKOFF_MS);
+      });
+      expect(MockEventSource.instances).toHaveLength(2);
+    });
+
+    it('a heartbeat event resets the timeout window', async () => {
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false }));
+
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('open');
+      });
+
+      // Just under the timeout, then a heartbeat — the window should restart, not merely pause.
+      await act(async () => {
+        vi.advanceTimersByTime(HEARTBEAT_TIMEOUT_MS - 1000);
+      });
+      act(() => {
+        MockEventSource.instances[0].dispatchEvent('heartbeat');
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(HEARTBEAT_TIMEOUT_MS - 1000);
+      });
+
+      expect(result.current.connectionStatus).toBe('live');
+      expect(MockEventSource.instances).toHaveLength(1);
+    });
+  });
+
+  describe('reconnect attempt exhaustion', () => {
+    it(`stops reconnecting after ${MAX_RECONNECT_ATTEMPTS} attempts and reports connectionStatus "error"`, async () => {
+      const useLiveRun = await importHook();
+      const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: false }));
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      for (let attempt = 0; attempt < MAX_RECONNECT_ATTEMPTS; attempt++) {
+        const delay = Math.min(1000 * 2 ** attempt, 30_000);
+        act(() => {
+          MockEventSource.instances.at(-1)!.dispatchEvent('error');
+        });
+        await act(async () => {
+          vi.advanceTimersByTime(delay);
+        });
+      }
+
+      // 1 initial connection + one reconnect per attempt.
+      expect(MockEventSource.instances).toHaveLength(MAX_RECONNECT_ATTEMPTS + 1);
+      expect(result.current.connectionStatus).toBe('reconnecting');
+      expect(result.current.reconnectAttempt).toBe(MAX_RECONNECT_ATTEMPTS);
+
+      // The next error is the one that exhausts the budget — synchronous, no timer needed.
+      act(() => {
+        MockEventSource.instances.at(-1)!.dispatchEvent('error');
+      });
+      expect(result.current.connectionStatus).toBe('error');
+      expect(result.current.reconnectAttempt).toBe(MAX_RECONNECT_ATTEMPTS);
+
+      // No further reconnect gets scheduled, however long we wait.
+      await act(async () => {
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(MockEventSource.instances).toHaveLength(MAX_RECONNECT_ATTEMPTS + 1);
     });
   });
 });

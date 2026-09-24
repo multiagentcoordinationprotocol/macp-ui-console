@@ -77,6 +77,21 @@ export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoS
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Always the *current* `connectSSE` (see the sync effect right after it's declared).
+   *
+   * `attemptReconnect` and `resetHeartbeatTimer` are memoized with a permanently empty
+   * dependency array so that timers they schedule stay identity-stable across reconnects.
+   * If they called `connectSSE()` directly, that closure would capture whichever `runId`
+   * was in scope on the render that first created them — the *first* one ever, since an
+   * empty-deps `useCallback` never re-creates its function. A component that keeps this
+   * hook mounted across a `runId` change (App Router does not remount a page just because
+   * a dynamic segment's value changed) would then have every later reconnect silently
+   * re-open a stream for the *original* run and splice its events into the run currently
+   * on screen. Indirecting through a ref that's kept fresh on every `runId` change avoids
+   * that without needing `attemptReconnect`'s own identity to change.
+   */
+  const connectSSERef = useRef<() => void>(() => {});
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -116,9 +131,9 @@ export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoS
 
     const delay = Math.min(1000 * Math.pow(2, attempt), 30_000);
     reconnectTimerRef.current = setTimeout(() => {
-      connectSSE();
+      // Via the ref, not `connectSSE` directly — see `connectSSERef`'s declaration above.
+      connectSSERef.current();
     }, delay);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const connectSSE = useCallback(() => {
@@ -186,6 +201,13 @@ export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoS
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
+
+  // Keep `connectSSERef` pointed at the `connectSSE` bound to the current `runId`. Runs on every
+  // `runId` change, same as the `lastSeqRef` sync above — see `connectSSERef`'s declaration for why
+  // this indirection exists.
+  useEffect(() => {
+    connectSSERef.current = connectSSE;
+  }, [connectSSE]);
 
   useEffect(() => {
     if (!autoStart || paused) return;
