@@ -68,7 +68,28 @@ export function mergeEventStreams(fetched: CanonicalEvent[], live: CanonicalEven
   if (!fetched.length) return live;
   const byId = new Map(fetched.map((event) => [event.id, event]));
   for (const event of live) byId.set(event.id, event);
-  return Array.from(byId.values()).sort((a, b) => a.seq - b.seq);
+  return Array.from(byId.values()).sort((a, b) => {
+    const left = sortKey(a);
+    const right = sortKey(b);
+    if (left === right) return 0;
+    return left < right ? -1 : 1;
+  });
+}
+
+/**
+ * `seq` is typed `number`, but these events come off an SSE frame through `JSON.parse`, so the type
+ * is a claim about the wire and not a guarantee — the same reason the resume cursor in
+ * `use-live-run.ts` is `Number.isFinite`-guarded. A bare `a.seq - b.seq` returns `NaN` for a missing
+ * or non-numeric `seq`, and a comparator that returns `NaN` is not a valid ordering: the engine is
+ * free to leave the array in any order at all, so one malformed frame could scramble the whole rail
+ * rather than just misplace itself.
+ *
+ * Unusable values sort to the end — they arrived most recently, which is where an event of unknown
+ * position is least disruptive — and compare equal to each other, so `sort`'s stability keeps them
+ * in arrival order instead of shuffling them.
+ */
+function sortKey(event: CanonicalEvent): number {
+  return Number.isFinite(event.seq) ? event.seq : Number.POSITIVE_INFINITY;
 }
 
 /**

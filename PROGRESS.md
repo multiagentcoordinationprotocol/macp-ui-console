@@ -349,17 +349,20 @@ _(`/implement` appends; `/plan` seeded the five below — full reasoning in the 
 | D34 | `MOCK_RUNTIME_MANIFEST.metadata.protocolVersion` went to `0.1.10` (proto), not `0.8.0` (runtime image) | The plan explicitly refused to let AC2's grep drive this value, and it was right to: the field tracks the **proto** package, and the CP's dependency is `0.1.10`. The stale `0.5.0` was traced to this repo's own 2026-07-07 changelog entry, which set it beside the v0.5.0 image pin and conflated image version with protocol version. A real runtime returns `metadata: {}`, so nothing reads it — the comment now says so, to stop the next bump repeating the conflation (P10) |
 | D35 | The feature-matrix modes row says **five**, overriding the plan's "do not change the count" | The plan counted what the runtime *declares* (5 standard + 1 extension); the row describes what the console *shows*. `/modes` → CP `GET /runtime/modes` → runtime `ListModes` → `standard_mode_descriptors()` = five. `ext.multi_round.v1` needs `ListExtModes`, for which the CP exposes no route, so it can never reach this surface. Demo's six is now a labelled `KNOWN DEMO/REAL DIVERGENCE` in the mock rather than a silent contradiction of production (P10) |
 | D36 | Stale line counts were deleted rather than corrected | `client.ts` was documented at ~460 lines against an actual 1346 — a ~3x error — and mock-data's figure was stale by about a thousand, across three files. (No *mock-data* count is quoted here on purpose: this bullet's own first draft cited one that the branch had already invalidated. `client.ts`'s 1346 is safe to cite only because the branch's last commit is the thing that fixes it.) They have rotted twice already; an updated number is a third rot scheduled. Nothing depends on them (P10) |
-| D37 | Proto `0.1.9 → 0.1.10` is published as explicitly **unaudited** | Saying nothing would read as "checked and fine". The changelog names it as a known-unverified edge and `ASSUMPTIONS.md` carries the entry, per the plan's own instruction. The console's payload reads are name-based lookups with fallbacks, so a shape change degrades quietly — exactly the failure that needs naming rather than burying (P10) |
+| D37 | Proto `0.1.9 → 0.1.10` is published as explicitly **unaudited** | Saying nothing would read as "checked and fine". The changelog names it as a known-unverified edge and `ASSUMPTIONS.md` carries the entry, per the plan's own instruction. The console's payload reads are name-based lookups with fallbacks, so a shape change degrades quietly — exactly the failure that needs naming rather than burying (P10). **Superseded by D-R3:** the reconcile pass audited the diff instead of publishing it as unknown, and the changelog now carries the finding |
 
 ## Assumptions to reconcile
 
-_(pending confirmation; `/implement` logs these to `ASSUMPTIONS.md` as `UNCONFIRMED`)_
+**All settled.** A1–A5 (and the sixth entry logged during implementation) were reconciled in
+`c2656af`; `ASSUMPTIONS.md` now carries **zero** `UNCONFIRMED` entries, and the reasoning for each —
+including the A5 proto audit, which was completed rather than left unaudited — is recorded as
+D-R1…D-R7 in `DECISIONS.md`. The list below is kept only as the record of what was open at plan time.
 
 - A1 — policy form defaults to `schemaVersion: 3` (P6)
 - A2 — bootstrap without `controlPlaneRun` does **not** redirect (P7)
 - A3 — drift loads on demand rather than with the tab (P5)
 - A4 — GHCR tag `f97fd15` is pullable (P9; verified by that phase's own boot criterion)
-- A5 — macp-proto `0.1.10` changed no `decodedPayload` shape the console reads (P10; **not audited**)
+- A5 — macp-proto `0.1.10` changed no `decodedPayload` shape the console reads (P10)
 
 ---
 

@@ -1068,6 +1068,25 @@ function buildRecent(events: CanonicalEvent[]) {
   }));
 }
 
+/**
+ * Derives a projection's timeline counters from its event fixture rather than restating them.
+ *
+ * `recent` was already derived; `latestSeq` and `totalEvents` were hand-written literals, and three
+ * of the six runs had drifted — the badge beside the rail disagreed with the rows in it (11 against
+ * 14, 8 against 12, 5 against 6). Restating a number the fixture already carries is a drift source
+ * with no upside, so nothing restates it now: adding an event moves the counters with it.
+ *
+ * `latestSeq` is the max seq rather than the count. They coincide in these fixtures, which are
+ * contiguous, but they do not coincide upstream — the control plane allocates one seq span per
+ * persisted batch, hands the first value to the raw row and publishes only the rest, so real
+ * canonical seqs skip. Pinned by `mock-data.test.ts`.
+ */
+function syncTimeline(state: RunStateProjection, events: CanonicalEvent[]) {
+  state.timeline.recent = buildRecent(events);
+  state.timeline.totalEvents = events.length;
+  state.timeline.latestSeq = events.reduce((max, item) => Math.max(max, item.seq), 0);
+}
+
 function event(
   runId: string,
   seq: number,
@@ -1411,6 +1430,32 @@ export const MOCK_RUN_EVENTS: Record<string, CanonicalEvent[]> = {
       ),
       source: { kind: 'macp-control-plane', name: 'stream-consumer' }
     }
+  ],
+  // The cancelled run had no event fixture at all, while its projection claimed three events — so
+  // the badge read "3 events" beside an empty rail, and `/logs`'s `run.cancelled` filter entry
+  // (`app/logs/page.tsx:35`) matched nothing in demo mode, which is the default. These are the three
+  // the projection was already asserting. Timestamps are written out rather than taken from the
+  // `event()` helper, whose `ts` is a function of `seq` alone and would place this run's events
+  // ~25 minutes ago — an hour inside a window that closed at 94.
+  [CANCELLED_RUN_ID]: [
+    {
+      ...event(CANCELLED_RUN_ID, 1, 'run.created', { status: 'queued' }, { kind: 'run', id: CANCELLED_RUN_ID }),
+      ts: isoMinutesAgo(96)
+    },
+    {
+      ...event(CANCELLED_RUN_ID, 2, 'run.started', { status: 'running' }, { kind: 'run', id: CANCELLED_RUN_ID }),
+      ts: isoMinutesAgo(95)
+    },
+    {
+      ...event(
+        CANCELLED_RUN_ID,
+        3,
+        'run.cancelled',
+        { status: 'cancelled', reason: 'cancelled by operator during triage' },
+        { kind: 'run', id: CANCELLED_RUN_ID }
+      ),
+      ts: isoMinutesAgo(94)
+    }
   ]
 };
 
@@ -1524,11 +1569,12 @@ const cancelledState: RunStateProjection = {
   }
 };
 
-liveBaseState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[LIVE_RUN_ID]);
-completedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[COMPLETED_RUN_ID]);
-failedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[FAILED_RUN_ID]);
-opsState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[DECLINED_RUN_ID]);
-suspendedState.timeline.recent = buildRecent(MOCK_RUN_EVENTS[SUSPENDED_RUN_ID]);
+syncTimeline(liveBaseState, MOCK_RUN_EVENTS[LIVE_RUN_ID]);
+syncTimeline(completedState, MOCK_RUN_EVENTS[COMPLETED_RUN_ID]);
+syncTimeline(failedState, MOCK_RUN_EVENTS[FAILED_RUN_ID]);
+syncTimeline(opsState, MOCK_RUN_EVENTS[DECLINED_RUN_ID]);
+syncTimeline(suspendedState, MOCK_RUN_EVENTS[SUSPENDED_RUN_ID]);
+syncTimeline(cancelledState, MOCK_RUN_EVENTS[CANCELLED_RUN_ID]);
 
 export const MOCK_RUN_STATES: Record<string, RunStateProjection> = {
   [LIVE_RUN_ID]: liveBaseState,

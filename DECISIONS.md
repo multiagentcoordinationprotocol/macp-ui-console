@@ -186,3 +186,39 @@ explicit go-ahead before anything is even drafted; the last is local.
   already names the move that would retire the test-file dependency: a
   `Record<CommitmentAuthority, string>` label map on the policy detail page would give the union a
   shipped-code consumer and surface the unrecognized value in the same change.
+
+---
+
+## D-S1 — the ship-gate pass fixed all four non-blocking gaps, and widened one of them
+
+The pre-push verification round returned **PASS** with four non-blocking findings and one
+observation. All five were fixed in the ship commit rather than deferred, because three were live
+contradictions of the branch's own work and the fourth was the exact defect class the branch set out
+to remove.
+
+- **G1** — `CLAUDE.md` still asserted the playground fallback "is still `http://localhost:3000`",
+  which commit `c2656af` had already falsified. A doc that contradicts the code is worse than one
+  that omits it.
+- **G2** — `PROGRESS.md` still listed A1–A5 as pending and A5 as "not audited". Pointed at
+  `DECISIONS.md` rather than rewritten, and D37 marked superseded by D-R3, so the record of what was
+  open at plan time survives.
+- **G3** — the plan header read `planned (all phases TODO)` above eleven phases marked DONE.
+- **G4** — the demo timeline counters lagged the fixtures they describe. **Widened deliberately.**
+  The verifier scoped this to the suspended run, which is the one this branch broke. Auditing all
+  six found three drifted (11 against 14, 8 against 12, 5 against 6) and the cancelled run claiming
+  three events with no event fixture at all — which also left `/logs`'s `run.cancelled` filter entry
+  matching nothing in demo mode, the default. Fixing only the branch-caused one would have left the
+  two larger instances of the same defect behind on a branch whose thesis is that this class of
+  drift is worth removing. The counters are now derived from the fixtures at the same site that
+  already derived `recent`, so the literals that drifted no longer exist; the cancelled run gained
+  the three events its projection was already asserting. A uniform invariant with no carve-out,
+  pinned by `mock-data.test.ts` and mutation-proved twice.
+- **N1** — `mergeEventStreams` sorted on `a.seq - b.seq`, which returns `NaN` for a missing or
+  non-numeric `seq`. That is not merely a misplaced row: a `NaN`-returning comparator is not a valid
+  ordering, so the engine may leave the array in any order. The hook already guards the resume
+  cursor with `Number.isFinite` for exactly this reason — the guard was simply absent one layer
+  down. Unusable values now sort to the end in arrival order; mutation-proved.
+
+Scope note: G4's widening and N1 touch shipped code, and both were adopted after the verification
+round rather than reviewed by it. Both are covered by tests that were proved to fail against the
+pre-fix source, and the full suite, typecheck, lint, `format:check` and `next build` are green.

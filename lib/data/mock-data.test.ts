@@ -5,6 +5,7 @@ import {
   DECLINED_RUN_ID,
   MOCK_POLICY_DEFINITIONS,
   MOCK_RUNTIME_POLICIES,
+  MOCK_RUN_EVENTS,
   MOCK_RUN_STATES,
   MOCK_RUNS
 } from '@/lib/data/mock-data';
@@ -129,5 +130,37 @@ describe('MOCK_RUN_STATES — supersedes canonicality fixtures', () => {
     const listedIds = MOCK_RUNS.map((run) => run.id);
     expect(listedIds).toContain(COMPLETED_RUN_ID);
     expect(listedIds).toContain(DECLINED_RUN_ID);
+  });
+});
+
+describe('MOCK_RUN_STATES — timeline counters', () => {
+  // These were hand-written literals and three of six had drifted from the fixture they describe,
+  // so the demo showed "11 events" beside a 14-row rail. `syncTimeline` derives them; this is the
+  // guard that keeps them derived — reintroducing a literal fails here rather than shipping a
+  // number nothing checks.
+  it('matches every run state to its own event fixture', () => {
+    const runIds = Object.keys(MOCK_RUN_STATES);
+    expect(runIds.length).toBeGreaterThan(0);
+
+    for (const runId of runIds) {
+      const events = MOCK_RUN_EVENTS[runId];
+      // Every listed state must HAVE a fixture: the cancelled run had none while claiming three
+      // events, which is the drift this guard exists to make impossible.
+      expect(events, `no event fixture for ${runId}`).toBeDefined();
+
+      const state = MOCK_RUN_STATES[runId];
+      expect(state.timeline.totalEvents, `totalEvents for ${runId}`).toBe(events.length);
+      expect(state.timeline.latestSeq, `latestSeq for ${runId}`).toBe(Math.max(...events.map((item) => item.seq)));
+      // `recent` is the tail, capped at 8.
+      expect(state.timeline.recent.map((item) => item.seq)).toEqual(events.slice(-8).map((item) => item.seq));
+    }
+  });
+
+  it('gives the /logs run.cancelled filter something to match in demo mode', () => {
+    // `app/logs/page.tsx` offers `run.cancelled` as a Run-category filter; demo mode is the
+    // default, so an entry matching nothing reads as "no such events happen" rather than
+    // "the fixture is missing".
+    const allTypes = Object.values(MOCK_RUN_EVENTS).flatMap((events) => events.map((item) => item.type));
+    expect(allTypes).toContain('run.cancelled');
   });
 });

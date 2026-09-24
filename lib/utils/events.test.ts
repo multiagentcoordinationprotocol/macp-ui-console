@@ -339,4 +339,23 @@ describe('mergeEventStreams', () => {
     ];
     expect(mergeEventStreams(fetched, live).map((e) => e.seq)).toEqual([1, 2, 4, 9]);
   });
+
+  it('keeps the well-formed events in order when a frame arrives without a usable seq', () => {
+    // `seq` is typed `number` but is really whatever `JSON.parse` produced from an SSE frame.
+    // `a.seq - b.seq` returns NaN against these, and a NaN-returning comparator licenses the engine
+    // to leave the array in ANY order — so the failure is not "the bad row is misplaced", it is
+    // "the rail is scrambled". The ordered rows below are the actual assertion.
+    const broken = [
+      { ...fetched[0], id: 'no-seq', seq: undefined as unknown as number },
+      { ...fetched[0], id: 'nan-seq', seq: Number.NaN },
+      { ...fetched[0], id: 'string-seq', seq: '7' as unknown as number }
+    ];
+    const live = [broken[0], { ...fetched[0], id: 'late', seq: 9 }, broken[1], broken[2]];
+
+    const merged = mergeEventStreams(fetched, live);
+
+    expect(merged.filter((e) => Number.isFinite(e.seq)).map((e) => e.seq)).toEqual([1, 2, 9]);
+    // Unusable values sort to the end, in arrival order rather than shuffled.
+    expect(merged.map((e) => e.id)).toEqual(['f0', 'f1', 'late', 'no-seq', 'nan-seq', 'string-seq']);
+  });
 });

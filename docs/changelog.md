@@ -26,6 +26,13 @@ no data migration and no wire-contract change on the console side.
   only, and the live route mounts before the history query settles, so the fetched history was shown
   until the first live event arrived and then discarded. The two sources are now merged by id and
   ordered by seq.
+- That merge no longer orders on a comparator that can return `NaN`. `seq` is typed `number` but
+  reaches the console through `JSON.parse` of an SSE frame, so the type is a claim about the wire,
+  not a guarantee — which is why the resume cursor above is `Number.isFinite`-guarded. `a.seq -
+  b.seq` returns `NaN` against a missing or non-numeric `seq`, and a `NaN`-returning comparator is
+  not a valid ordering: the engine may leave the array in any order at all, so a single malformed
+  frame could scramble the whole rail rather than merely misplace itself. Unusable values now sort
+  to the end, in arrival order.
 
 ### Fidelity & errors
 
@@ -142,6 +149,12 @@ each had been wrong for some time:
   not a published image. The three `RUNTIME_LIST_SESSIONS_*` knobs are present as commented-out
   entries, with the recipe for forcing the drift table's incomplete-sweep branch and the
   CircuitBreaker footgun that comes with it.
+- **Demo timeline counters are derived from the event fixtures instead of restating them.** They
+  were hand-written literals and three of the six runs had drifted, so the demo showed "11 events"
+  beside a 14-row rail. The cancelled run was the worst case: it claimed three events and had no
+  event fixture at all, which also left `/logs`'s `run.cancelled` filter entry matching nothing in
+  demo mode — the default. It now has the three events its projection was already asserting, and
+  `mock-data.test.ts` fails if any counter is restated rather than derived.
 - Updated: `docs/api-integration.md`, `docs/architecture.md`, `docs/feature-matrix.md`,
   `docs/backend-repo-notes.md`, `README.md`, and two code comments that had gone stale alongside
   them (`lib/data/mock-data.ts`, `app/modes/page.tsx`). Also `CLAUDE.md`, which is gitignored and
