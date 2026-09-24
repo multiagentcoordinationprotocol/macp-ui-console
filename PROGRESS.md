@@ -998,3 +998,27 @@ global and rebinds `window` to `globalThis`, so jsdom's own `Storage` is unreach
 `persist` middleware sees `undefined`. Fixed with a real jsdom document origin plus an in-memory
 `Storage` shim cleared between tests. Committed separately because §1 forbids proceeding on a red build
 and every phase gate depends on a green suite. Logged UNCONFIRMED in `ASSUMPTIONS.md`.
+
+**Superseded by D-R7.** The reconcile pass found three false claims in the paragraph above and in the
+assumption it logged: the root cause is Node ≥22 defining `localStorage`/`sessionStorage` on the
+global (Vitest's `getWindowKeys` then skips them), not Vitest 4 dropping them; the `jsdom.url` pin
+was a no-op for the shim; and `sessionStorage` was never shimmed at all, so it bound silently to
+Node's process-wide store. `test/setup.ts` now bridges to jsdom's native `Storage`, pinned by
+`test/setup.test.ts`. The text is left standing as the record of what was believed at the time.
+
+---
+
+## Ship
+
+- pushed `feat/absorb-control-plane-playground-sep-2026` @ `35bfa4cbc7463f066a0ee09515dc9dc9ee4a5df4`
+- PR #44 opened: https://github.com/multiagentcoordinationprotocol/macp-ui-console/pull/44 (label `run-integration-tests`, created for this PR — it did not exist)
+- CI green on the first run: `Lint, Type-check, Test, Build` 1m41s, `Integration Tests` 23s (the
+  label gate worked — `.github/workflows/ci.yml:90`), Vercel preview deployed.
+- merged #44 as `d76d3a867550e549f569a2b4afded51ede8eac58` (squash), remote branch deleted. The
+  squash message carries the `Claude-Session` trailer; `gh pr merge` composes a new commit rather
+  than replaying the branch's, so it was supplied explicitly rather than inherited.
+- Production deploy is Vercel's native Git integration on push to `main`. There is no `vercel.json`
+  or `railway.json` in the repo and no deploy workflow in `.github/workflows/` — nothing to trigger
+  or verify here beyond the merge itself.
+- This record ships as a follow-up PR rather than a direct commit: `main` is a protected branch, and
+  the lines above could only be written after the merge they describe.
