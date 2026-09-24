@@ -250,8 +250,9 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
 
 ## `MACP_PLAYGROUND_BASE_URL`'s code default points at the console, not the playground
 
-_(Narrowed during §4 finalization: the docs were corrected to `3100`, so only the code default is
-still open. Kept UNCONFIRMED because changing a runtime default is a behaviour change, not a doc fix.)_
+_(Narrowed during §4 finalization — the docs were corrected to `3100`, leaving only the code
+default — then settled by `/reconcile` on 2026-09-23, which changed it. See the resolution below
+and `DECISIONS.md` D-R4.)_
 
 - **Plan:** plans/absorb-control-plane-playground-sep-2026.md
 - **Phase:** 10 (found while sweeping docs; **not** introduced by this branch)
