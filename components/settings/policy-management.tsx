@@ -190,9 +190,9 @@ function RegisterPolicyForm({
   const [policyId, setPolicyId] = useState('');
   const [mode, setMode] = useState('macp.mode.decision.v1');
   const [description, setDescription] = useState('');
-  // Defaults to the current authoring version, not to the control plane's own fallback of 1: every
-  // sample policy upstream was migrated to schema_version 3 in this window, so 3 is what a new
-  // registration should be. The literal union is what keeps `Number(...)` narrowable below.
+  // Defaults to the current authoring version (3), matching the control plane's own fallback: every
+  // sample policy upstream was migrated to schema_version 3. Always sent explicitly so a registration
+  // never depends on that fallback. The literal union keeps `Number(...)` narrowable below.
   const [schemaVersion, setSchemaVersion] = useState<`${PolicySchemaVersion}`>('3');
   const [rulesJson, setRulesJson] = useState('{}');
   const [validationError, setValidationError] = useState('');
