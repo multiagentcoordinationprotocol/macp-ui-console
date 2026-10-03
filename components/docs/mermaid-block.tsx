@@ -33,6 +33,9 @@ export function MermaidBlock({ code }: MermaidBlockProps) {
           startOnLoad: false,
           theme,
           securityLevel: 'strict',
+          // Mermaid 12 defaults to ELK layout and the neo look; pin the 11.x appearance
+          layout: 'dagre',
+          look: 'classic',
           fontFamily: 'var(--font-dm-sans), Inter, sans-serif'
         });
         const { svg } = await mermaid.render(diagramId.current, code);
