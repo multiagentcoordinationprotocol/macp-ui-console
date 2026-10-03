@@ -184,7 +184,7 @@ export interface RegisterPolicyRequest {
   mode: string;
   description: string;
   rules: Record<string, unknown>;
-  /** Omitted defaults to 1 at the control plane, not to the current authoring version. */
+  /** Omitted defaults to 3 at the control plane (fail-closed on an empty decisive tally); pass 1 or 2 explicitly for the legacy fail-open reading. */
   schemaVersion?: PolicySchemaVersion;
 }
 

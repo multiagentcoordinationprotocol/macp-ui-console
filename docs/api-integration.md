@@ -217,10 +217,11 @@ Notes for runtime v0.8.0 (the image pinned in `docker-compose.e2e.yml`):
   `schemaVersion must be one of 1, 2, 3` (a `null` counts as omitted, not as a bad value). The
   rejection uses the same no-`errorCode` envelope as every other policy-registration 400 — see
   "The three control-plane error envelopes" below — so read `message` via `describeApiError` rather
-  than branching on a code. Omitting the field defaults to **1** at the control plane, but the console's
-  registration form defaults to **3**, the current
-  authoring version, and offers only those three values so the constraint cannot be violated from the
-  UI. The response type stays forward-compatible: an already-registered policy reporting a version
+  than branching on a code. Omitting the field defaults to **3** at the control plane (fail-closed on an
+  empty decisive tally; pass 1 or 2 explicitly for the legacy fail-open reading). The console's
+  registration form also defaults to **3** and offers only those three values so the constraint cannot be
+  violated from the UI. The control plane additionally rejects `rules` with unknown or misspelled keys
+  (HTTP 400 naming the key). The response type stays forward-compatible: an already-registered policy reporting a version
   outside the set still renders.
 - `DELETE /runtime/policies/:policyId`
 
