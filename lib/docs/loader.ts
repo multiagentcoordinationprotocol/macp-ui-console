@@ -10,6 +10,8 @@ export interface DocEntry {
   sourcePath: string;
 }
 
+// Docs are read at build time (generateStaticParams), so these dynamic fs paths are marked
+// turbopackIgnore: otherwise Turbopack traces the whole project into the server output.
 const REPO_ROOT = process.cwd();
 
 const COLLECTION_DIRS: Record<DocCollection, string> = {
@@ -64,7 +66,7 @@ export async function listDocs(collection: DocCollection): Promise<DocEntry[]> {
   const dir = COLLECTION_DIRS[collection];
   let files: string[];
   try {
-    files = await readdir(dir);
+    files = await readdir(/*turbopackIgnore: true*/ dir);
   } catch {
     return [];
   }
@@ -72,8 +74,8 @@ export async function listDocs(collection: DocCollection): Promise<DocEntry[]> {
   const entries = await Promise.all(
     mdFiles.map(async (file) => {
       const slug = slugify(file);
-      const full = path.join(dir, file);
-      const content = await readFile(full, 'utf8');
+      const full = path.join(/*turbopackIgnore: true*/ dir, file);
+      const content = await readFile(/*turbopackIgnore: true*/ full, 'utf8');
       return {
         slug,
         title: extractTitle(content, slug),
@@ -92,9 +94,9 @@ export async function loadDoc(
   const dir = COLLECTION_DIRS[collection];
   const safe = slug.replace(/[^a-z0-9-_]/gi, '');
   if (!safe) return null;
-  const file = path.join(dir, `${safe}.md`);
+  const file = path.join(/*turbopackIgnore: true*/ dir, `${safe}.md`);
   try {
-    const content = await readFile(file, 'utf8');
+    const content = await readFile(/*turbopackIgnore: true*/ file, 'utf8');
     return {
       content,
       title: extractTitle(content, safe),
@@ -107,9 +109,9 @@ export async function loadDoc(
 
 export async function loadCollectionReadme(collection: DocCollection): Promise<string | null> {
   const dir = COLLECTION_DIRS[collection];
-  const file = path.join(dir, '_readme.md');
+  const file = path.join(/*turbopackIgnore: true*/ dir, '_readme.md');
   try {
-    return await readFile(file, 'utf8');
+    return await readFile(/*turbopackIgnore: true*/ file, 'utf8');
   } catch {
     return null;
   }
