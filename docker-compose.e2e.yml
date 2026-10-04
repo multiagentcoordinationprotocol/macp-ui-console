@@ -58,17 +58,15 @@ services:
         condition: service_healthy
 
   runtime:
-    # Pinned to runtime v0.8.0 by its commit SHA tag, matching macp-control-plane's
-    # docker-compose.test.yml and macp-playground's docker-compose.fullstack.yml byte for byte —
-    # running this stack against an older runtime behind a control plane built and tested against
-    # v0.8.0 is the drift this pin exists to remove.
-    #
-    # The SHA tag, not a semver one: the runtime repo moved to per-crate tags, so there is no
-    # `v0.8.0` monolithic tag and `macp-runtime:0.8.0` is not a published image.
+    # Pinned to runtime v0.8.8 by its published semver tag (release builds now publish
+    # `macp-runtime:<version>`; the earlier pin used a commit SHA tag because none existed).
+    # Note: macp-control-plane's docker-compose.test.yml and macp-playground's
+    # docker-compose.fullstack.yml pin 0.8.6, the version the control plane last absorbed (#96);
+    # this stack runs two patch releases ahead of that.
     #
     # Override with MACP_RUNTIME_IMAGE for local builds
     # (e.g. `export MACP_RUNTIME_IMAGE=macp-runtime:latest`).
-    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:f97fd15}
+    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.8.8}
     ports:
       - "50051:50051"
       # Runtime Prometheus metrics (opt-in via MACP_METRICS_ADDR below). Harmless until

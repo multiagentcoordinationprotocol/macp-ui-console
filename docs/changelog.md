@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-04 — Re-pin the e2e runtime to v0.8.8
+
+`docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.8.8`
+(was the v0.8.0 SHA tag `f97fd15`). Release builds now publish semver image tags, so the SHA workaround is
+gone. `macp-control-plane` / `macp-playground` pin `0.8.6`; this stack is two patch releases ahead of
+them. Override with `MACP_RUNTIME_IMAGE`. This resolves the "Known drift" item in the entry below.
+
 ## 2026-10-04 — Docs sync: post-0.8.0 fixes, dependency majors, de-duplication against sibling docs
 
 Covers the work merged after the 2026-09-23 entry (#39, #43, #46–#50) and trims console docs that restated
