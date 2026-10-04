@@ -213,7 +213,7 @@ npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
 ```
 
-Tests use Vitest + React Testing Library. Test files are co-located with source (`.test.ts` / `.test.tsx`). Integration tests covering the UI ↔ Docker-backed Control Plane + Examples Service flow live under `test/integration/`.
+Tests use Vitest + React Testing Library. Test files are co-located with source (`.test.ts` / `.test.tsx`). Integration tests covering the UI ↔ Docker-backed Control Plane + Playground flow live under `test/integration/`.
 
 ## Development workflow
 
