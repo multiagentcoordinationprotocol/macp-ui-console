@@ -1,6 +1,6 @@
 # PROGRESS — absorb-control-plane-playground-sep-2026
 
-Plan: `plans/absorb-control-plane-playground-sep-2026.md`
+Plan: `plans/archive/absorb-control-plane-playground-sep-2026.md`
 Started: 2026-09-23 (via `/plan`)
 Branch: `feat/absorb-control-plane-playground-sep-2026` (merged via #44, deleted)
 
@@ -392,7 +392,7 @@ D-R1…D-R7 in `DECISIONS.md`. The list below is kept only as the record of what
   (deleting a union member fails `tsc` with the intended TS2353 from the anchor). One new doc-only item
   (NEW-1: the round-1 fixes falsified two planning statements) — closed in this same commit.
 - **Files touched:** `lib/types.ts`, `lib/data/mock-data.ts`, `lib/data/mock-data.test.ts` (new),
-  `plans/absorb-control-plane-playground-sep-2026.md`, `PROGRESS.md`, `ASSUMPTIONS.md`. No `docs/` or
+  `plans/archive/absorb-control-plane-playground-sep-2026.md`, `PROGRESS.md`, `ASSUMPTIONS.md`. No `docs/` or
   `CLAUDE.md` update — Phase 1's `Docs` field is "None in this phase".
 - **Assumptions logged:** the `CommitmentAuthority` guard is compile-time only; real-mode policy rules
   arrive as `Record<string, unknown>` and are never narrowed. UNCONFIRMED.

@@ -8,7 +8,7 @@ decided, the verdict, and the resulting status.
 
 ---
 
-## 2026-09-23 — Reconciliation of `plans/absorb-control-plane-playground-sep-2026.md`
+## 2026-09-23 — Reconciliation of `plans/archive/absorb-control-plane-playground-sep-2026.md`
 
 Six `UNCONFIRMED` entries, all tagged to that plan. **None was a one-way door**, and that was
 verified rather than assumed against each criterion: this repo owns no persisted schema and no
