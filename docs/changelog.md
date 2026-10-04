@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-10-04 — Docs sync: post-0.8.0 fixes, dependency majors, de-duplication against sibling docs
+
+Covers the work merged after the 2026-09-23 entry (#39, #43, #46–#50) and trims console docs that restated
+sibling-repo content. No app-code change in this entry.
+
+### Since the last entry
+
+- **#46 — live-run reconnect no longer targets a stale run.** `attemptReconnect` reconnects through
+  `connectSSERef`, so navigating run A → B without a remount no longer re-subscribes to A after a
+  heartbeat timeout or SSE error. Details: `api-integration.md § SSE integration`.
+- **#47 — dependency majors.** mermaid 12 (the Mermaid 11 look is pinned in
+  `components/docs/mermaid-block.tsx`), jsdom 30, vitest 5, jest-dom 7; CI runs on Node 22 (and #39 bumped `actions/setup-node` to v7); `engines.node` is `>=22.22.2`.
+- **#48 — policy `schemaVersion` default is 3 at the control plane** (fail-closed on an empty decisive
+  tally) and unknown rule keys are rejected (macp-control-plane#96). No console behaviour change — the
+  registration form already sent an explicit value.
+- **#49 — docs loader** marks its dynamic `fs` calls `turbopackIgnore` so the build stops tracing the whole
+  project (`lib/docs/loader.ts`).
+- **#43 / #50 — `docs-content/macp-playground/` re-synced** from macp-playground (#43: policy authoring,
+  direct-agent-auth, scenario authoring, worker bootstrap contract; #50: deployment). Those files are automated copies; edit
+  them upstream, not here.
+
+### De-duplication
+
+Rule: console docs describe what the **console** does and link to the owning repo for everything else.
+
+- `api-integration.md`: runtime notes, `POST /runtime/policies` validation rules, the control-plane error
+  envelopes and the SSE resume rationale are now short console-side summaries linking to
+  `macp-runtime/docs`, `macp-control-plane/docs/API.md` and `INTEGRATION.md`.
+- `backend-repo-notes.md`: the credential-scoping (`FORBIDDEN:`) walkthrough is reduced to the console
+  triage rule and where to read the reason; the mechanism lives in `macp-control-plane/docs/INTEGRATION.md`.
+
+### Known drift (not changed here)
+
+- Sibling repos have moved on since the e2e pin: macp-runtime is at v0.8.8, macp-control-plane absorbed
+  runtime v0.8.1–v0.8.6 (#96), and both SDKs are at 0.14.x. `docker-compose.e2e.yml` still pins runtime
+  `f97fd15` (v0.8.0), and the docs describe that pin accurately. Re-pinning is an infra change that needs a
+  stack run, so it is left as a follow-up.
+
 ## 2026-09-23 — Absorb macp-control-plane / macp-playground (Jul–Sep 2026), runtime v0.8.0
 
 Absorbs the control-plane and playground work landed since the v0.5.0 window, and repoints the
