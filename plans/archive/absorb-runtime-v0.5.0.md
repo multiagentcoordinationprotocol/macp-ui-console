@@ -1,6 +1,6 @@
 # Plan — Absorb macp-runtime v0.5.0 / macp-proto 0.1.4–0.1.6 into macp-ui-console
 
-**Status:** implemented (F, A, C, D, E, G, I landed; B skipped; H pending live stack) ·
+**Status:** implemented (F, A, C, D, E, G, I landed; B skipped; H superseded by the v0.8.x e2e pin) ·
 **Scope:** macp-ui-console (Next.js) · **Upstream:** macp-runtime v0.5.0, macp-proto
 0.1.4 → 0.1.6, spec updates — consumed **via the macp-control-plane** (and the
 macp-playground Examples Service for launch compilation).
@@ -33,8 +33,8 @@ Landed on branch `feat/absorb-runtime-v0.5.0`, one commit per task, full CI gate
 - **G** — external-orchestrator (initiator ∉ participants) resilience test.
 - **I** — docs: api-integration, in-app `/docs`, README, feature-matrix, changelog.
 - **B** — *skipped* (no CP endpoint; see above).
-- **H** — *pending*: live e2e matrix needs `npm run local:up` against the pinned stack;
-  not runnable in this pass. Unit/mock coverage stands in until then.
+- **H** — *superseded by the v0.8.x e2e pin*: the live e2e matrix needed `npm run local:up` against the pinned stack;
+  not runnable in this pass; unit/mock coverage stood in, and the e2e stack has since been repinned to runtime v0.8.x.
 
 ---
 

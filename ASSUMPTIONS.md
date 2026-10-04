@@ -6,7 +6,7 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
 
 ## Test environment: in-memory `localStorage` polyfill rather than jsdom's native `Storage`
 
-- **Plan:** plans/absorb-control-plane-playground-sep-2026.md
+- **Plan:** plans/archive/absorb-control-plane-playground-sep-2026.md
 - **Phase:** pre-Phase-1 (test-infrastructure repair; blocking every phase gate)
 - **Assumed:** `lib/stores/preferences-store.test.ts` was failing on `main` before any of this plan's
   work — 8 tests, `TypeError: Cannot read properties of undefined (reading 'setItem')` from
@@ -50,7 +50,7 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
 
 ## `CommitmentAuthority` is a compile-time guard only — real-mode policy data is never narrowed
 
-- **Plan:** plans/absorb-control-plane-playground-sep-2026.md
+- **Plan:** plans/archive/absorb-control-plane-playground-sep-2026.md
 - **Phase:** 1
 - **Assumed:** Correcting the union and adding a `Record<CommitmentAuthority, true>` exhaustiveness
   anchor makes the *type* impossible to get wrong again by an editor. It does **not** make the console
@@ -94,7 +94,7 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
 
 ## "Agents are live" is asserted, not checked, on the bootstrap result
 
-- **Plan:** plans/absorb-control-plane-playground-sep-2026.md
+- **Plan:** plans/archive/absorb-control-plane-playground-sep-2026.md
 - **Phase:** 7
 - **Assumed:** The new no-registration banner opens with "Agents are live, but the Example Service did
   not register this run." Phase 7 made every *other* clause of that banner checkable, but this one is
@@ -135,7 +135,7 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
 
 ## The runtime v0.8.0 pin is verified by pairing evidence, not by a console `local:up` boot
 
-- **Plan:** plans/absorb-control-plane-playground-sep-2026.md
+- **Plan:** plans/archive/absorb-control-plane-playground-sep-2026.md
 - **Phase:** 9
 - **Assumed:** Phase 9's acceptance criteria 4 and 5 are a manual boot — `npm run local:up` comes up
   healthy, the control plane's `/readyz` reports `runtime.ok === true`, and a scenario launched from
@@ -208,7 +208,7 @@ Logged during `/implement`. Each entry is settled later by `/reconcile`.
 
 ## macp-proto 0.1.9 → 0.1.10 was not audited for `decodedPayload` shape changes
 
-- **Plan:** plans/absorb-control-plane-playground-sep-2026.md
+- **Plan:** plans/archive/absorb-control-plane-playground-sep-2026.md
 - **Phase:** 10
 - **Assumed:** That the proto bump the control plane took in this range (`macp-proto` `0.1.9` → `0.1.10`,
   confirmed as the CP's current dependency) introduced no change to the `event.data.decodedPayload`
@@ -254,7 +254,7 @@ _(Narrowed during §4 finalization — the docs were corrected to `3100`, leavin
 default — then settled by `/reconcile` on 2026-09-23, which changed it. See the resolution below
 and `DECISIONS.md` D-R4.)_
 
-- **Plan:** plans/absorb-control-plane-playground-sep-2026.md
+- **Plan:** plans/archive/absorb-control-plane-playground-sep-2026.md
 - **Phase:** 10 (found while sweeping docs; **not** introduced by this branch)
 - **Assumed:** That leaving `lib/server/integrations.ts:37`'s fallback at `http://localhost:3000`
   is safe because every supported way of running the stack sets the variable explicitly. Four
