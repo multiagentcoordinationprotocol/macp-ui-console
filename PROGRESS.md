@@ -2,7 +2,7 @@
 
 Plan: `plans/absorb-control-plane-playground-sep-2026.md`
 Started: 2026-09-23 (via `/plan`)
-Branch: `feat/absorb-control-plane-playground-sep-2026`
+Branch: `feat/absorb-control-plane-playground-sep-2026` (merged via #44, deleted)
 
 **PR strategy: one PR for all 11 phases, opened by `/ship` after finalization.** Why: the phases are
 individually small (most are one or two files) but share a single narrative — "absorb three weeks of
@@ -17,17 +17,17 @@ _(one checkpoint per phase; `/implement` appends)_
 
 | Phase | Title | Status | Rounds | Verifier | Commit | PR |
 |---|---|---|---|---|---|---|
-| P1 | Correct the `CommitmentAuthority` wire value | DONE | 2 | Opus | `68d80db` | pending /ship |
-| P2 | Surface non-canonical supersedes hashes | DONE | 2 | Opus | `6178633` | pending /ship |
-| P3 | Structured error codes on `ApiError` | DONE | 3 | Opus | `4e4f543` | pending /ship |
-| P4 | Runtime session drift: types, client, demo data | DONE | 2 | Opus | `032a6f0` | pending /ship |
-| P5 | Runtime session drift: Infrastructure-tab UI | DONE | 2 | Opus | `8149d9d` | pending /ship |
-| P6 | Constrain policy `schemaVersion` to {1,2,3} | DONE | 1 | Opus | `e7fbb08` | pending /ship |
-| P7 | Absorb `controlPlaneRun` from the playground bootstrap | DONE | 3 | Opus | `4dd89cf` | pending /ship |
-| P8a | SSE resume-cursor correctness | DONE | 2 | Opus | `fd2ed50` | pending /ship |
-| P8b | Gap visibility (`historyGap`) + `policy.denied` detail | DONE | 2 | Opus | `3c6d3fc` | pending /ship |
-| P9 | Repoint the dev/e2e stack at runtime v0.8.0 | DONE | 1 | Opus | `7679ce3` | pending /ship |
-| P10 | Documentation refresh | DONE | 3 | Opus | `09f4538` | pending /ship |
+| P1 | Correct the `CommitmentAuthority` wire value | DONE | 2 | Opus | `68d80db` | #44 (squashed as `d76d3a8`) |
+| P2 | Surface non-canonical supersedes hashes | DONE | 2 | Opus | `6178633` | #44 (squashed as `d76d3a8`) |
+| P3 | Structured error codes on `ApiError` | DONE | 3 | Opus | `4e4f543` | #44 (squashed as `d76d3a8`) |
+| P4 | Runtime session drift: types, client, demo data | DONE | 2 | Opus | `032a6f0` | #44 (squashed as `d76d3a8`) |
+| P5 | Runtime session drift: Infrastructure-tab UI | DONE | 2 | Opus | `8149d9d` | #44 (squashed as `d76d3a8`) |
+| P6 | Constrain policy `schemaVersion` to {1,2,3} | DONE | 1 | Opus | `e7fbb08` | #44 (squashed as `d76d3a8`) |
+| P7 | Absorb `controlPlaneRun` from the playground bootstrap | DONE | 3 | Opus | `4dd89cf` | #44 (squashed as `d76d3a8`) |
+| P8a | SSE resume-cursor correctness | DONE | 2 | Opus | `fd2ed50` | #44 (squashed as `d76d3a8`) |
+| P8b | Gap visibility (`historyGap`) + `policy.denied` detail | DONE | 2 | Opus | `3c6d3fc` | #44 (squashed as `d76d3a8`) |
+| P9 | Repoint the dev/e2e stack at runtime v0.8.0 | DONE | 1 | Opus | `7679ce3` | #44 (squashed as `d76d3a8`) |
+| P10 | Documentation refresh | DONE | 3 | Opus | `09f4538` | #44 (squashed as `d76d3a8`) |
 
 Dependency edges: P4→P3, P5→P4, **P5→P3** (Phase 5 reads `errorCode` directly, so the edge is real and not
 merely transitive through P4), P6→P3, P8b→P8a, P10→all. P1, P2, P7, P8a, P9 are independent.
