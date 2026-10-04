@@ -179,50 +179,29 @@ Runtime-level semantics (what a "mode" is, what's in a manifest) are documented 
 runtime repo: [`macp-runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/modes.md)
 and [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md).
 
-Notes for runtime v0.8.0 (the image pinned in `docker-compose.e2e.yml`):
+Console-relevant notes (the e2e/local stack pins the v0.8.0 runtime image in
+`docker-compose.e2e.yml`; the runtime repo itself has since moved on — see its
+[changelog](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/CHANGELOG.md)):
 
-- `GET /runtime/modes` returns **five** mode descriptors — the standards-track set
-  (`decision`, `proposal`, `task`, `handoff`, `quorum`). It does **not** include
-  `ext.multi_round.v1`: the control plane calls the runtime's `ListModes`, which returns
-  `standard_mode_descriptors()` only, and the extension is reachable solely via `ListExtModes`,
-  for which the control plane exposes no endpoint. (An earlier revision of this file said "all
-  six"; that was true of `all_mode_descriptors()`, which is not what this endpoint calls.)
-  **Demo mode still lists six**, because the mock mirrors the full descriptor set — a known
-  divergence, flagged at `MOCK_RUNTIME_MODES` in `lib/data/mock-data.ts`.
-  Every returned descriptor's `terminalMessageTypes` is exactly `["Commitment"]`; the `/modes`
-  page renders both `messageTypes` and `terminalMessageTypes` per mode.
-- **The `Commitment` terminal is now enforced, not merely conventional.** The registry rejects,
-  at registration time, any extension descriptor with an empty terminal set or with a terminal
-  other than `Commitment` — "dynamically registered modes resolve only on 'Commitment'"
-  (`macp-runtime/crates/macp-modes/src/mode_registry.rs:481-499`).
-- `GET /runtime/roots` is fetched once per page view and returns an empty list — the runtime
-  ships no roots provider. Roots are **static**: the runtime advertises `list_changed: false`,
-  so per RFC-MACP-0006 §3.3 a client need not watch, and the console does not. (A `WatchRoots`
-  RPC does exist on the runtime and yields one initial frame before parking idle, but the
-  control plane exposes no route to it — so "there is no change-notification stream", as this
-  file previously claimed, was wrong about the runtime even though the console's behaviour was
-  right.)
-- **Runtime Prometheus metrics** are exposed by the runtime process itself on
-  `MACP_METRICS_ADDR` (per-mode `macp_messages_*` / `macp_sessions_*` /
-  `macp_commitments_*` counters + `macp_replay_mismatches_total`). These are an
-  ops-only surface: the control plane does **not** re-serve them, so the console does
-  not render runtime-process counters. The `/observability` "Metrics" tab parses the
-  **control plane's own** `GET /metrics`, not the runtime's.
+- `GET /runtime/modes` returns the **five** standards-track descriptors only; `ext.multi_round.v1` is
+  reachable via `ListExtModes`, which the control plane does not expose. **Demo mode still lists six**
+  (known divergence, flagged at `MOCK_RUNTIME_MODES` in `lib/data/mock-data.ts`). The `/modes` page
+  renders `messageTypes` and `terminalMessageTypes` per mode (terminal is always `["Commitment"]`).
+- `GET /runtime/roots` is fetched once per page view and is normally empty. Roots are static
+  (`list_changed: false`, RFC-MACP-0006 §3.3), so the console does not watch for changes.
+- Runtime Prometheus counters (on `MACP_METRICS_ADDR`) are an ops-only surface the
+  control plane does not re-serve (counters: `macp_messages_*`, `macp_sessions_*`, `macp_commitments_*`, `macp_replay_mismatches_total`; env var in the runtime's [deployment.md](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/deployment.md)). The `/observability` "Metrics" tab parses the **control plane's** own
+  `GET /metrics`.
 
 ### Runtime policy registry (RFC-MACP-0012, pass-through)
 - `GET /runtime/policies?mode=<modeId>` — filterable list
 - `GET /runtime/policies/:policyId`
-- `POST /runtime/policies` — `{ policyId, mode, description, rules, schemaVersion? }`.
-  `schemaVersion` must be **1, 2 or 3**; any other value is rejected with HTTP 400 and the message
-  `schemaVersion must be one of 1, 2, 3` (a `null` counts as omitted, not as a bad value). The
-  rejection uses the same no-`errorCode` envelope as every other policy-registration 400 — see
-  "The three control-plane error envelopes" below — so read `message` via `describeApiError` rather
-  than branching on a code. Omitting the field defaults to **3** at the control plane (fail-closed on an
-  empty decisive tally; pass 1 or 2 explicitly for the legacy fail-open reading). The console's
-  registration form also defaults to **3** and offers only those three values so the constraint cannot be
-  violated from the UI. The control plane additionally rejects `rules` with unknown or misspelled keys
-  (HTTP 400 naming the key). The response type stays forward-compatible: an already-registered policy reporting a version
-  outside the set still renders.
+- `POST /runtime/policies` — `{ policyId, mode, description, rules, schemaVersion? }`. `schemaVersion`
+  (1, 2 or 3; default 3, fail-closed) and the rejection of unknown rule keys are enforced by the control
+  plane — see [`macp-control-plane/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md).
+  Console side: the registration form defaults to **3** and offers only those values; validation 400s carry
+  no `errorCode`, so read `message` via `describeApiError`; the response type stays forward-compatible, so a
+  registered policy reporting another version still renders.
 - `DELETE /runtime/policies/:policyId`
 
 Rule schemas are opaque to the control plane; the UI renders them descriptively. The
@@ -356,27 +335,18 @@ Query / error boundaries.
 
 ### The three control-plane error envelopes
 
-The control plane's `GlobalExceptionFilter` emits **three** different bodies, and code that
-understands only the first renders nothing for the second.
+The control plane's `GlobalExceptionFilter` emits three body shapes (base format: [`API.md § Error Response Format`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md#error-response-format); code list: [`TROUBLESHOOTING.md`](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/TROUBLESHOOTING.md); the three shapes are summarized here because upstream docs only show the first).
+What the console has to cope with:
 
-| Raised as | Body | `errorCode` |
-|---|---|---|
-| `AppException` | `{ statusCode, errorCode, message, metadata? }` | present, and meaningful |
-| a Nest exception with an **object** body | emitted **verbatim** — the framework default is `{ statusCode, message, error }` | absent when Nest built the body; present when the thrower hand-built one |
-| a Nest exception with a **string** body, or any unhandled error | `{ statusCode, errorCode: 'INTERNAL_ERROR', message }` | present, but **synthesized** |
+- An `AppException` body has a real `errorCode`.
+- A Nest exception with an **object** body is passed through verbatim — usually **no** `errorCode`
+  (401s and every `POST /runtime/policies` validation 400), but a hand-built body keeps its own
+  (`ENDPOINT_REMOVED` on the removed agent endpoints). The key is `errorCode`, not `code`.
+- A **string**-bodied exception or unhandled error is rewritten with a hardcoded `INTERNAL_ERROR`, so a
+  throttled 429 arrives labelled `INTERNAL_ERROR`.
 
-The second row is a pass-through, not a shape. When Nest builds the body — 401 from the auth
-guard, and **every `POST /runtime/policies` validation rejection**, including `schemaVersion
-must be one of 1, 2, 3` — there is no `errorCode`. But a caller that throws
-`new HttpException({ statusCode, errorCode, message }, status)` keeps its own code: the CP does
-exactly this for its removed agent endpoints (`ENDPOINT_REMOVED` on `POST /runs/:id/messages`,
-`/signal`, `/context`). Note the key is `errorCode`, not `code`.
-
-> **A present `errorCode` is not always a real classification.** The third path rewrites a
-> string-bodied `HttpException` into the `AppException` shape with a hardcoded
-> `INTERNAL_ERROR`. A throttled **429 goes down that path**, so a rate limit arrives labelled
-> `INTERNAL_ERROR`. When branching on `errorCode`, switch on the codes you actually handle and
-> treat everything else — `INTERNAL_ERROR` included — as unclassified.
+**A present `errorCode` is not always a real classification.** Switch only on codes you handle and treat the
+rest — `INTERNAL_ERROR` included — as unclassified.
 
 - **`ApiError.errorCode: string | undefined`** — the machine-readable code, present only on
   the `AppException` envelope. `undefined` means "the backend did not classify this", never
@@ -426,40 +396,29 @@ GET /api/proxy/macp-control-plane/runs/:id/stream?includeSnapshot=true&afterSeq=
 - Incoming `canonical_event` payloads run through `normalizeEvent` before being appended.
 - Connection state surfaced to the UI: `idle | connecting | live | reconnecting | ended | error`.
 
-**The resume cursor derives only from events actually received — never from a snapshot.** `afterSeq`
-is seeded from the highest `seq` among the events already in hand, advanced only by
-`canonical_event`, and never allowed to decrease.
+**The resume cursor derives only from events actually received — never from a snapshot.** `afterSeq` is
+seeded from the highest `seq` among events already held, advanced only by `canonical_event`, and never
+decreases. The server's `timeline.latestSeq` is its head, not what the client holds (`getRunEvents` fetches
+at most 500 events), and snapshots are republished on every commit batch — so seeding from either skips
+undelivered events permanently. The `snapshot` handler still applies its payload to state; it just does not
+touch the cursor.
 
-`afterSeq` is exclusive, and the control plane gates its replay on `afterSeq > 0`: passing `0` yields
-the snapshot plus the live tail and replays **nothing**. So a cold mount, where the console holds no
-events yet, gets its history from the separate `getRunEvents` query rather than from the stream — and
-a resume with a real cursor is what makes the stream replay the range in between.
+`afterSeq` is exclusive and the control plane replays only when `afterSeq > 0` (`0` = snapshot plus live
+tail, nothing replayed — verified in the CP's `runs.controller.ts`; stream contract in the CP's
+[API.md](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md#sse-streaming)).
+A cold mount therefore gets history from the separate `getRunEvents` query, and a resume with a real cursor
+makes the stream replay the missed range.
 
-Two things make that rule load-bearing rather than stylistic:
+**Reconnects always target the run currently mounted.** `RunWorkbench` is reused across client-side
+navigation between runs (no `key={runId}`), and `attemptReconnect` is memoized with empty deps, so it
+reconnects through `connectSSERef` — kept pointed at the `connectSSE` bound to the current `runId` — rather
+than a captured closure. Without it a heartbeat timeout or SSE error after navigating run A → B silently
+re-subscribed to A and spliced A's events into B's view. Regression-tested in
+`lib/hooks/use-live-run.test.ts`.
 
-- **`timeline.latestSeq` is the server's head, not a description of what the client holds.**
-  `getRunEvents` fetches at most 500 events, oldest first, so on a longer run the head is far beyond
-  the newest event the console has. Opening the stream at the head asks for events *after* a range
-  that was never delivered, and nothing else ever requests it — the gap is permanent and silent.
-- **Snapshots arrive on every commit, not once per connection.** The control plane republishes the
-  projection once per commit batch, so writing `latestSeq` from the `snapshot` handler would drag the
-  cursor up to the head continuously during normal streaming, not merely in a reconnect window. The
-  handler still applies the payload to state — that is what lets every projection panel self-heal —
-  it just does not touch the cursor.
-
-Correcting the cursor is what makes recovery possible at all: on reconnect the control plane pages
-through every persisted event after `afterSeq` and re-emits it as `canonical_event`, so a resume at
-the newest event actually held replays the range that was missed. Resuming at the server head asked
-for events after ones that were never delivered, and nothing else ever requested them.
-
-`timeline.latestSeq` remains available on the returned `state` as the server's high-water mark, which
-is the right thing to compare a received `seq` against when detecting a gap.
-
-Two limits worth knowing: the client buffer holds 500 events (`MAX_EVENT_BUFFER`), so a long backfill
-evicts the oldest rather than growing without bound; and the hook's own buffer appends in arrival
-order without sorting. The workbench no longer shows that raw buffer directly — `mergeEventStreams`
-unions it with the fetched history and orders the result by `seq` — but anything reading
-`useLiveRun().events` gets arrival order.
+Two limits: the client buffer holds 500 events (`MAX_EVENT_BUFFER`), evicting the oldest; and
+`useLiveRun().events` is in arrival order — the workbench merges it with fetched history via
+`mergeEventStreams`, ordered by `seq`.
 
 ### Gap visibility
 
