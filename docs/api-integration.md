@@ -179,8 +179,8 @@ Runtime-level semantics (what a "mode" is, what's in a manifest) are documented 
 runtime repo: [`macp-runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/modes.md)
 and [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md).
 
-Console-relevant notes (the e2e/local stack pins the v0.8.0 runtime image in
-`docker-compose.e2e.yml`; the runtime repo itself has since moved on — see its
+Console-relevant notes (the e2e/local stack pins the v0.8.8 runtime image in
+`docker-compose.e2e.yml`; release notes are in the runtime's
 [changelog](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/CHANGELOG.md)):
 
 - `GET /runtime/modes` returns the **five** standards-track descriptors only; `ext.multi_round.v1` is
