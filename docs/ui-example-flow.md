@@ -1,4 +1,4 @@
-# UI Console & Examples Service Flow
+# UI Console & Playground Flow
 
 > **Status:** Non-normative (explanatory).
 >
@@ -8,7 +8,7 @@ Imagine you are an operations analyst at a fintech company. A $2,400 purchase ju
 
 This is not a question any single system can answer well on its own. It requires fraud expertise, growth strategy, compliance checks, and risk coordination — all working together, in real time, under governance rules that ensure no single voice dominates the outcome.
 
-This document walks you through exactly how MACP makes that happen, from the moment an operator browses a scenario catalog in the UI Console, through agent bootstrapping in the Examples Service, all the way to live-streamed coordination results appearing in the browser. We use the **Fraud: High-Value New Device** scenario as our protagonist throughout — a single concrete story that illuminates every layer of the system.
+This document walks you through exactly how MACP makes that happen, from the moment an operator browses a scenario catalog in the UI Console, through agent bootstrapping in the Playground, all the way to live-streamed coordination results appearing in the browser. We use the **Fraud: High-Value New Device** scenario as our protagonist throughout — a single concrete story that illuminates every layer of the system.
 
 ---
 
@@ -20,7 +20,7 @@ Under [RFC-MACP-0004 §4](https://multiagentcoordinationprotocol.io/docs/securit
 
 That invariant has four practical consequences you'll see throughout this doc:
 
-1. **`POST /runs` accepts a whitelisted-safe `RunDescriptor` only.** Fields that describe scenario logic (`kickoff[]`, `participants[].role`, `commitments[]`, `policyHints`, `initiatorParticipantId`) are rejected with 400 if they appear in the request body. The Examples Service compiler is specifically shaped to produce Control-Plane-safe descriptors.
+1. **`POST /runs` accepts a whitelisted-safe `RunDescriptor` only.** Fields that describe scenario logic (`kickoff[]`, `participants[].role`, `commitments[]`, `policyHints`, `initiatorParticipantId`) are rejected with 400 if they appear in the request body. The Playground compiler is specifically shaped to produce Control-Plane-safe descriptors.
 2. **The compiler produces twin artifacts.** One goes to the Control Plane (the scenario-agnostic `RunDescriptor`); the other goes to the spawned agents (the `executionRequest` + per-agent `bootstrap`). The `sessionId` is pre-allocated at compile time (UUID v4) and threaded into both.
 3. **The initiator agent opens the session.** The risk agent in our fraud scenario calls `SessionStart(sessionId)` on the runtime using its own Bearer token. The Control Plane, meanwhile, is polling `GetSession(sessionId)` in a tight loop and subscribes read-only the moment the session transitions to `OPEN`.
 4. **Cancellation is agent-bound by default.** When an operator clicks Cancel, the Control Plane POSTs to the initiator agent's `cancelCallback` URL (recorded in `run.metadata.cancelCallback`). The agent then calls `CancelSession` with its own identity. Policy-delegated cancellation (where the CP calls `CancelSession` directly) is available but requires the scenario's policy to grant cancel authority to the Control Plane.
@@ -33,7 +33,7 @@ Keep this invariant in mind as we walk through the flow — it explains a lot of
 
 The journey from "I want to run a scenario" to "here's what the agents decided" crosses four services, each with a distinct job. No single service tries to do everything — that is by design.
 
-The **UI Console** is the storefront where operators browse and launch. The **Examples Service** is the factory floor where scenarios become executable coordination requests and agents get spun up. The **Control Plane** is the observability nervous system that projects runtime events for the UI. And the **Runtime** is the protocol kernel where agents actually coordinate.
+The **UI Console** is the storefront where operators browse and launch. The **Playground** is the factory floor where scenarios become executable coordination requests and agents get spun up. The **Control Plane** is the observability nervous system that projects runtime events for the UI. And the **Runtime** is the protocol kernel where agents actually coordinate.
 
 ```mermaid
 flowchart TB
@@ -43,7 +43,7 @@ flowchart TB
         Proxy["API Proxy\n/api/proxy/{service}/{path}"]
     end
 
-    subgraph ES["Examples Service — NestJS"]
+    subgraph ES["Playground — NestJS"]
         Catalog["Scenario Catalog\nfile-based YAML registry"]
         Compiler["Compiler\nscenario + template → RunDescriptor + scenarioSpec"]
         Hosting["Agent Hosting\nframework adapters · JWT mint · process supervisor"]
@@ -79,7 +79,7 @@ Here is what each service actually owns:
 | Service | Responsibility |
 |---------|---------------|
 | **UI Console** | Scenario browsing, run configuration, live visualization, replay, export. All API calls go through a Next.js proxy route (`/api/proxy/{service}/{path}`) that injects auth headers. |
-| **Examples Service** | Scenario catalog (file-based YAML), input validation, compilation into `RunDescriptor` + `executionRequest` + `initiator`, per-agent JWT minting, and agent process hosting. Does NOT embed the runtime. |
+| **Playground** | Scenario catalog (file-based YAML), input validation, compilation into `RunDescriptor` + `executionRequest` + `initiator`, per-agent JWT minting, and agent process hosting. Does NOT embed the runtime. |
 | **Control Plane** | Observer-only: create run records (queued → binding_session → running → completed), subscribe to runtime `StreamSession`, normalize and persist canonical events, project for the UI, SSE-stream to the browser. |
 | **MACP Runtime** | Protocol enforcement, session state, mode dispatch, policy evaluation, event history. Agents authenticate directly; the Control Plane subscribes with an observer identity (`is_observer: true, can_start_sessions: false`). |
 
@@ -89,7 +89,7 @@ Here is what each service actually owns:
 
 The scenario catalog is deliberately low-tech — it is just YAML files on disk, organized in a hierarchy that mirrors how domain teams think. At the top level, **packs** group scenarios by business domain: fraud, lending, claims. Inside each pack, individual scenarios describe specific coordination situations. Each scenario can have multiple **versions** (because requirements evolve) and multiple **templates** (because the same scenario might run under different governance policies).
 
-Why YAML files instead of a database? Because scenarios are authored by domain experts alongside their agent code, version-controlled in git, and reviewed in pull requests. The file system *is* the source of truth. The Examples Service simply reads it on startup.
+Why YAML files instead of a database? Because scenarios are authored by domain experts alongside their agent code, version-controlled in git, and reviewed in pull requests. The file system *is* the source of truth. The Playground simply reads it on startup.
 
 ```mermaid
 flowchart TB
@@ -254,7 +254,7 @@ This is where the **launch schema** comes in. When the operator selects a scenar
 sequenceDiagram
     participant UI as UI Console
     participant Proxy as API Proxy
-    participant ES as Examples Service
+    participant ES as Playground
 
     UI->>Proxy: GET /packs/fraud/scenarios/high-value-new-device/versions/1.0.0/launch-schema?template=majority-veto
     Proxy->>ES: Forward request
@@ -319,7 +319,7 @@ The user's intent — "run this scenario with these inputs under this template" 
 ```mermaid
 sequenceDiagram
     participant UI as UI Console
-    participant ES as Examples Service
+    participant ES as Playground
     participant AJV as JSON Schema Validator
 
     UI->>ES: POST /launch/compile<br/>{ scenarioRef, templateId, inputs, mode }
@@ -443,13 +443,13 @@ A YAML scenario, a YAML template, and a handful of user inputs got merged, valid
 
 ## Agent Bootstrapping: Bringing the Participants to Life
 
-Here is where things get physical. The compile result describes *what* should happen, but someone needs to actually spawn the agent processes that will participate in the coordination. When `bootstrapAgents: true` (the default for example runs), the Examples Service takes on this responsibility.
+Here is where things get physical. The compile result describes *what* should happen, but someone needs to actually spawn the agent processes that will participate in the coordination. When `bootstrapAgents: true` (the default for example runs), the Playground takes on this responsibility.
 
 For each participant, the service looks up the agent definition, mints a per-agent JWT against the auth-service, writes a bootstrap file, and spawns a child process. The spawned agent reads the bootstrap, opens its own gRPC channel to the runtime, and begins participating.
 
 ```mermaid
 sequenceDiagram
-    participant ES as Examples Service
+    participant ES as Playground
     participant Cat as Agent Catalog
     participant Auth as auth-service
     participant Reg as Adapter Registry
@@ -512,7 +512,7 @@ interface BootstrapPayload {
   // Set on the initiator when the scenario uses agent-bound cancellation (Option A)
   cancel_callback?: { host: string; port: number; path: string };
 
-  // Examples-service–specific pass-through context (not consumed by the SDK)
+  // Playground-specific pass-through context (not consumed by the SDK)
   metadata?: {
     run_id: string;
     trace_id: string;
@@ -561,7 +561,7 @@ This is the sequence that plays out in real time, with events streaming to the o
 ```mermaid
 sequenceDiagram
     participant UI as UI Console
-    participant ES as Examples Service
+    participant ES as Playground
     participant CP as Control Plane
     participant RT as Runtime
     participant Risk as risk-agent
@@ -620,7 +620,7 @@ sequenceDiagram
 
 Let's walk through what just happened.
 
-**Phase 1 — Launch.** The operator clicks "Run." The Examples Service compiles the scenario into the twin artifacts, validates the `RunDescriptor` with the Control Plane (a dry run — is the mode supported? runtime reachable?), then creates the run record. The Control Plane returns immediately (202) with `runId`, `sessionId`, and `traceId`. The Examples Service mints four per-agent JWTs against the auth-service, writes four bootstrap files, and spawns four processes. The UI navigates to the live workbench. Total wall time: a couple of seconds.
+**Phase 1 — Launch.** The operator clicks "Run." The Playground compiles the scenario into the twin artifacts, validates the `RunDescriptor` with the Control Plane (a dry run — is the mode supported? runtime reachable?), then creates the run record. The Control Plane returns immediately (202) with `runId`, `sessionId`, and `traceId`. The Playground mints four per-agent JWTs against the auth-service, writes four bootstrap files, and spawns four processes. The UI navigates to the live workbench. Total wall time: a couple of seconds.
 
 **Phase 2 — Session Creation.** The Control Plane enters its async observation loop: it polls `GetSession(sessionId)` on the runtime with an exponential backoff (100ms → 1s). Meanwhile, the risk-agent's worker starts up, reads its bootstrap, opens a gRPC channel with its own JWT, and calls `SessionStart(sessionId)`. The runtime accepts the call (risk-agent is the whitelisted initiator), creates the session, and enters `OPEN` state. Risk-agent immediately sends its kickoff `Proposal` envelope. The Control Plane's poll finally sees `OPEN`, opens a read-only `subscribeSession`, and receives a replay of the `SessionStart` + `Proposal` envelopes — which it normalizes and projects for the UI. The UI sees its first `snapshot` frame over SSE.
 
@@ -646,11 +646,11 @@ Decision: `step_up`. Session transitions to `RESOLVED`. The operator sees the de
 
 ## Submitting to the Control Plane (the handoff)
 
-After compilation and bootstrap prep, the Examples Service has to actually create the run record before agents can start. This is the only HTTP call that creates state; everything else is observation. Keep this section focused on the handoff — for the protocol-level details of what happens inside the runtime, see the [MACP End-to-End Flow](https://multiagentcoordinationprotocol.io/docs/e2e-flow).
+After compilation and bootstrap prep, the Playground has to actually create the run record before agents can start. This is the only HTTP call that creates state; everything else is observation. Keep this section focused on the handoff — for the protocol-level details of what happens inside the runtime, see the [MACP End-to-End Flow](https://multiagentcoordinationprotocol.io/docs/e2e-flow).
 
 ```mermaid
 sequenceDiagram
-    participant ES as Examples Service
+    participant ES as Playground
     participant CP as Control Plane
     participant RT as Runtime
     participant Init as initiator agent
@@ -676,7 +676,7 @@ sequenceDiagram
     CP->>CP: status: binding_session → running
 ```
 
-Two-step submission: **validate first, then create**. The validation step (`POST /runs/validate`) is a dry run — it checks that the requested mode is supported, the runtime is reachable, and the request is well-formed. Only after it passes does the Examples Service create the run. This prevents wasted agent bootstrapping when the Control Plane is not ready.
+Two-step submission: **validate first, then create**. The validation step (`POST /runs/validate`) is a dry run — it checks that the requested mode is supported, the runtime is reachable, and the request is well-formed. Only after it passes does the Playground create the run. This prevents wasted agent bootstrapping when the Control Plane is not ready.
 
 The control plane returns `202 Accepted` with the handle:
 
@@ -852,7 +852,7 @@ The clone feature is particularly useful for iterative testing. You run a scenar
 
 Production systems fail. Networks partition. Agents crash. Inputs get malformed. A system that only works on the happy path is not a system — it is a demo. MACP handles errors at every layer with structured codes and clear feedback that flows all the way back to the operator.
 
-### Examples Service errors
+### Playground errors
 
 These are the errors you hit before the run even starts — bad scenario references, invalid inputs, unreachable dependencies:
 
