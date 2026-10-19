@@ -4,12 +4,13 @@ import {
   COMPLETED_RUN_ID,
   DECLINED_RUN_ID,
   MOCK_POLICY_DEFINITIONS,
+  MOCK_RUNTIME_MANIFEST,
   MOCK_RUNTIME_POLICIES,
   MOCK_RUN_EVENTS,
   MOCK_RUN_STATES,
   MOCK_RUNS
 } from '@/lib/data/mock-data';
-import type { CommitmentAuthority } from '@/lib/types';
+import { POLICY_SCHEMA_VERSIONS, type CommitmentAuthority } from '@/lib/types';
 
 /**
  * Exhaustiveness anchor for `CommitmentAuthority`.
@@ -90,6 +91,103 @@ describe('MOCK_POLICY_DEFINITIONS', () => {
         expect(policy.rules.commitment.designated_roles.length).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+/**
+ * The Decision rule tree, hand-mirrored from `DECISION_RULES` in
+ * macp-runtime/crates/macp-core/src/policy/keys.rs. Since runtime 0.8.9 rule objects are *closed*:
+ * `RegisterPolicy` (crates/macp-policy/src/registry.rs) refuses any key outside this tree with
+ * `INVALID_POLICY_DEFINITION` — including the old `rules.audit` block. `'map'` marks an open map
+ * whose keys are data (participant ids), `'leaf'` a scalar or array.
+ */
+type RuleShape = 'leaf' | 'map' | { [key: string]: RuleShape };
+
+const DECISION_RULES: RuleShape = {
+  voting: { algorithm: 'leaf', threshold: 'leaf', quorum: { type: 'leaf', value: 'leaf' }, weights: 'map' },
+  objection_handling: {
+    critical_objection_action: 'leaf',
+    critical_severity_vetoes: 'leaf',
+    veto_threshold: 'leaf'
+  },
+  evaluation: { minimum_confidence: 'leaf', required_before_voting: 'leaf' },
+  commitment: {
+    allow_decline_over_approval: 'leaf',
+    authority: 'leaf',
+    designated_roles: 'leaf',
+    require_vote_quorum: 'leaf'
+  }
+};
+
+/** `^[_$]` annotation keys: legal at every closed level, no governance meaning (RFC-MACP-0012 §4). */
+const isAnnotationKey = (key: string) => key.startsWith('_') || key.startsWith('$');
+/** `^x-[a-z0-9]+(\.[a-z0-9-]+)+$` vendor-extension keys: legal at the top level only (proposal S1). */
+const isVendorExtensionKey = (key: string) => /^x-[a-z0-9]+(\.[a-z0-9-]+)+$/.test(key);
+
+/** Returns the dotted paths of every key the runtime's closed-object walk would refuse. */
+function closedKeyViolations(value: unknown, shape: RuleShape, path: string[] = []): string[] {
+  if (shape === 'leaf' || shape === 'map') return [];
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [];
+  return Object.entries(value).flatMap(([key, child]) => {
+    if (isAnnotationKey(key)) return [];
+    if (path.length === 0 && isVendorExtensionKey(key)) return [];
+    const childShape = shape[key];
+    if (childShape === undefined) return [[...path, key].join('.')];
+    return closedKeyViolations(child, childShape, [...path, key]);
+  });
+}
+
+describe('mock policies satisfy runtime 0.9.0 admission', () => {
+  it('keeps every value inside the domains the runtime enforces', () => {
+    for (const policy of MOCK_POLICY_DEFINITIONS) {
+      const { objection_handling, evaluation, commitment } = policy.rules;
+      expect(objection_handling.veto_threshold, policy.policy_id).toBeGreaterThanOrEqual(1);
+      expect(evaluation.minimum_confidence, policy.policy_id).toBeGreaterThanOrEqual(0);
+      expect(evaluation.minimum_confidence, policy.policy_id).toBeLessThanOrEqual(1);
+      expect(Object.keys(COMMITMENT_AUTHORITIES), policy.policy_id).toContain(commitment.authority);
+      expect(POLICY_SCHEMA_VERSIONS as readonly number[], policy.policy_id).toContain(policy.schema_version);
+    }
+  });
+
+  it('carries no key outside the closed Decision rule objects', () => {
+    for (const policy of MOCK_POLICY_DEFINITIONS) {
+      expect(closedKeyViolations(policy.rules, DECISION_RULES), policy.policy_id).toEqual([]);
+    }
+  });
+
+  it('applies the runtime key namespaces: unknown refused, annotations ignored, x- top level only', () => {
+    expect(closedKeyViolations({ audit: { level: 'info' } }, DECISION_RULES)).toEqual(['audit']);
+    expect(closedKeyViolations({ voting: { quorum: { kind: 'count' } } }, DECISION_RULES)).toEqual([
+      'voting.quorum.kind'
+    ]);
+    expect(
+      closedKeyViolations(
+        { _note: 'x', $comment: 'y', voting: { _why: 'z', weights: { 'agent-a': 2 } } },
+        DECISION_RULES
+      )
+    ).toEqual([]);
+    expect(closedKeyViolations({ 'x-acme.limits': {} }, DECISION_RULES)).toEqual([]);
+    expect(closedKeyViolations({ voting: { 'x-acme.limits': {} } }, DECISION_RULES)).toEqual(['voting.x-acme.limits']);
+    expect(closedKeyViolations({ 'x-acme': {} }, DECISION_RULES)).toEqual(['x-acme']);
+  });
+
+  it('mirrors the runtime built-in policy.default rules', () => {
+    // Source of truth: macp-runtime/crates/macp-policy/src/defaults.rs
+    const policy = MOCK_POLICY_DEFINITIONS.find((entry) => entry.policy_id === 'policy.default');
+    expect(policy?.rules).toEqual({
+      voting: { algorithm: 'none', quorum: { type: 'count', value: 0 } },
+      objection_handling: { critical_severity_vetoes: false, veto_threshold: 1 },
+      evaluation: { required_before_voting: false, minimum_confidence: 0.0 },
+      commitment: { authority: 'initiator_only', designated_roles: [], require_vote_quorum: false }
+    });
+  });
+});
+
+describe('MOCK_RUNTIME_MANIFEST', () => {
+  it('names the proto package the control plane depends on', () => {
+    // Must move together with `@multiagentcoordinationprotocol/proto` in
+    // macp-control-plane/package.json (^0.1.11 since macp-control-plane#113).
+    expect(MOCK_RUNTIME_MANIFEST.metadata?.protocolVersion).toBe('0.1.11');
   });
 });
 
