@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-19 — Re-pin the e2e runtime to v0.9.0
+
+- `docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.9.0`
+  (was `0.8.8`). `macp-control-plane` (#114) and `macp-playground` (#124) pin `0.9.0` too. Override with
+  `MACP_RUNTIME_IMAGE`; roll back with `…/macp-runtime:0.8.8`.
+- **Demo policy catalogue brought into the 0.9.0 admission domain.** Three mock policies carried
+  `veto_threshold: 0`, which the runtime refuses since 0.8.9 (minimum 1). The mock `policy.default` rules
+  now mirror the runtime's built-in default. `lib/data/mock-data.test.ts` checks every mock policy
+  against the value domains and the closed Decision rule keys.
+- Mock runtime manifest `protocolVersion` → `0.1.11`, tracking the control plane's proto dependency
+  (`^0.1.11`, CP #113).
+- `INVALID_POLICY_DEFINITION` docs updated for closed rule objects and value domains.
+- `docker-compose.e2e.yml` passes the GitHub Packages token to the control-plane build as the BuildKit
+  secret `npm_token`, which its Dockerfile now requires (`export NODE_AUTH_TOKEN=$(gh auth token)`).
+
 ## 2026-10-04 — Re-pin the e2e runtime to v0.8.8
 
 `docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.8.8`

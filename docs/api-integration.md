@@ -179,7 +179,7 @@ Runtime-level semantics (what a "mode" is, what's in a manifest) are documented 
 runtime repo: [`macp-runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/modes.md)
 and [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md).
 
-Console-relevant notes (the e2e/local stack pins the v0.8.8 runtime image in
+Console-relevant notes (the e2e/local stack pins the v0.9.0 runtime image in
 `docker-compose.e2e.yml`; release notes are in the runtime's
 [changelog](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/CHANGELOG.md)):
 
@@ -187,6 +187,11 @@ Console-relevant notes (the e2e/local stack pins the v0.8.8 runtime image in
   reachable via `ListExtModes`, which the control plane does not expose. **Demo mode still lists six**
   (known divergence, flagged at `MOCK_RUNTIME_MODES` in `lib/data/mock-data.ts`). The `/modes` page
   renders `messageTypes` and `terminalMessageTypes` per mode (terminal is always `["Commitment"]`).
+- Since runtime 0.8.9, policy registration on `/policies` is refused (`INVALID_POLICY_DEFINITION`) for
+  unknown rule keys (rule objects are closed, so the old `rules.audit` block is refused too),
+  `veto_threshold < 1`, and `minimum_confidence` outside `[0, 1]`. The refusal surfaces as the
+  control plane's error `message`. Rules reference: the runtime's
+  [policy.md](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/policy.md).
 - `GET /runtime/roots` is fetched once per page view and is normally empty. Roots are static
   (`list_changed: false`, RFC-MACP-0006 §3.3), so the console does not watch for changes.
 - Runtime Prometheus counters (on `MACP_METRICS_ADDR`) are an ops-only surface the

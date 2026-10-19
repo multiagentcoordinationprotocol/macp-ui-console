@@ -883,7 +883,7 @@ These happen during execution — runtime connectivity issues, rejected requests
 | `CIRCUIT_BREAKER_OPEN` | Circuit breaker tripped after consecutive gRPC failures |
 | `UNKNOWN_POLICY_VERSION` | Requested `policyVersion` not registered with runtime |
 | `POLICY_DENIED` | Commitment rejected by governance rules (includes structured `reasons`) |
-| `INVALID_POLICY_DEFINITION` | Registered policy rules fail schema validation |
+| `INVALID_POLICY_DEFINITION` | Registered policy rules fail runtime admission: unknown key (closed rule objects), out-of-domain value, or `schema_version` outside 1–3 |
 
 ### UI Console error handling
 
