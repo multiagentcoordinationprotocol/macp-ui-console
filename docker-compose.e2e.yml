@@ -47,9 +47,10 @@ services:
     build:
       context: ../macp-control-plane
       dockerfile: Dockerfile
-      args:
-        NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
-        NPM_TOKEN: ${NODE_AUTH_TOKEN:-}
+      # The control-plane Dockerfile reads the GitHub Packages token from a BuildKit secret
+      # (`--mount=type=secret,id=npm_token`), not a build arg.
+      secrets:
+        - npm_token
     command: node dist/db/migrate.js
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/macp_e2e
@@ -58,15 +59,15 @@ services:
         condition: service_healthy
 
   runtime:
-    # Pinned to runtime v0.8.8 by its published semver tag (release builds now publish
-    # `macp-runtime:<version>`; the earlier pin used a commit SHA tag because none existed).
-    # Note: macp-control-plane's docker-compose.test.yml and macp-playground's
-    # docker-compose.fullstack.yml pin 0.8.6, the version the control plane last absorbed (#96);
-    # this stack runs two patch releases ahead of that.
+    # Pinned to runtime v0.9.0 by its published semver tag. macp-control-plane's
+    # docker-compose.test.yml (#114) and macp-playground's docker-compose.fullstack.yml (#124) pin
+    # 0.9.0 too, so the whole stack runs one runtime version. 0.9.0 requires UPPER_CASE Decision
+    # votes (semantics_rev 4); the control plane and playground built from source below must be at
+    # or after those PRs, or Decision runs fail with INVALID_ENVELOPE.
     #
     # Override with MACP_RUNTIME_IMAGE for local builds
     # (e.g. `export MACP_RUNTIME_IMAGE=macp-runtime:latest`).
-    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.8.8}
+    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.9.0}
     ports:
       - "50051:50051"
       # Runtime Prometheus metrics (opt-in via MACP_METRICS_ADDR below). Harmless until
@@ -103,9 +104,10 @@ services:
     build:
       context: ../macp-control-plane
       dockerfile: Dockerfile
-      args:
-        NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
-        NPM_TOKEN: ${NODE_AUTH_TOKEN:-}
+      # The control-plane Dockerfile reads the GitHub Packages token from a BuildKit secret
+      # (`--mount=type=secret,id=npm_token`), not a build arg.
+      secrets:
+        - npm_token
     ports:
       - "3001:3001"
     environment:
@@ -236,3 +238,9 @@ services:
       - "4318:4318"
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
+
+secrets:
+  # GitHub Packages token for the private @multiagentcoordinationprotocol npm scope
+  # (e.g. `export NODE_AUTH_TOKEN=$(gh auth token)`).
+  npm_token:
+    environment: NODE_AUTH_TOKEN

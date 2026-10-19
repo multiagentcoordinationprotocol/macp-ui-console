@@ -1946,13 +1946,14 @@ export const MOCK_RUNTIME_MANIFEST: RuntimeManifestResult = {
   // it is not invisible: `/modes` renders the whole manifest as raw JSON through `JsonViewer`
   // (app/modes/page.tsx:95), so a wrong value here is a wrong value on screen in demo mode.
   //
-  // `protocolVersion` tracks the **proto/spec** package, currently `0.1.10`
-  // (`macp-control-plane/package.json` depends on `@multiagentcoordinationprotocol/proto@^0.1.10`),
+  // `protocolVersion` tracks the **proto/spec** package, currently `0.1.11`
+  // (`macp-control-plane/package.json` depends on `@multiagentcoordinationprotocol/proto@^0.1.11`
+  // since macp-control-plane#113),
   // not the runtime build. The previous value `0.5.0` was a runtime image version: docs/changelog.md
   // set it alongside the v0.5.0 image pin, conflating the two. A field named `protocolVersion`
   // should name the protocol, so it now does.
   metadata: {
-    protocolVersion: '0.1.10',
+    protocolVersion: '0.1.11',
     storage: 'file-backend',
     transport: 'grpc'
   }
@@ -2013,9 +2014,11 @@ export const MOCK_POLICY_DEFINITIONS: PolicyDefinition[] = [
     mode: 'macp.mode.decision.v1',
     schema_version: 1,
     description: 'Default — no additional governance constraints',
+    // Rules mirror the runtime's built-in default (macp-runtime crates/macp-policy/src/defaults.rs).
+    // Since runtime 0.8.9, `veto_threshold` has a minimum of 1 — 0 is refused at admission.
     rules: {
-      voting: { algorithm: 'none' },
-      objection_handling: { critical_severity_vetoes: false, veto_threshold: 0 },
+      voting: { algorithm: 'none', quorum: { type: 'count', value: 0 } },
+      objection_handling: { critical_severity_vetoes: false, veto_threshold: 1 },
       evaluation: { minimum_confidence: 0.0, required_before_voting: false },
       commitment: { authority: 'initiator_only', require_vote_quorum: false, designated_roles: [] }
     }
@@ -2039,7 +2042,7 @@ export const MOCK_POLICY_DEFINITIONS: PolicyDefinition[] = [
     description: 'Supermajority (67%) approval required',
     rules: {
       voting: { algorithm: 'supermajority', threshold: 0.67, quorum: { type: 'percentage', value: 0.67 } },
-      objection_handling: { critical_severity_vetoes: false, veto_threshold: 0 },
+      objection_handling: { critical_severity_vetoes: false, veto_threshold: 1 },
       evaluation: { minimum_confidence: 0.0, required_before_voting: false },
       commitment: { authority: 'initiator_only', require_vote_quorum: true, designated_roles: [] }
     }
@@ -2088,7 +2091,7 @@ export const MOCK_POLICY_DEFINITIONS: PolicyDefinition[] = [
     description: 'Claims review: simple majority',
     rules: {
       voting: { algorithm: 'majority', threshold: 0.5, quorum: { type: 'percentage', value: 0.5 } },
-      objection_handling: { critical_severity_vetoes: false, veto_threshold: 0 },
+      objection_handling: { critical_severity_vetoes: false, veto_threshold: 1 },
       evaluation: { minimum_confidence: 0.0, required_before_voting: false },
       commitment: { authority: 'initiator_only', require_vote_quorum: true, designated_roles: [] }
     }
