@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-19 — Proxy refuses unknown services (#58)
+
+`/api/proxy/[service]/…` now returns `404` for any `[service]` other than `macp-playground` or
+`macp-control-plane`. Previously an unknown value fell through to the control-plane config and was
+forwarded with `MACP_CONTROL_PLANE_API_KEY`. `getIntegrationConfig` also throws on an unknown service
+instead of defaulting to the control plane. Tests: `app/api/proxy/[service]/[...path]/route.test.ts`.
+
 ## 2026-10-19 — Re-pin the e2e runtime to v0.9.0
 
 - `docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.9.0`

@@ -158,10 +158,10 @@ The browser only calls:
 
 The generic proxy handler (`app/api/proxy/[service]/[...path]/route.ts`):
 
-- maps `macp-playground` and `macp-control-plane` — the two members of `ProxyService`
-  (`lib/server/integrations.ts:1`) — to upstream base URLs. There is no allowlist check: an
-  unrecognized segment falls through to the control-plane branch rather than 404ing, so the
-  spelling matters.
+- maps `macp-playground` and `macp-control-plane` — the two members of `PROXY_SERVICES`
+  (`lib/server/integrations.ts`) — to upstream base URLs. Any other segment is refused with `404`
+  before an upstream URL is built or credentials are attached (`isProxyService`, #58), and
+  `getIntegrationConfig` throws on an unknown service rather than defaulting to the control plane.
 - forwards method, headers (minus `host` / `connection` / `content-length`), query string, and body
 - injects auth when configured (`x-api-key` for Examples Service, `authorization: Bearer` for Control Plane)
 - strips `content-encoding` on the response and streams the body unchanged

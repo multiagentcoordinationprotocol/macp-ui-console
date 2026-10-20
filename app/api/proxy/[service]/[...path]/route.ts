@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server';
-import { buildUpstreamUrl, getIntegrationConfig, type ProxyService } from '@/lib/server/integrations';
+import { buildUpstreamUrl, getIntegrationConfig, isProxyService } from '@/lib/server/integrations';
 
 export const dynamic = 'force-dynamic';
 
 async function forward(request: NextRequest, context: { params: Promise<{ service: string; path: string[] }> }) {
-  const { service: rawService, path } = await context.params;
-  const service = rawService as ProxyService;
+  const { service, path } = await context.params;
+  if (!isProxyService(service)) {
+    return Response.json({ message: `Unknown proxy service '${service}'.` }, { status: 404 });
+  }
   const config = getIntegrationConfig(service);
   const upstreamUrl = buildUpstreamUrl(service, `/${(path ?? []).join('/')}`, request.nextUrl.search);
 

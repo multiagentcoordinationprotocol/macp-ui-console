@@ -39,7 +39,7 @@ requests, inject auth, and keep secrets server-side.
 | `/api/proxy/[service]/[...path]` | `app/api/proxy/[service]/[...path]/route.ts` | Generic forwarder for `macp-playground` and `macp-control-plane` services. Injects auth, strips hop-by-hop headers, streams response body unchanged. |
 | `/api/jaeger/[...path]` | `app/api/jaeger/[...path]/route.ts` | Forwards to `JAEGER_BASE_URL/api/*`. Used by the trace detail surface to resolve span waterfalls. Returns `502` if Jaeger is unreachable. |
 
-Supported upstream service identifiers (`[service]` segment): `macp-playground`, `macp-control-plane` — the two members of `ProxyService` in `lib/server/integrations.ts:1`.
+Supported upstream service identifiers (`[service]` segment): `macp-playground`, `macp-control-plane` — the two members of `PROXY_SERVICES` in `lib/server/integrations.ts`. Any other value is refused with `404` and never forwarded.
 
 ### Environment variables
 

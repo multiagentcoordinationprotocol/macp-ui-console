@@ -1,4 +1,14 @@
-export type ProxyService = 'macp-playground' | 'macp-control-plane';
+export const PROXY_SERVICES = ['macp-playground', 'macp-control-plane'] as const;
+
+export type ProxyService = (typeof PROXY_SERVICES)[number];
+
+/**
+ * Narrows the raw `[service]` route segment. The proxy attaches server-held credentials, so it must
+ * forward only to a known service; anything else is refused before an upstream URL is built (#58).
+ */
+export function isProxyService(value: string): value is ProxyService {
+  return (PROXY_SERVICES as readonly string[]).includes(value);
+}
 
 interface ServiceConfig {
   service: ProxyService;
@@ -38,6 +48,11 @@ export function getIntegrationConfig(service: ProxyService): ServiceConfig {
       authHeaderName: 'x-api-key',
       authToken: resolveAuthToken('MACP_PLAYGROUND_API_KEY', service)
     };
+  }
+
+  // Fail closed: an unknown service must never inherit the control plane's URL and API key.
+  if (service !== 'macp-control-plane') {
+    throw new Error(`[MACP UI] Unknown proxy service '${String(service)}'.`);
   }
 
   return {
