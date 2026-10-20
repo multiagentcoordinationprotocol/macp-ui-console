@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getIntegrationConfig, buildUpstreamUrl } from '@/lib/server/integrations';
+import { getIntegrationConfig, buildUpstreamUrl, isProxyService, type ProxyService } from '@/lib/server/integrations';
 
 /**
  * `resolveBaseUrl` throws in production and falls back only in dev, so these cases pin the
@@ -49,5 +49,18 @@ describe('getIntegrationConfig dev fallbacks', () => {
   it('still prefers an explicit MACP_PLAYGROUND_BASE_URL over the fallback', () => {
     process.env.MACP_PLAYGROUND_BASE_URL = 'http://example.test:9999';
     expect(buildUpstreamUrl('macp-playground', '/packs')).toBe('http://example.test:9999/packs');
+  });
+});
+
+describe('isProxyService / getIntegrationConfig allow-list (#58)', () => {
+  it('accepts exactly the two known services', () => {
+    expect(isProxyService('macp-playground')).toBe(true);
+    expect(isProxyService('macp-control-plane')).toBe(true);
+    expect(isProxyService('anything')).toBe(false);
+    expect(isProxyService('')).toBe(false);
+  });
+
+  it('throws rather than handing an unknown service the control-plane config', () => {
+    expect(() => getIntegrationConfig('anything' as ProxyService)).toThrow(/Unknown proxy service/);
   });
 });
