@@ -192,6 +192,8 @@ npm run scenario:dry-run   # Compile a scenario offline and print the CompileLau
 npm run scenario:lint      # Static checks across one or more packs
 ```
 
+> **For MACP org members:** agents working in this repo can query the MACP knowledge base through the `macp-kb` MCP server. Setup instructions are in the private `macp-docs` repo (README, "MCP server"). Answers cite the source repo and commit, so check freshness with `kb_status` before relying on one. Outside contributors can ignore this note.
+
 ## Docker
 
 ```bash
@@ -199,8 +201,9 @@ npm run scenario:lint      # Static checks across one or more packs
 docker compose -f docker-compose.dev.yml up
 
 # Full stack: runtime + auth-service + control-plane + postgres + playground, real LLM calls.
-# Needs locally built :0.8.0 images of control-plane, auth-service and playground.
-OPENAI_API_KEY=sk-... docker compose -f docker-compose.fullstack.yml up
+# Needs control-plane/auth-service images built locally at their pinned commits (see the
+# compose file's header); the playground image builds from this checkout.
+OPENAI_API_KEY=sk-... NODE_AUTH_TOKEN=... docker compose -f docker-compose.fullstack.yml up --build
 ```
 
 
