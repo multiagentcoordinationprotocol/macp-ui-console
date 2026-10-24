@@ -56,6 +56,7 @@ export const PROXY_ALLOWLIST: readonly ProxyRoute[] = [
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/stream', note: 'use-live-run SSE' },
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/metrics', note: 'getRunMetrics' },
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/traces', note: 'getRunTraces' },
+  { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/verification', note: 'getRunVerification' },
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/artifacts', note: 'getRunArtifacts' },
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/export', note: 'exportRunBundle' },
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/replay/state', note: 'getTimelineFrame' },

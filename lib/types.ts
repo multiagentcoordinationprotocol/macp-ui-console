@@ -479,6 +479,41 @@ export interface Artifact {
   createdAt: string;
 }
 
+/**
+ * `GET /runs/:id/verification` — the control plane recomputes the RFC-MACP-0013 canonical
+ * commitment hash of the run's Commitment and cross-checks it (adoption roadmap W2.3).
+ */
+export type RunVerificationStatus = 'verified' | 'mismatch' | 'cannot_verify' | 'pending';
+
+export interface RunVerificationCheck {
+  id: string;
+  description: string;
+  passed: boolean;
+  detail?: string;
+}
+
+export interface RunVerification {
+  runId: string;
+  status: RunVerificationStatus;
+  match: boolean;
+  label: string;
+  /** RFC-MACP-0013 hash of the CommitmentPayload as stored. */
+  commitmentHash: string | null;
+  /** The same hash recomputed from the Commitment envelope's raw payload bytes. */
+  recomputed: string | null;
+  wireVerdict: 'match' | 'mismatch' | 'cannot_verify' | null;
+  commitment: {
+    messageId: string;
+    sender: string;
+    sessionId: string;
+    acceptedAt: string;
+    payload: Record<string, unknown>;
+  } | null;
+  checks: RunVerificationCheck[];
+  notVerified: string[];
+  checkedAt: string;
+}
+
 export interface TraceSummary {
   traceId?: string;
   spanCount: number;

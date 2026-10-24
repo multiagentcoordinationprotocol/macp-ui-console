@@ -13,6 +13,7 @@ import { LiveEventFeed } from '@/components/runs/live-event-feed';
 import { RunStoryPanel } from '@/components/runs/run-story-panel';
 import { NodeInspector } from '@/components/runs/node-inspector';
 import { DecisionPanel } from '@/components/runs/decision-panel';
+import { VerificationPanel } from '@/components/runs/verification-panel';
 import { PolicyPanel } from '@/components/runs/policy-panel';
 import { RunOverviewCard } from '@/components/runs/run-overview-card';
 import { SignalRail } from '@/components/runs/signal-rail';
@@ -455,6 +456,11 @@ export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveM
         </ErrorBoundary>
         <DecisionPanel run={run} state={projectedState} events={projectedEvents} runId={runId} />
       </div>
+
+      {/* W2.3: RFC-MACP-0013 commitment-hash verification of the binding outcome */}
+      <ErrorBoundary>
+        <VerificationPanel runId={runId} demoMode={demoMode} runStatus={runStatus} />
+      </ErrorBoundary>
 
       {replayEnabled && replayFrames.length > 0 ? (
         <Card>
