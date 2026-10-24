@@ -20,6 +20,7 @@ import type {
   RuntimePolicyDescriptor,
   RuntimeRootDescriptor,
   ScenarioSummary,
+  RunVerification,
   TraceSummary,
   WebhookSubscription
 } from '@/lib/types';
@@ -1704,6 +1705,62 @@ export const MOCK_RUN_TRACES: Record<string, TraceSummary> = {
   [SUSPENDED_RUN_ID]: suspendedState.trace,
   [CANCELLED_RUN_ID]: cancelledState.trace
 };
+
+/**
+ * Demo-mode stand-in for `GET /runs/:id/verification`. Nothing is recomputed here: a finalized
+ * mock decision gets a fixed sample hash, and the response says so in `notVerified`.
+ */
+export function mockRunVerification(runId: string): RunVerification {
+  const state = MOCK_RUN_STATES[runId];
+  const current = state?.decision.current;
+  const base = {
+    runId,
+    label: 'macp-commitment-hash/1',
+    notVerified: ['Demo mode: sample data. No commitment hash was recomputed.'],
+    checkedAt: new Date().toISOString()
+  };
+  if (!current?.finalized) {
+    return {
+      ...base,
+      status: 'pending',
+      match: false,
+      commitmentHash: null,
+      recomputed: null,
+      wireVerdict: null,
+      commitment: null,
+      checks: []
+    };
+  }
+  const hash = 'sha256:1182dca34e3cc51e3e1d59cfa5c23c76ccd5440acef50cf3c0d26634868ba346';
+  return {
+    ...base,
+    status: 'verified',
+    match: true,
+    commitmentHash: hash,
+    recomputed: hash,
+    wireVerdict: 'match',
+    commitment: {
+      messageId: `demo-commitment-${runId.slice(0, 8)}`,
+      sender: current.resolvedBy ?? 'coordinator',
+      sessionId: `demo-session-${runId.slice(0, 8)}`,
+      acceptedAt: current.resolvedAt ?? base.checkedAt,
+      payload: { action: current.action, outcome_positive: current.outcomePositive ?? false }
+    },
+    checks: [
+      {
+        id: 'wire_recompute',
+        description: 'Hash of the stored CommitmentPayload equals the hash recomputed from the envelope wire bytes',
+        passed: true
+      },
+      {
+        id: 'rfc0013_verify',
+        description: 'RFC-MACP-0013 §6.1 verify of the wire bytes against that hash returns match',
+        passed: true,
+        detail: 'match'
+      }
+    ]
+  };
+}
 
 export const MOCK_RUN_ARTIFACTS: Record<string, Artifact[]> = {
   [LIVE_RUN_ID]: [

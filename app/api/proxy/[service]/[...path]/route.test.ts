@@ -124,6 +124,15 @@ describe('proxy route method/path allow-list and rate limiting', () => {
     }
   );
 
+  it('forwards the read-only run verification route (W2.3) to the control plane', async () => {
+    expect(findAllowedRoute('macp-control-plane', 'GET', ['runs', 'run-1', 'verification'])?.note).toBe(
+      'getRunVerification'
+    );
+    const response = await call('GET', 'macp-control-plane', ['runs', 'run-1', 'verification']);
+    expect(response.status).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toBe('http://cp.test/runs/run-1/verification');
+  });
+
   // Every route the UI can reach with a mutating or admin effect, plus generic probes.
   const refused: Array<[Method, string, string[]]> = [
     ['POST', 'macp-control-plane', ['runtime', 'policies']],
@@ -155,6 +164,8 @@ describe('proxy route method/path allow-list and rate limiting', () => {
     ['POST', 'macp-control-plane', ['runs', 'batch', 'delete']],
     ['POST', 'macp-control-plane', ['runs', 'batch', 'export']],
     ['GET', 'macp-control-plane', ['runs', 'run-1', 'messages']],
+    ['POST', 'macp-control-plane', ['runs', 'run-1', 'verification']],
+    ['GET', 'macp-control-plane', ['runs', 'run-1', 'verification', 'extra']],
     ['GET', 'macp-control-plane', ['healthz']],
     ['HEAD', 'macp-control-plane', ['runs']],
     ['OPTIONS', 'macp-control-plane', ['runs']],

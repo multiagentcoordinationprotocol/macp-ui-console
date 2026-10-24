@@ -26,6 +26,7 @@ import {
   MOCK_RUNTIME_ROOTS,
   MOCK_SCENARIOS,
   MOCK_WEBHOOKS,
+  mockRunVerification,
   SUSPENDED_RUN_ID
 } from '@/lib/data/mock-data';
 import type {
@@ -64,6 +65,7 @@ import type {
   RuntimePolicyDescriptor,
   RuntimeRootDescriptor,
   ScenarioSummary,
+  RunVerification,
   TraceSummary,
   ValidateRunResponse,
   WebhookSubscription
@@ -539,6 +541,12 @@ export async function getRunMetrics(runId: string, demoMode: boolean): Promise<M
 export async function getRunTraces(runId: string, demoMode: boolean): Promise<TraceSummary> {
   if (demoMode) return maybeDelay(MOCK_RUN_TRACES[runId]);
   return fetchJson<TraceSummary>('macp-control-plane', `/runs/${runId}/traces`);
+}
+
+/** RFC-MACP-0013 commitment-hash verification of the run's binding outcome (W2.3). */
+export async function getRunVerification(runId: string, demoMode: boolean): Promise<RunVerification> {
+  if (demoMode) return maybeDelay(mockRunVerification(runId));
+  return fetchJson<RunVerification>('macp-control-plane', `/runs/${runId}/verification`);
 }
 
 export interface JaegerSpan {

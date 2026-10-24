@@ -168,6 +168,7 @@ Still supported (scenario-agnostic, CP-local):
 ### Observability and artifacts
 - `GET /runs/:id/metrics` — includes `promptTokens`, `completionTokens`, `totalTokens`, `estimatedCostUsd`. Cost is derived from `MODEL_COSTS` on the CP side (see [CP API.md § Token usage convention](https://github.com/multiagentcoordinationprotocol/macp-control-plane/blob/main/docs/API.md#get-runsidmetrics)).
 - `GET /runs/:id/traces` — summary (`traceId`, `spanCount`, `linkedArtifacts`, `runStatus`, `scenarioRef`).
+- `GET /runs/:id/verification` — RFC-MACP-0013 commitment-hash check of the run's Commitment (`status`: `verified` | `mismatch` | `cannot_verify` | `pending`, `commitmentHash`, `recomputed`, `wireVerdict`, `checks[]`, `notVerified[]`). Rendered by the Verification panel on the run view.
 - `GET /runs/:id/artifacts`
 - `GET /metrics` — raw Prometheus exposition. The `/observability` page parses it client-side via `lib/utils/prometheus.ts` (counters, gauges, histograms, summaries; percentile interpolation matches Grafana's `histogram_quantile`).
 - `GET /audit` — supports `actor`, `action`, `resource`, `resourceId`, `createdAfter`, `createdBefore`, `limit`, `offset`. Default paging is `limit=100&offset=0`.
@@ -284,7 +285,7 @@ proxy.
 - `getTimelineFrame` — `/runs/:id/replay/state?seq=<n>`
 
 ### Control Plane — observability
-- `getRunMetrics`, `getRunTraces`, `getRunArtifacts`, `createArtifact`
+- `getRunMetrics`, `getRunTraces`, `getRunVerification`, `getRunArtifacts`, `createArtifact`
 - `getObservabilityRawMetrics` — streams raw `/metrics` exposition (no JSON parsing)
 - `getJaegerTrace`, `getJaegerUiUrl`
 - `getLogsData`, `getTraceData` — convenience wrappers for the `/logs` and `/traces` pages

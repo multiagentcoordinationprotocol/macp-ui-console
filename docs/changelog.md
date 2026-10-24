@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-24 — Verify panel for audit-grade decisions (W2.3)
+
+The run view (`/runs/live/{id}` and `/runs/{id}`, and so `/showcase` once its run resolves) has a
+Verification panel (`components/runs/verification-panel.tsx`). It calls the control plane's new
+`GET /runs/:id/verification` (allow-listed in `lib/server/proxy-allowlist.ts`) and shows Verified ✓ /
+Not verified ✗, the RFC-MACP-0013 commitment hash, the hash recomputed from the Commitment's wire
+bytes, each check that ran, and what the result does not establish (authenticity, replay). It polls
+while the run has no Commitment. Tests: `components/runs/verification-panel.test.tsx`,
+`app/api/proxy/[service]/[...path]/route.test.ts`.
+
 ## 2026-10-24 — Lock down the hosted console proxy (W0.1)
 
 `/api/proxy/[service]/…` now forwards only an explicit allow-list of (service, method, path) triples
