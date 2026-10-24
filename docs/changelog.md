@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-24 — Lock down the hosted console proxy (W0.1)
+
+`/api/proxy/[service]/…` now forwards only an explicit allow-list of (service, method, path) triples
+(`lib/server/proxy-allowlist.ts`) — the read-only routes the UI calls, side-effect-free POSTs
+(compile / validate / compare / replay descriptor), and the single launch route
+`POST macp-playground /examples/run`. Every other request gets `403` without reaching upstream, so an
+anonymous visitor can no longer use the server's credentials for admin, audit, webhook, policy
+registration, run control or delete routes. Allowed requests are rate limited per client IP
+(300/min; launch 5 per 10 min) with `429` + `retry-after` (`lib/server/rate-limit.ts`, in-memory per
+instance). Against a real backend through the proxy, the console's mutating features (cancel / suspend /
+resume / clone / archive / delete, batch ops, webhooks, policy register/unregister, circuit-breaker
+reset) and the audit/admin panels now see `403`. Tests: `app/api/proxy/[service]/[...path]/route.test.ts`,
+`lib/server/rate-limit.test.ts`.
+
 ## 2026-10-19 — Proxy refuses unknown services (#58)
 
 `/api/proxy/[service]/…` now returns `404` for any `[service]` other than `macp-playground` or

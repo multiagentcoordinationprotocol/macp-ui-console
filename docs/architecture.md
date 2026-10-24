@@ -162,6 +162,18 @@ The generic proxy handler (`app/api/proxy/[service]/[...path]/route.ts`):
   (`lib/server/integrations.ts`) — to upstream base URLs. Any other segment is refused with `404`
   before an upstream URL is built or credentials are attached (`isProxyService`, #58), and
   `getIntegrationConfig` throws on an unknown service rather than defaulting to the control plane.
+- forwards only the (service, method, path) triples in `PROXY_ALLOWLIST`
+  (`lib/server/proxy-allowlist.ts`): the read-only routes the UI calls, a few side-effect-free POSTs
+  (`/launch/compile`, `/runs/validate`, `/runs/compare`, `/runs/:id/replay`) and the single launch
+  route `POST macp-playground /examples/run`. Everything else — admin, audit, webhooks, policy
+  registration, run control/delete/batch operations, any PUT/PATCH/DELETE/HEAD/OPTIONS, and any path
+  with dot or separator-bearing segments — gets `403` without contacting upstream (W0.1). The proxy has
+  no visitor auth, so anything it forwards is public; those UI features work in demo mode only on a
+  hosted deployment.
+- rate limits per client IP (`lib/server/rate-limit.ts`): 300 requests/min across allowed routes, and
+  5 launches per 10 min on the launch route; over quota returns `429` with `retry-after`. The client IP
+  is `x-real-ip`, else the rightmost `x-forwarded-for` entry. Counters are in-memory per instance, so on
+  a multi-instance deployment the effective cap scales with instance count.
 - forwards method, headers (minus `host` / `connection` / `content-length`), query string, and body
 - injects auth when configured (`x-api-key` for Examples Service, `authorization: Bearer` for Control Plane)
 - strips `content-encoding` on the response and streams the body unchanged
