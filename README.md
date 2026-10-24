@@ -144,6 +144,7 @@ Important values:
 - `/docs` — docs home (explainer + UI Console and Examples Service doc viewers)
 - `/scenarios` — scenario catalog
 - `/scenarios/[packSlug]/[scenarioSlug]` — scenario detail
+- `/showcase` — stable public deep link: launches the deterministic Decision-mode showcase (no LLM key) and opens its live run
 - `/runs/new` — launch run
 - `/runs/live` — active runs
 - `/runs/live/[runId]` — live execution workbench

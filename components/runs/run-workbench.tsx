@@ -302,7 +302,18 @@ export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveM
     return items;
   }, [metricsQuery.data, tracesQuery.data, jaegerSpanCount, effectiveState?.llm?.totals]);
 
-  const replayFrames = useMemo(() => (liveMode ? [] : getMockFrames(runId)), [liveMode, runId]);
+  // Replay needs a fixed history to step through, so a live run offers it once it reaches a
+  // terminal status; until then the stream is still appending. In real mode each canonical event
+  // is a frame, and the scrubber fetches that seq's projection from `/replay/state` on demand —
+  // the frame itself carries no snapshot. Demo mode keeps its captured snapshots.
+  const runStatus = effectiveState?.run.status;
+  const replayEnabled = !liveMode || runStatus === 'completed' || runStatus === 'failed' || runStatus === 'cancelled';
+  const replayFrames = useMemo(() => {
+    if (!replayEnabled) return [];
+    if (demoMode) return getMockFrames(runId);
+    const bySeq = new Map(effectiveEvents.map((event) => [event.seq, { seq: event.seq, event }]));
+    return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+  }, [replayEnabled, demoMode, runId, effectiveEvents]);
   const replayFrameQuery = useQuery({
     queryKey: ['replay-frame', runId, replaySeq, demoMode],
     queryFn: () => getTimelineFrame(runId, replaySeq as number, demoMode),
@@ -339,10 +350,12 @@ export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveM
     );
   }
 
-  const replayState = !liveMode && replaySeq !== undefined ? replayFrameQuery.data : undefined;
+  const replayState = replayEnabled && replaySeq !== undefined ? replayFrameQuery.data : undefined;
   const projectedState = replayState ?? effectiveState;
   const projectedEvents =
-    !liveMode && replaySeq !== undefined ? effectiveEvents.filter((event) => event.seq <= replaySeq) : effectiveEvents;
+    replayEnabled && replaySeq !== undefined
+      ? effectiveEvents.filter((event) => event.seq <= replaySeq)
+      : effectiveEvents;
 
   const run = runQuery.data;
   const runtimeDurationMs = metricsQuery.data?.durationMs ?? getRunDurationMs(run);
@@ -443,7 +456,7 @@ export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveM
         <DecisionPanel run={run} state={projectedState} events={projectedEvents} runId={runId} />
       </div>
 
-      {!liveMode && replayFrames.length > 0 ? (
+      {replayEnabled && replayFrames.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>Replay preview</CardTitle>

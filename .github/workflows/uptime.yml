@@ -1,0 +1,122 @@
+name: Uptime
+
+# Light, free monitoring for the hosted stack (W1.7): console, control plane, playground and — through
+# the control plane, since it has no public endpoint — the runtime. A failed probe fails the job and
+# opens (or comments on) one "Uptime check failing" issue; the next all-green run closes it. Every run
+# also writes the runs-per-week count to the job summary.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  CONSOLE: https://console.multiagentcoordinationprotocol.io
+  CONTROL_PLANE: https://macp-control-plane-production-5197.up.railway.app
+  PLAYGROUND: https://macp-playground-service-production.up.railway.app
+  RETIRED_HOST: https://ui-console-livid.vercel.app
+  ISSUE_TITLE: Uptime check failing
+
+jobs:
+  probe:
+    name: Probe hosted services
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe health endpoints
+        id: probe
+        run: |
+          failures=()
+          # check NAME URL — passes on HTTP 200 whose body, when JSON with an `ok` field, is not false.
+          check() {
+            local name="$1" url="$2" code
+            code=$(curl -sS -o body.txt -w '%{http_code}' --max-time 20 --retry 2 --retry-delay 5 "$url") || code=000
+            if [ "$code" != "200" ]; then
+              failures+=("$name: HTTP $code ($url)")
+            elif jq -e 'type == "object" and .ok == false' body.txt >/dev/null 2>&1; then
+              failures+=("$name: reported ok=false ($url)")
+            fi
+            echo "| $name | $code |" >> rows.md
+          }
+          check "Console" "$CONSOLE/"
+          check "Console /showcase" "$CONSOLE/showcase"
+          check "Control plane /healthz" "$CONTROL_PLANE/healthz"
+          check "Control plane /readyz (database + runtime)" "$CONTROL_PLANE/readyz"
+          check "Playground /healthz" "$PLAYGROUND/healthz"
+          check "Runtime (via console proxy)" "$CONSOLE/api/proxy/macp-control-plane/runtime/health"
+
+          # The retired mock deployment must keep redirecting to the real console.
+          redirect=$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 20 "$RETIRED_HOST/") || redirect="000 -"
+          code=${redirect%% *}
+          location=${redirect#* }
+          if [ "$code" != "308" ] || [[ "$location" != "$CONSOLE"* ]]; then
+            failures+=("Retired livid host: expected 308 to $CONSOLE, got $code $location")
+          fi
+          echo "| Retired livid host redirect | $code |" >> rows.md
+
+          {
+            echo "## Probes"
+            echo "| Check | HTTP |"
+            echo "| --- | --- |"
+            cat rows.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ ${#failures[@]} -gt 0 ]; then
+            printf '%s\n' "${failures[@]}" > failures.txt
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Count runs in the last 7 days
+        # Informational; a failure here is reported in the summary but never fails the job.
+        continue-on-error: true
+        run: |
+          since=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          total=$(curl -sS --max-time 20 \
+            "$CONSOLE/api/proxy/macp-control-plane/runs?createdAfter=$since&limit=1&includeArchived=true" | jq -er '.total')
+          echo "## Runs per week" >> "$GITHUB_STEP_SUMMARY"
+          echo "**$total** runs created since $since." >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Runs per week::$total runs since $since"
+
+      - name: Open or update the uptime issue
+        if: steps.probe.outputs.failed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          body=$(printf 'Failing probes:\n\n%s\n\nRun: %s/%s/actions/runs/%s\n' \
+            "$(sed 's/^/- /' failures.txt)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+          number=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" --json number,title \
+            --jq "map(select(.title == \"$ISSUE_TITLE\")) | .[0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body "$body"
+          fi
+
+      - name: Close the uptime issue on recovery
+        if: steps.probe.outputs.failed == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          number=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" --json number,title \
+            --jq "map(select(.title == \"$ISSUE_TITLE\")) | .[0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue close "$number" --comment "All probes green again: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
+
+      - name: Fail when a probe failed
+        if: steps.probe.outputs.failed == 'true'
+        run: |
+          cat failures.txt
+          exit 1
