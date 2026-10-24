@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge';
 interface TimelineFrame {
   seq: number;
   event: CanonicalEvent;
-  snapshot: RunStateProjection;
+  /** Captured projection at this seq. Demo frames carry one; real frames are fetched per seq. */
+  snapshot?: RunStateProjection;
 }
 
 interface TimelineScrubberProps {
