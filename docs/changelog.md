@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-25 — Readiness probe reads a 503 body
+
+`getReadinessProbe` (`/observability` readiness card) now treats a non-2xx `GET /readyz` whose body
+is a readiness payload (`ok` boolean) as a result, so the card shows the not-ready state instead of
+a "Readiness" load error. This lands ahead of macp-control-plane returning `503` (same JSON body)
+when `ok` is false; a 200 with `ok:false` keeps working. Other failures (429, 403, non-JSON 502,
+network) still surface as errors. Tests: `lib/api/client.real-mode.test.ts`.
+
 ## 2026-10-25 — Container image for self-host (W3.7), v0.2.0
 
 New `Dockerfile` (Next.js standalone, `node:22.22.2-alpine`, non-root, healthcheck on `/`) and

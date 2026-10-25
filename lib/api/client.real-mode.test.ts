@@ -629,6 +629,33 @@ describe('real mode API client', () => {
       expect(result).toHaveProperty('database');
       expect(result.database).toBe('ok');
     });
+
+    it('returns the not-ready body when the control plane answers 503 with ok:false', async () => {
+      const probe = { ...readinessProbe(), ok: false, database: 'error' };
+      mocker.on('GET', '/api/proxy/macp-control-plane/readyz', () => ({ status: 503, body: probe }));
+
+      const { getReadinessProbe } = await import('@/lib/api/client');
+      const result = await getReadinessProbe(REAL);
+
+      expect(result.ok).toBe(false);
+      expect(result.database).toBe('error');
+    });
+
+    it('still throws on a non-2xx that is not a readiness body', async () => {
+      const { getReadinessProbe } = await import('@/lib/api/client');
+
+      mocker.on('GET', '/api/proxy/macp-control-plane/readyz', () => ({
+        status: 503,
+        body: '<html>bad gateway</html>'
+      }));
+      await expect(getReadinessProbe(REAL)).rejects.toMatchObject({ name: 'ApiError', status: 503 });
+
+      mocker.on('GET', '/api/proxy/macp-control-plane/readyz', () => ({
+        status: 429,
+        body: { message: 'Too many requests. Please slow down and try again shortly.' }
+      }));
+      await expect(getReadinessProbe(REAL)).rejects.toMatchObject({ name: 'ApiError', status: 429 });
+    });
   });
 
   /* ─── getAuditLogs ─── */
