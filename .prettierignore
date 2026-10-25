@@ -3,3 +3,5 @@ node_modules
 coverage
 public
 *.md
+# Verbatim copies of spec files; see test/fixtures/receipt/README.md
+test/fixtures/receipt
