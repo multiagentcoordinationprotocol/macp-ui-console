@@ -3,7 +3,7 @@ import { renderWithProviders, screen, userEvent, waitFor } from '@/test/test-uti
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 import schema from '@/test/fixtures/receipt/macp-decision-receipt.schema.json';
-import { commitmentHash, type DecisionReceipt } from '@/lib/utils/receipt';
+import { verifyReceipt, type DecisionReceipt } from '@/lib/utils/receipt';
 import { VerificationPanel } from './verification-panel';
 import type { RunVerification } from '@/lib/types';
 import { ApiError } from '@/lib/api/fetcher';
@@ -159,8 +159,7 @@ describe('VerificationPanel', () => {
       });
       expect(receipt.issuer).toMatch(/^console:/);
       expect(receipt.issued_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
-      // A.4 integrity: recomputes to commitment_hash, and with no attestations the verdict is integrity_only.
-      expect(await commitmentHash(receipt.commitment)).toBe(receipt.commitment_hash);
+      expect(verifyReceipt(receipt, {})).toEqual({ integrity: 'match', attestations: [], verdict: 'integrity_only' });
     });
 
     it('refuses to issue a receipt when the recomputed hash disagrees with the control plane', async () => {
@@ -173,6 +172,22 @@ describe('VerificationPanel', () => {
 
       await user.click(await screen.findByRole('button', { name: /download receipt/i }));
       expect(await screen.findByText(/does not match the control plane/)).toBeInTheDocument();
+      expect(exportToJson).not.toHaveBeenCalled();
+    });
+
+    it('refuses to issue a receipt when the payload has a field outside the RFC-MACP-0013 §5 set', async () => {
+      const base = withProjection();
+      getRunVerification.mockResolvedValue({
+        ...base,
+        commitment: { ...base.commitment!, payload: { ...VECTOR_001, extra_field: 'x' } }
+      });
+      const user = userEvent.setup();
+      renderWithProviders(
+        <VerificationPanel runId="run-1" demoMode={false} runStatus="completed" modeName="macp.mode.decision.v1" />
+      );
+
+      await user.click(await screen.findByRole('button', { name: /download receipt/i }));
+      expect(await screen.findByText(/outside the RFC-MACP-0013 field set/)).toBeInTheDocument();
       expect(exportToJson).not.toHaveBeenCalled();
     });
 
