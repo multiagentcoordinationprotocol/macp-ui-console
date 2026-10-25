@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-25 — Container image for self-host (W3.7), v0.2.0
+
+New `Dockerfile` (Next.js standalone, `node:22.22.2-alpine`, non-root, healthcheck on `/`) and
+`.github/workflows/image.yml`, which builds, Trivy-gates, smoke-tests and publishes
+`ghcr.io/multiagentcoordinationprotocol/macp-ui-console` (`sha-<short>` from `main`; `vX.Y.Z`, `vX.Y`,
+`latest` and a GitHub Release from version tags). Backend URLs and API keys are runtime env, read by
+the proxy per request; the image bakes demo mode off. `output: 'standalone'` is enabled only when
+`MACP_UI_STANDALONE=1` (set by the Dockerfile), so the Vercel build is unchanged. See README
+"Container image (self-host)".
+
+Security: `next` moves from 16.3.3 to 16.4.2 for GHSA-2464-fhr4-w9xw and GHSA-vcvr-r3jv-pc5j
+(remote code execution; both CRITICAL, both also affect the Vercel deployment), found by the image's
+Trivy gate. `eslint-config-next` stays on 16.3 because 16.4 enables new React-compiler lint rules.
+The runtime layer runs `apk upgrade` and drops the base image's npm and corepack (which carry a
+CRITICAL node-tar CVE the server never uses). Images publish for linux/amd64 and linux/arm64.
+
 ## 2026-10-25 — Decision receipts built by the SDK (W3.10 follow-up)
 
 `lib/utils/receipt.ts` now delegates building and verifying to `macp-sdk-typescript@0.18.0` through
