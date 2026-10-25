@@ -137,6 +137,7 @@ Important values:
 - `MACP_CONTROL_PLANE_BASE_URL`
 - `MACP_CONTROL_PLANE_API_KEY`
 - `NEXT_PUBLIC_MACP_ENVIRONMENT_LABEL`
+- `NEXT_PUBLIC_MACP_HOSTED` — `true` on the hosted deployment; shows the deterministic-agents note on `/runs/new`
 
 ## Route map
 

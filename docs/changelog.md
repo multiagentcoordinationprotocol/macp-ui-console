@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-25 — Hosted launch note: deterministic agents (decision 1b)
+
+When `NEXT_PUBLIC_MACP_HOSTED=true` (set on the hosted Vercel deployment), `/runs/new` shows
+"Hosted runs use deterministic agents; bring your own key locally for LLM agents.", linking the
+[local quickstart](https://github.com/multiagentcoordinationprotocol/multiagentcoordinationprotocol/blob/main/docs/quickstart.md).
+The console sends no LLM opt-in: macp-playground resolves the agent execution mode server-side
+(LLM only when the operator sets `PLAYGROUND_ALLOW_LLM=1`; see macp-playground#132). Proxy allow-list
+and rate limits are unchanged. Test: `app/runs/new/page.test.tsx`.
+
 ## 2026-10-24 — Verify panel for audit-grade decisions (W2.3)
 
 The run view (`/runs/live/{id}` and `/runs/{id}`, and so `/showcase` once its run resolves) has a
