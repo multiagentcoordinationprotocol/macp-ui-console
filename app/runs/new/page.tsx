@@ -28,6 +28,9 @@ import { usePreferencesStore } from '@/lib/stores/preferences-store';
 import type { CompileLaunchResult, RunExampleResult } from '@/lib/types';
 import type { LaunchPreset } from '@/lib/stores/launch-presets-store';
 
+const LOCAL_QUICKSTART_URL =
+  'https://github.com/multiagentcoordinationprotocol/multiagentcoordinationprotocol/blob/main/docs/quickstart.md';
+
 function parseJsonInput(text: string) {
   try {
     return { value: JSON.parse(text) as Record<string, unknown>, error: '' };
@@ -48,6 +51,10 @@ function NewRunPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const demoMode = usePreferencesStore((state) => state.demoMode);
+  // Set on the hosted deployment only. The hosted playground always runs deterministic agents (it
+  // decides server-side from PLAYGROUND_ALLOW_LLM; the console sends no opt-in), so the launch
+  // screen says so and points operators at the local quickstart for LLM agents.
+  const hosted = process.env.NEXT_PUBLIC_MACP_HOSTED === 'true';
   const [packSlug, setPackSlug] = useState(searchParams.get('pack') ?? '');
   const [scenarioSlug, setScenarioSlug] = useState(searchParams.get('scenario') ?? '');
   const [version, setVersion] = useState(searchParams.get('version') ?? '');
@@ -263,6 +270,15 @@ function NewRunPageContent() {
             Compile launch configuration with Example Service, validate the execution request, and send it to the
             Control Plane.
           </p>
+          {hosted ? (
+            <p className="muted small" data-testid="hosted-deterministic-note">
+              Hosted runs use deterministic agents;{' '}
+              <a href={LOCAL_QUICKSTART_URL} target="_blank" rel="noreferrer">
+                bring your own key locally
+              </a>{' '}
+              for LLM agents.
+            </p>
+          ) : null}
         </div>
         <div className="section-actions">
           <Button

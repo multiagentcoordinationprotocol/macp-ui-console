@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderWithProviders, screen, userEvent, waitFor } from '@/test/test-utils';
 import NewRunPage from './page';
 import type { RunExampleResult } from '@/lib/types';
@@ -202,5 +202,29 @@ describe('NewRunPage control-plane registration', () => {
 
     await waitFor(() => expect(screen.getByText(/bootstrap failed/i)).toBeInTheDocument());
     expect(screen.queryByText('Not Registered With The Control Plane')).not.toBeInTheDocument();
+  });
+});
+
+describe('NewRunPage hosted deterministic note', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('tells hosted operators runs are deterministic and links the local quickstart', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MACP_HOSTED', 'true');
+    renderWithProviders(<NewRunPage />);
+
+    const note = await screen.findByTestId('hosted-deterministic-note', {}, { timeout: 5000 });
+    expect(note).toHaveTextContent('Hosted runs use deterministic agents; bring your own key locally for LLM agents.');
+    expect(screen.getByRole('link', { name: /bring your own key locally/i })).toHaveAttribute(
+      'href',
+      'https://github.com/multiagentcoordinationprotocol/multiagentcoordinationprotocol/blob/main/docs/quickstart.md'
+    );
+  });
+
+  it('stays hidden off the hosted deployment', async () => {
+    renderWithProviders(<NewRunPage />);
+    await screen.findByRole('button', { name: /^submit run$/i }, { timeout: 5000 });
+    expect(screen.queryByTestId('hosted-deterministic-note')).not.toBeInTheDocument();
   });
 });
