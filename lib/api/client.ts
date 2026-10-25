@@ -1121,7 +1121,28 @@ export async function getReadinessProbe(demoMode: boolean): Promise<ReadinessPro
       streamConsumer: 'ok',
       circuitBreaker: 'CLOSED'
     });
-  return fetchJson<ReadinessProbeResponse>('macp-control-plane', '/readyz');
+  try {
+    return await fetchJson<ReadinessProbeResponse>('macp-control-plane', '/readyz');
+  } catch (error) {
+    // The control plane answers `503` with the same JSON body when `ok` is false, so a not-ready
+    // probe is a result to show, not a failed request. Anything else (429, 403, an HTML 502, a
+    // network error) still throws.
+    const probe = error instanceof ApiError ? parseReadinessBody(error.body) : undefined;
+    if (probe) return probe;
+    throw error;
+  }
+}
+
+function parseReadinessBody(body: string): ReadinessProbeResponse | undefined {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (parsed && typeof parsed === 'object' && typeof (parsed as { ok?: unknown }).ok === 'boolean') {
+      return parsed as ReadinessProbeResponse;
+    }
+  } catch {
+    // Not JSON: not a readiness body.
+  }
+  return undefined;
 }
 
 /* ─── Runtime session drift (admin) ─── */
