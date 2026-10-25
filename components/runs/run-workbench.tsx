@@ -459,7 +459,12 @@ export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveM
 
       {/* W2.3: RFC-MACP-0013 commitment-hash verification of the binding outcome */}
       <ErrorBoundary>
-        <VerificationPanel runId={runId} demoMode={demoMode} runStatus={runStatus} />
+        <VerificationPanel
+          runId={runId}
+          demoMode={demoMode}
+          runStatus={runStatus}
+          modeName={effectiveState?.run.modeName}
+        />
       </ErrorBoundary>
 
       {replayEnabled && replayFrames.length > 0 ? (

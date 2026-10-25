@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-25 — Download decision receipt (W3.10)
+
+Once a run has a Commitment, the Verification panel offers **Download receipt**: an
+RFC-MACP-0013 Appendix A receipt (`macp-receipt/1`) saved as `receipt-<session_id>.json`. It is
+built from the §3 projection that `GET /runs/:id/verification` returns, with `mode` from the run
+state, `issuer` `console:<host>`, `issued_at` RFC 3339 UTC and `attestations: []`. The console holds
+no signing keys, so receipts are unsigned and verify as **integrity-only**. `commitment_hash` is
+recomputed in the browser (`lib/utils/receipt.ts`, JCS + SHA-256) and the download is refused if it
+disagrees with the control plane's hash. `lib/utils/receipt.ts` stands in for
+`buildReceipt` from `macp-sdk-typescript/receipt` until 0.18.0 ships. Demo-mode verification now
+carries a full projection and its real hash. Tests validate the file against the spec schema
+(fixtures in `test/fixtures/receipt/`, copied from the spec at 0756067) and pin the §11 hash vectors:
+`lib/utils/receipt.test.ts`, `components/runs/verification-panel.test.tsx`.
+
 ## 2026-10-25 — Hosted launch note: deterministic agents (decision 1b)
 
 When `NEXT_PUBLIC_MACP_HOSTED=true` (set on the hosted Vercel deployment), `/runs/new` shows

@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://macp.dev/schemas/macp-decision-receipt.schema.json",
+  "title": "MACP Decision Receipt",
+  "description": "Portable, offline-verifiable record of one binding Commitment, defined informatively by RFC-MACP-0013 Appendix A (format macp-receipt/1). Integrity rests on commitment_hash, which is recomputed from `commitment`; authenticity rests on `attestations`, each of which declares what it binds. Key distribution and trust are out of scope.",
+  "type": "object",
+  "required": ["receipt_format", "session_id", "mode", "commitment", "commitment_hash", "issuer", "issued_at", "attestations"],
+  "additionalProperties": false,
+  "properties": {
+    "receipt_format": {
+      "const": "macp-receipt/1",
+      "description": "Version of this receipt format. A verifier MUST refuse a value it does not implement."
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The session whose Commitment this receipt records."
+    },
+    "mode": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Mode identifier of the session (for example macp.mode.decision.v1)."
+    },
+    "commitment": {
+      "$ref": "#/$defs/projection",
+      "description": "The RFC-MACP-0013 §3 hashing projection of the Commitment's CommitmentPayload."
+    },
+    "commitment_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Canonical commitment hash (RFC-MACP-0013 §4) of `commitment`."
+    },
+    "commitment_wire_b64": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "description": "Optional. Base64 of the CommitmentPayload's Protobuf wire encoding. When present, a verifier MUST run RFC-MACP-0013 §6.1 verification on it against commitment_hash and MUST check that it projects to `commitment`."
+    },
+    "semantics_rev": {
+      "type": "object",
+      "required": ["implementation", "rev"],
+      "additionalProperties": false,
+      "description": "Optional. The semantics revision the session was accepted under (RFC-MACP-0003 §3.2), scoped to the implementation that recorded it.",
+      "properties": {
+        "implementation": { "type": "string", "minLength": 1 },
+        "rev": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "transcript": {
+      "type": "object",
+      "required": ["digest_alg", "digest"],
+      "additionalProperties": false,
+      "description": "Optional. A digest of the accepted session history. The construction is implementation-defined (RFC-MACP-0013 §10), so `digest_alg` names it and a verifier that does not know it treats the field as informative.",
+      "properties": {
+        "digest_alg": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "minLength": 1 },
+        "message_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "issuer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Opaque identifier of the party issuing the receipt (a runtime id, URL, DID or agent identifier). Not itself a trust anchor."
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 UTC time the receipt was issued. Informational."
+    },
+    "attestations": {
+      "type": "array",
+      "description": "Zero or more attestations. A receipt with none is a valid integrity-only receipt.",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/jws_attestation" },
+          { "$ref": "#/$defs/vendor_attestation" }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "projection": {
+      "type": "object",
+      "required": ["commitment_id", "action", "authority_scope", "reason", "mode_version", "policy_version", "configuration_version", "outcome_positive"],
+      "additionalProperties": false,
+      "properties": {
+        "commitment_id": { "type": "string" },
+        "action": { "type": "string" },
+        "authority_scope": { "type": "string" },
+        "reason": { "type": "string" },
+        "mode_version": { "type": "string" },
+        "policy_version": { "type": "string" },
+        "configuration_version": { "type": "string" },
+        "outcome_positive": { "type": "boolean" },
+        "supersedes": {
+          "type": "object",
+          "required": ["session_id", "commitment_hash"],
+          "additionalProperties": false,
+          "properties": {
+            "session_id": { "type": "string" },
+            "commitment_hash": { "type": "string" }
+          }
+        }
+      }
+    },
+    "jws_attestation": {
+      "type": "object",
+      "required": ["type", "jws"],
+      "additionalProperties": false,
+      "description": "A detached-payload JWS (RFC 7515 Appendix F) whose payload is the JCS canonicalization of the receipt with `attestations` removed. It therefore binds commitment_hash.",
+      "properties": {
+        "type": { "const": "jws" },
+        "jws": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+\\.\\.[A-Za-z0-9_-]+$",
+          "description": "Compact JWS with an empty payload segment: <protected header>..<signature>."
+        }
+      }
+    },
+    "vendor_attestation": {
+      "type": "object",
+      "required": ["type", "format", "binds", "value"],
+      "additionalProperties": false,
+      "description": "An attestation in a format this annex does not define (for example an AITP Trust Context Token). It counts toward authenticity only when `binds` is commitment_hash or receipt and the verifier implements `format`.",
+      "properties": {
+        "type": { "const": "vendor" },
+        "format": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Reverse-domain or otherwise collision-free name of the attestation format and version."
+        },
+        "binds": {
+          "enum": ["commitment_hash", "receipt", "other"],
+          "description": "What the attestation's own preimage covers: commitment_hash directly, the same JCS receipt body a JWS attestation signs, or something else (informative only)."
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The attestation itself, in the encoding `format` defines."
+        }
+      }
+    }
+  }
+}

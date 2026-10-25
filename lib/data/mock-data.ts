@@ -1,3 +1,4 @@
+import { commitmentHash, type CommitmentProjection } from '@/lib/utils/receipt';
 import type {
   AgentProfile,
   Artifact,
@@ -1707,16 +1708,17 @@ export const MOCK_RUN_TRACES: Record<string, TraceSummary> = {
 };
 
 /**
- * Demo-mode stand-in for `GET /runs/:id/verification`. Nothing is recomputed here: a finalized
- * mock decision gets a fixed sample hash, and the response says so in `notVerified`.
+ * Demo-mode stand-in for `GET /runs/:id/verification`. A finalized mock decision gets a full
+ * RFC-MACP-0013 §3 projection and its real hash, so a demo receipt verifies; the response still
+ * says in `notVerified` that no stored Commitment was checked.
  */
-export function mockRunVerification(runId: string): RunVerification {
+export async function mockRunVerification(runId: string): Promise<RunVerification> {
   const state = MOCK_RUN_STATES[runId];
   const current = state?.decision.current;
   const base = {
     runId,
     label: 'macp-commitment-hash/1',
-    notVerified: ['Demo mode: sample data. No commitment hash was recomputed.'],
+    notVerified: ['Demo mode: sample data. No stored Commitment was checked against the runtime.'],
     checkedAt: new Date().toISOString()
   };
   if (!current?.finalized) {
@@ -1731,7 +1733,17 @@ export function mockRunVerification(runId: string): RunVerification {
       checks: []
     };
   }
-  const hash = 'sha256:1182dca34e3cc51e3e1d59cfa5c23c76ccd5440acef50cf3c0d26634868ba346';
+  const payload: CommitmentProjection = {
+    commitment_id: `demo-commitment-${runId.slice(0, 8)}`,
+    action: current.action,
+    authority_scope: current.resolvedBy ?? 'coordinator',
+    reason: current.reasons?.[0] ?? '',
+    mode_version: '1.0.0',
+    policy_version: 'policy.default',
+    configuration_version: 'config.default',
+    outcome_positive: current.outcomePositive ?? false
+  };
+  const hash = await commitmentHash(payload);
   return {
     ...base,
     status: 'verified',
@@ -1744,7 +1756,7 @@ export function mockRunVerification(runId: string): RunVerification {
       sender: current.resolvedBy ?? 'coordinator',
       sessionId: `demo-session-${runId.slice(0, 8)}`,
       acceptedAt: current.resolvedAt ?? base.checkedAt,
-      payload: { action: current.action, outcome_positive: current.outcomePositive ?? false }
+      payload: { ...payload }
     },
     checks: [
       {
