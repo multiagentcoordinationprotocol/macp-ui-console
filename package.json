@@ -1,6 +1,6 @@
 {
   "name": "macp-ui-console",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Feature-rich Next.js orchestration and observability console for MACP.",
   "scripts": {

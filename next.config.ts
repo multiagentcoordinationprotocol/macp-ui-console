@@ -11,6 +11,9 @@ export const RETIRED_HOST = 'ui-console-livid.vercel.app';
 export const CANONICAL_ORIGIN = 'https://console.multiagentcoordinationprotocol.io';
 
 const nextConfig: NextConfig = {
+  // Standalone output only for the container image (Dockerfile sets MACP_UI_STANDALONE=1, W3.7);
+  // the Vercel build is left exactly as it was.
+  ...(process.env.MACP_UI_STANDALONE === '1' ? { output: 'standalone' as const } : {}),
   reactStrictMode: true,
   typedRoutes: false,
   async redirects() {

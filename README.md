@@ -229,6 +229,33 @@ npm run lint          # ESLint
 npm run typecheck     # TypeScript check
 ```
 
+## Container image (self-host)
+
+`ghcr.io/multiagentcoordinationprotocol/macp-ui-console` is a public Next.js standalone image, built
+by `.github/workflows/image.yml`. Tags: `vX.Y.Z`, `vX.Y` and `latest` from release tags, and `sha-<short>`
+from every push to `main`. The one-command self-host stack (runtime, control plane, Postgres, console)
+lives in macp-runtime's `deploy/docker-compose.yml`.
+
+```bash
+docker run -p 3000:3000 \
+  -e MACP_CONTROL_PLANE_BASE_URL=http://macp-control-plane:3001 \
+  -e MACP_CONTROL_PLANE_API_KEY=... \
+  -e MACP_PLAYGROUND_BASE_URL=http://macp-playground:3000 \
+  ghcr.io/multiagentcoordinationprotocol/macp-ui-console:v0.2.0
+```
+
+- **Port** `3000` (`PORT` / `HOSTNAME` override it). The container has a healthcheck on `GET /`.
+- **Runtime env** (read by the server-side proxy per request, so one image fits any stack):
+  `MACP_CONTROL_PLANE_BASE_URL` and `MACP_PLAYGROUND_BASE_URL` are required (production refuses to
+  fall back); `MACP_CONTROL_PLANE_API_KEY` (Bearer) and `MACP_PLAYGROUND_API_KEY` (`x-api-key`) are optional.
+- **Build-time only**: `NEXT_PUBLIC_*` values are inlined into the browser bundle. The image is built
+  with demo mode **off** and the environment label `self-hosted`; rebuild with
+  `--build-arg NEXT_PUBLIC_MACP_UI_DEMO_MODE=true` (or `NEXT_PUBLIC_MACP_ENVIRONMENT_LABEL`,
+  `NEXT_PUBLIC_JAEGER_BASE_URL`) to change them.
+- The proxy allow-list and per-IP rate limit work unchanged. The limiter keys on `x-real-ip`, then the
+  rightmost `x-forwarded-for`; if you expose the console publicly, put it behind a reverse proxy that
+  sets `x-real-ip`, otherwise a client can choose its own bucket.
+
 ## CI/CD
 
 GitHub Actions CI runs on every PR and push to `main`: format check, lint, typecheck, tests, and production build.
