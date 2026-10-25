@@ -232,7 +232,7 @@ npm run typecheck     # TypeScript check
 ## Container image (self-host)
 
 `ghcr.io/multiagentcoordinationprotocol/macp-ui-console` is a public Next.js standalone image, built
-by `.github/workflows/image.yml`. Tags: `vX.Y.Z`, `vX.Y` and `latest` from release tags, and `sha-<short>`
+by `.github/workflows/image.yml`. Tags: `vX.Y.Z`, `vX.Y`, bare `X.Y.Z` / `X.Y` (matching the other MACP images) and `latest` from release tags, and `sha-<short>`
 from every push to `main`. The one-command self-host stack (runtime, control plane, Postgres, console)
 lives in macp-runtime's `deploy/docker-compose.yml`.
 

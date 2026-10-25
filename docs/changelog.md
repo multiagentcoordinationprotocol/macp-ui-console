@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-25 — Bare semver image tags
+
+`image.yml` now also publishes bare `X.Y.Z` and `X.Y` tags from `vX.Y.Z` releases, matching the other
+MACP images, so the self-host compose can pin every image the same way. A `workflow_dispatch` input
+`retag` adds the bare tags to an already-published `vX.Y.Z` index (same digest, no rebuild); it was
+used once for `v0.2.0`.
+
 ## 2026-10-25 — Readiness probe reads a 503 body
 
 `getReadinessProbe` (`/observability` readiness card) now treats a non-2xx `GET /readyz` whose body
