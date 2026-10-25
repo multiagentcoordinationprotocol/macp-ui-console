@@ -10,7 +10,13 @@ import { getRunVerification } from '@/lib/api/client';
 import type { RunVerification, RunVerificationStatus } from '@/lib/types';
 import { exportToJson } from '@/lib/utils/export';
 import { formatDateTime } from '@/lib/utils/format';
-import { buildReceipt, receiptFilename, rfc3339Utc, toCommitmentProjection } from '@/lib/utils/receipt';
+import {
+  buildReceipt,
+  commitmentFromProjection,
+  receiptFilename,
+  rfc3339Utc,
+  toCommitmentProjection
+} from '@/lib/utils/receipt';
 
 /**
  * W2.3 — Verify panel for audit-grade decisions.
@@ -169,20 +175,18 @@ function ReceiptDownload({
   modeName?: string;
 }) {
   const [error, setError] = useState('');
-  const [pending, setPending] = useState(false);
   const sessionId = commitment.sessionId;
   const ready = Boolean(modeName && sessionId);
 
-  async function download() {
+  function download() {
     setError('');
     const projection = toCommitmentProjection(commitment.payload);
     if (!projection) {
       setError('The Commitment carries a field outside the RFC-MACP-0013 field set, so no receipt can be issued.');
       return;
     }
-    setPending(true);
     try {
-      const receipt = await buildReceipt(projection, {
+      const receipt = buildReceipt(commitmentFromProjection(projection), {
         sessionId,
         mode: modeName!,
         issuer: `console:${window.location.host}`,
@@ -197,15 +201,13 @@ function ReceiptDownload({
       exportToJson(receipt, receiptFilename(sessionId));
     } catch (err) {
       setError(`Could not build the receipt: ${String(err)}`);
-    } finally {
-      setPending(false);
     }
   }
 
   return (
     <div className="stack" style={{ gap: 6 }}>
       <div className="inline-list">
-        <Button variant="secondary" onClick={() => void download()} disabled={!ready || pending}>
+        <Button variant="secondary" onClick={download} disabled={!ready}>
           <Download size={16} />
           Download receipt
         </Button>

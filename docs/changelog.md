@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-25 — Decision receipts built by the SDK (W3.10 follow-up)
+
+`lib/utils/receipt.ts` now delegates building and verifying to `macp-sdk-typescript@0.18.0` through
+its browser-safe `macp-sdk-typescript/receipt` subpath (`buildReceipt`, `commitmentFromProjection`,
+`verifyReceipt`); the package root pulls in gRPC and is not imported from client code. The console
+keeps both of its refusals: a payload with a field outside the RFC-MACP-0013 §5 set, and a recomputed
+hash that disagrees with the control plane's. Tests now assert `verifyReceipt(...).verdict ===
+'integrity_only'`. The stale `@multiagentcoordinationprotocol` → GitHub Packages scope is removed from
+`.npmrc` and CI: the proto package the SDK depends on is published on npmjs.
+
 ## 2026-10-25 — Download decision receipt (W3.10)
 
 Once a run has a Commitment, the Verification panel offers **Download receipt**: an

@@ -5,12 +5,13 @@ import schema from '@/test/fixtures/receipt/macp-decision-receipt.schema.json';
 import vector002 from '@/test/fixtures/receipt/receipt_002_integrity_only.json';
 import {
   buildReceipt,
-  commitmentHash,
-  jcs,
+  commitmentFromProjection,
+  projectionHash,
   receiptFilename,
   rfc3339Utc,
   toCommitmentProjection,
-  type CommitmentProjection
+  verifyReceipt,
+  type ReceiptCommitment
 } from './receipt';
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -18,7 +19,7 @@ addFormats(ajv);
 const validate = ajv.compile(schema);
 
 /** RFC-MACP-0013 §11 vectors cmt_hash_001 and cmt_hash_005 (escapes, astral plane, outcome false). */
-const VECTOR_001: CommitmentProjection = {
+const VECTOR_001: ReceiptCommitment = {
   commitment_id: 'c1',
   action: 'decision.approved',
   authority_scope: 'seam',
@@ -28,7 +29,7 @@ const VECTOR_001: CommitmentProjection = {
   configuration_version: '1.0.0',
   outcome_positive: true
 };
-const VECTOR_005: CommitmentProjection = {
+const VECTOR_005: ReceiptCommitment = {
   commitment_id: 'c5',
   action: 'decision."appro\\ved"',
   authority_scope: 'café',
@@ -39,21 +40,12 @@ const VECTOR_005: CommitmentProjection = {
   outcome_positive: false
 };
 
-describe('commitmentHash (RFC-MACP-0013 §4)', () => {
-  it('matches the pinned spec vectors', async () => {
-    expect(await commitmentHash(VECTOR_001)).toBe(
-      'sha256:9f58e9d114d11860d48aa2bcb8cda458b9618b1cc8560595a802b68c4af85d41'
-    );
-    expect(await commitmentHash(VECTOR_005)).toBe(
-      'sha256:03f8ac2b8172958504092ce9fe5154dbcfe300fd30a350453d4e4bd715822ab2'
-    );
+describe('projectionHash (RFC-MACP-0013 §4, via the SDK)', () => {
+  it('matches the pinned spec vectors', () => {
+    expect(projectionHash(VECTOR_001)).toBe('sha256:9f58e9d114d11860d48aa2bcb8cda458b9618b1cc8560595a802b68c4af85d41');
+    expect(projectionHash(VECTOR_005)).toBe('sha256:03f8ac2b8172958504092ce9fe5154dbcfe300fd30a350453d4e4bd715822ab2');
     // cmt_hash_002: supersedes chaining, the commitment of the spec's example receipt.
-    expect(await commitmentHash(vector002.receipt.commitment)).toBe(vector002.receipt.commitment_hash);
-  });
-
-  it('JCS-sorts keys and keeps integers', () => {
-    expect(jcs({ b: 1, a: [true, null, 'x'] })).toBe('{"a":[true,null,"x"],"b":1}');
-    expect(() => jcs({ n: 1.5 })).toThrow();
+    expect(projectionHash(vector002.receipt.commitment)).toBe(vector002.receipt.commitment_hash);
   });
 });
 
@@ -81,9 +73,9 @@ describe('toCommitmentProjection (RFC-MACP-0013 §3)', () => {
   });
 });
 
-describe('buildReceipt (RFC-MACP-0013 Appendix A)', () => {
-  it('produces a schema-valid, integrity-only macp-receipt/1', async () => {
-    const receipt = await buildReceipt(VECTOR_001, {
+describe('buildReceipt (RFC-MACP-0013 Appendix A, via the SDK)', () => {
+  it('produces a schema-valid receipt that verifies as integrity_only', () => {
+    const receipt = buildReceipt(commitmentFromProjection(VECTOR_001), {
       sessionId: 'sess-1',
       mode: 'macp.mode.decision.v1',
       issuer: 'console:example.test',
@@ -93,16 +85,16 @@ describe('buildReceipt (RFC-MACP-0013 Appendix A)', () => {
     expect(validate(receipt), JSON.stringify(validate.errors)).toBe(true);
     expect(receipt).toMatchObject({
       receipt_format: 'macp-receipt/1',
+      commitment: VECTOR_001,
       issued_at: '2026-10-25T10:11:12Z',
       attestations: []
     });
-    // A.4 integrity: the hash recomputes from `commitment`; with no attestations that is integrity_only.
-    expect(await commitmentHash(receipt.commitment)).toBe(receipt.commitment_hash);
+    expect(verifyReceipt(receipt, {})).toEqual({ integrity: 'match', attestations: [], verdict: 'integrity_only' });
   });
 
-  it('reproduces the spec integrity-only vector byte for byte on the shared fields', async () => {
+  it('reproduces the spec integrity-only vector', () => {
     const { receipt: expected } = vector002;
-    const receipt = await buildReceipt(expected.commitment, {
+    const receipt = buildReceipt(commitmentFromProjection(expected.commitment), {
       sessionId: expected.session_id,
       mode: expected.mode,
       issuer: expected.issuer,
@@ -110,6 +102,7 @@ describe('buildReceipt (RFC-MACP-0013 Appendix A)', () => {
     });
     expect(receipt.commitment_hash).toBe(expected.commitment_hash);
     expect(validate(receipt)).toBe(true);
+    expect(verifyReceipt(expected, {}).verdict).toBe('integrity_only');
   });
 
   it('names the file after the session id', () => {

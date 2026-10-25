@@ -1,4 +1,4 @@
-import { commitmentHash, type CommitmentProjection } from '@/lib/utils/receipt';
+import { projectionHash, type ReceiptCommitment } from '@/lib/utils/receipt';
 import type {
   AgentProfile,
   Artifact,
@@ -1712,7 +1712,7 @@ export const MOCK_RUN_TRACES: Record<string, TraceSummary> = {
  * RFC-MACP-0013 §3 projection and its real hash, so a demo receipt verifies; the response still
  * says in `notVerified` that no stored Commitment was checked.
  */
-export async function mockRunVerification(runId: string): Promise<RunVerification> {
+export function mockRunVerification(runId: string): RunVerification {
   const state = MOCK_RUN_STATES[runId];
   const current = state?.decision.current;
   const base = {
@@ -1733,7 +1733,7 @@ export async function mockRunVerification(runId: string): Promise<RunVerificatio
       checks: []
     };
   }
-  const payload: CommitmentProjection = {
+  const payload: ReceiptCommitment = {
     commitment_id: `demo-commitment-${runId.slice(0, 8)}`,
     action: current.action,
     authority_scope: current.resolvedBy ?? 'coordinator',
@@ -1743,7 +1743,7 @@ export async function mockRunVerification(runId: string): Promise<RunVerificatio
     configuration_version: 'config.default',
     outcome_positive: current.outcomePositive ?? false
   };
-  const hash = await commitmentHash(payload);
+  const hash = projectionHash(payload);
   return {
     ...base,
     status: 'verified',

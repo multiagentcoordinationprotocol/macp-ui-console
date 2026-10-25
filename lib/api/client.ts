@@ -545,7 +545,7 @@ export async function getRunTraces(runId: string, demoMode: boolean): Promise<Tr
 
 /** RFC-MACP-0013 commitment-hash verification of the run's binding outcome (W2.3). */
 export async function getRunVerification(runId: string, demoMode: boolean): Promise<RunVerification> {
-  if (demoMode) return maybeDelay(await mockRunVerification(runId));
+  if (demoMode) return maybeDelay(mockRunVerification(runId));
   return fetchJson<RunVerification>('macp-control-plane', `/runs/${runId}/verification`);
 }
 
