@@ -72,6 +72,7 @@ spec:
       type: none
     ttlMs: 300000
     maxSuspendMs: 15000                     # optional — session-bound suspend cap (proto 0.1.5)
+    agentExecution: deterministic           # optional — llm (default) | deterministic; see below
     initiatorParticipantId: risk-agent     # optional
 
     participants:
@@ -128,6 +129,20 @@ spec:
 > against the cap. See the `suspend-demo` template under the fraud pack, which
 > pairs `maxSuspendMs: 15000` with the `suspend` customerId sentinel that
 > triggers `risk-decider.worker.ts`'s initiator-driven suspend/resume flow.
+
+> **`agentExecution` (optional).** `llm` (the default when absent) or
+> `deterministic`. With `deterministic`, hosting removes every LLM provider key
+> (`OPENAI_API_KEY` and the others listed in `LLM_PROVIDER_ENV_KEYS`,
+> `src/hosting/process-example-agent-host.provider.ts`) from each spawned
+> agent's environment, so every worker takes its rule-based `score_by_domain`
+> path even on a deployment that holds a key: same inputs, same decision, no
+> LLM spend. Any other value is a `COMPILATION_ERROR`. The fraud pack's
+> `showcase` template sets it; that is the template the console's public
+> `/showcase` page launches.
+>
+> `llm` is only honoured when the service runs with `PLAYGROUND_ALLOW_LLM=1`.
+> Without that server-side opt-in (the hosted default) every launch is
+> deterministic, whatever the template says — see `docs/deployment.md`.
 
 > **`extensions` (optional).** A mapping copied verbatim into the initiator's
 > `sessionStart.extensions`. Every value must be a **string**; protobuf `bytes`
