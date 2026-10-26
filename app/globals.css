@@ -2317,3 +2317,48 @@ pre code {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* W4.1 what-if replay */
+.what-if-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--muted);
+}
+.what-if-error {
+  color: var(--danger);
+  margin: 0;
+}
+.what-if-outcome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.what-if-banner {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--panel-2);
+}
+.what-if-banner-diverged {
+  border-left: 3px solid var(--warning);
+}
+.what-if-table-wrap {
+  max-height: 420px;
+}
+.what-if-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  align-items: flex-start;
+}
+.table tr.what-if-row-diverged td {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+.what-if-denials {
+  margin: 0;
+  padding-left: var(--space-lg);
+}

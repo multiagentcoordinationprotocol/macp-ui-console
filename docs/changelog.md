@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-25 — What-if replay (W4.1)
+
+The run view gains a What-if panel (`components/runs/what-if-panel.tsx`). It replays the run's
+session under a candidate policy via the control plane's `POST /runs/:id/what-if` and shows recorded
+and candidate outcomes side by side. Rows the two policies handled differently are highlighted, the
+table scrolls to `firstDivergence`, and "No difference" is shown when it is `null`. Candidate
+denials list each code, message and participants. The candidate editor is prefilled with the
+recorded policy's rules. The panel renders only when `GET /runtime/capabilities` reports
+`policyRegistry.whatIfReplay`, which needs macp-runtime 0.10 or later; the hosted runtime is still
+0.9.x, so it stays hidden there until that ships. Proxy: both routes are allow-listed, and
+`what-if` draws from a new `whatIf` quota of 5 per 10 min per IP, separate from launch. Demo mode
+has a mock replay that diverges on any change from the recorded rules and answers
+`HISTORY_UNAVAILABLE` for the failed demo run. Tests: `components/runs/what-if-panel.test.tsx`,
+`lib/api/client.real-mode.test.ts`, the proxy route tests.
+
 ## 2026-10-25 — Bare semver image tags
 
 `image.yml` now also publishes bare `X.Y.Z` and `X.Y` tags from `vX.Y.Z` releases, matching the other

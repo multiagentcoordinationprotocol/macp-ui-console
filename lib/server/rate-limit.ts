@@ -20,7 +20,9 @@ export const RATE_LIMIT_POLICIES: Record<RateLimitClass, RateLimitPolicy> = {
   // Generous enough for a page load fanning out to ~10 queries plus SSE reconnects.
   read: { limit: 300, windowMs: 60_000 },
   // The launch route bootstraps hosted agents (and possibly LLM calls): a handful per 10 minutes.
-  launch: { limit: 5, windowMs: 10 * 60_000 }
+  launch: { limit: 5, windowMs: 10 * 60_000 },
+  // What-if replays a whole session in the runtime per call: same cap as launch, its own bucket.
+  whatIf: { limit: 5, windowMs: 10 * 60_000 }
 };
 
 export interface RateLimitResult {

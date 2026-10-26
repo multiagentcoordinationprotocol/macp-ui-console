@@ -230,6 +230,18 @@ describe('proxy route method/path allow-list and rate limiting', () => {
     expect((await call('GET', 'macp-playground', ['packs'], headers)).status).toBe(200);
   });
 
+  it('gives what-if its own quota, separate from launch (W4.1)', async () => {
+    const { limit } = RATE_LIMIT_POLICIES.whatIf;
+    const headers = { 'x-real-ip': '203.0.113.20' };
+    for (let i = 0; i < limit; i += 1) {
+      expect((await call('POST', 'macp-control-plane', ['runs', 'run-1', 'what-if'], headers)).status).toBe(200);
+    }
+    expect((await call('POST', 'macp-control-plane', ['runs', 'run-1', 'what-if'], headers)).status).toBe(429);
+    // Exhausting what-if leaves the same client's launch quota and reads intact.
+    expect((await call('POST', 'macp-playground', ['examples', 'run'], headers)).status).toBe(200);
+    expect((await call('GET', 'macp-control-plane', ['runtime', 'capabilities'], headers)).status).toBe(200);
+  });
+
   it('does not let a spoofed leftmost x-forwarded-for entry mint a fresh launch quota', async () => {
     const { limit } = RATE_LIMIT_POLICIES.launch;
     for (let i = 0; i < limit; i += 1) {

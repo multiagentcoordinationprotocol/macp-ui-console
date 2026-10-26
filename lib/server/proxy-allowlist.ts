@@ -16,7 +16,7 @@ import type { ProxyService } from '@/lib/server/integrations';
 
 export type ProxyMethod = 'GET' | 'POST';
 
-export type RateLimitClass = 'read' | 'launch';
+export type RateLimitClass = 'read' | 'launch' | 'whatIf';
 
 export interface ProxyRoute {
   service: ProxyService;
@@ -69,6 +69,16 @@ export const PROXY_ALLOWLIST: readonly ProxyRoute[] = [
     path: '/runs/:runId/replay',
     note: 'createReplay (returns a descriptor only)'
   },
+  // W4.1 what-if: the runtime replays the session's history under a candidate policy and returns the
+  // diff. Read-only (nothing is registered, the session is untouched) but it costs runtime CPU per
+  // call, so it draws from its own small quota, separate from launch.
+  {
+    service: 'macp-control-plane',
+    method: 'POST',
+    path: '/runs/:runId/what-if',
+    limit: 'whatIf',
+    note: 'runWhatIf (read-only replay)'
+  },
   { service: 'macp-control-plane', method: 'GET', path: '/events', note: 'listEvents' },
 
   // ── macp-control-plane: dashboards, runtime discovery, health (read-only) ──
@@ -78,6 +88,7 @@ export const PROXY_ALLOWLIST: readonly ProxyRoute[] = [
   { service: 'macp-control-plane', method: 'GET', path: '/runtime/modes', note: 'getRuntimeModes' },
   { service: 'macp-control-plane', method: 'GET', path: '/runtime/roots', note: 'getRuntimeRoots' },
   { service: 'macp-control-plane', method: 'GET', path: '/runtime/health', note: 'getRuntimeHealth' },
+  { service: 'macp-control-plane', method: 'GET', path: '/runtime/capabilities', note: 'getRuntimeCapabilities' },
   { service: 'macp-control-plane', method: 'GET', path: '/runtime/policies', note: 'listRuntimePolicies' },
   { service: 'macp-control-plane', method: 'GET', path: '/runtime/policies/:policyId', note: 'getRuntimePolicy' },
   { service: 'macp-control-plane', method: 'GET', path: '/readyz', note: 'getReadinessProbe' },
