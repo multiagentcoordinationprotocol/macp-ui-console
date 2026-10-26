@@ -2503,7 +2503,10 @@ export const MOCK_RUN_FRAMES: Record<
 };
 
 export const MOCK_RUNTIME_CAPABILITIES: RuntimeCapabilities = {
-  policyRegistry: { register: true, list: true, whatIfReplay: true }
+  runtimeInfo: { name: 'macp-runtime', version: '0.10.0' },
+  selectedProtocolVersion: '1.0',
+  supportedModes: ['macp.mode.decision.v1'],
+  capabilities: { policyRegistry: { register: true, list: true, whatIfReplay: true } }
 };
 
 /** A demo-mode control-plane error, turned into an `ApiError` by the client. */

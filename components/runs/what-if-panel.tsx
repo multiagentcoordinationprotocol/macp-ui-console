@@ -56,7 +56,7 @@ export function describeWhatIfError(error: unknown): string {
       case 'HISTORY_UNAVAILABLE':
         return "This session's history was compacted when it ended. What-if needs a runtime with MACP_COMPACT_TERMINAL_LOGS=0, and only covers sessions that end after that.";
       case 'INVALID_POLICY_DEFINITION':
-        return `The candidate policy was rejected: ${error.detail ?? 'invalid policy definition'}`;
+        return `The candidate policy was rejected: ${(error.detail ?? 'invalid policy definition').replace(/^INVALID_POLICY_DEFINITION:\s*/, '')}`;
       case 'VALIDATION_ERROR':
         return `The request was malformed: ${error.detail ?? 'validation failed'}`;
       case 'WHAT_IF_REPLAY_UNSUPPORTED':
@@ -110,7 +110,7 @@ export function WhatIfPanel({
     staleTime: 5 * 60_000,
     retry: false
   });
-  if (capabilities.data?.policyRegistry?.whatIfReplay !== true) return null;
+  if (capabilities.data?.capabilities?.policyRegistry?.whatIfReplay !== true) return null;
   return <WhatIfEditor runId={runId} demoMode={demoMode} modeName={modeName} recordedPolicyId={recordedPolicyId} />;
 }
 

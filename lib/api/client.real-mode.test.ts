@@ -999,10 +999,15 @@ describe('real mode API client', () => {
     it('reads GET /runtime/capabilities', async () => {
       mocker.on('GET', '/api/proxy/macp-control-plane/runtime/capabilities', () => ({
         status: 200,
-        body: { policyRegistry: { whatIfReplay: true } }
+        body: {
+          runtimeInfo: { name: 'macp-runtime', version: '0.10.0' },
+          capabilities: { policyRegistry: { whatIfReplay: true } }
+        }
       }));
       const { getRuntimeCapabilities } = await import('@/lib/api/client');
-      await expect(getRuntimeCapabilities(REAL)).resolves.toEqual({ policyRegistry: { whatIfReplay: true } });
+      await expect(getRuntimeCapabilities(REAL)).resolves.toMatchObject({
+        capabilities: { policyRegistry: { whatIfReplay: true } }
+      });
     });
   });
 });

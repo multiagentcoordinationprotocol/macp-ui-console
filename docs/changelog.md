@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-25 — What-if gate reads the real capabilities shape
+
+`GET /runtime/capabilities` nests the runtime's flags under `capabilities` (alongside `runtimeInfo`,
+`selectedProtocolVersion`, `supportedModes`), so the What-if gate now reads
+`capabilities.policyRegistry.whatIfReplay`. Before this fix the panel could never appear in real mode.
+`INVALID_POLICY_DEFINITION` messages drop the CP's redundant code prefix.
+
 ## 2026-10-25 — What-if replay (W4.1)
 
 The run view gains a What-if panel (`components/runs/what-if-panel.tsx`). It replays the run's

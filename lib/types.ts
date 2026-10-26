@@ -595,10 +595,18 @@ export interface WhatIfCandidate {
   description?: string;
 }
 
-/** `GET /runtime/capabilities` — the runtime's Initialize capabilities (camelCase). */
+/**
+ * `GET /runtime/capabilities` — a fresh runtime Initialize per call (camelCase), so callers cache it.
+ * `capabilities.policyRegistry.whatIfReplay` absent means unsupported (every runtime before 0.10).
+ */
 export interface RuntimeCapabilities {
-  policyRegistry?: { whatIfReplay?: boolean; [key: string]: unknown };
-  [key: string]: unknown;
+  runtimeInfo?: { name?: string; version?: string; [key: string]: unknown };
+  selectedProtocolVersion?: string;
+  supportedModes?: string[];
+  capabilities?: {
+    policyRegistry?: { whatIfReplay?: boolean; [key: string]: unknown };
+    [key: string]: unknown;
+  };
 }
 
 export interface TraceSummary {
