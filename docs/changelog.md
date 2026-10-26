@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-25 — v0.2.1
+
+Release containing #72 (readiness card shows not-ready from a 503 `/readyz` body), #73 (bare
+`X.Y.Z` / `X.Y` image tags), and #74 + #75 (W4.1 what-if replay panel, gated on the runtime's
+`capabilities.policyRegistry.whatIfReplay`, so against a runtime before 0.10 the panel stays hidden).
+
 ## 2026-10-25 — What-if gate reads the real capabilities shape
 
 `GET /runtime/capabilities` nests the runtime's flags under `capabilities` (alongside `runtimeInfo`,
