@@ -26,7 +26,7 @@ describe('WhatIfPanel (W4.1)', () => {
   });
 
   it('renders nothing when the runtime does not advertise whatIfReplay', async () => {
-    getRuntimeCapabilities.mockResolvedValue({ policyRegistry: { whatIfReplay: false } });
+    getRuntimeCapabilities.mockResolvedValue({ capabilities: { policyRegistry: {} } });
     renderPanel();
     await waitFor(() => expect(getRuntimeCapabilities).toHaveBeenCalled());
     expect(screen.queryByTestId('what-if-panel')).not.toBeInTheDocument();
@@ -83,9 +83,15 @@ describe('WhatIfPanel (W4.1)', () => {
   it('maps control-plane error codes to actionable messages', () => {
     const err = (status: number, errorCode: string, message: string) =>
       new ApiError(status, '', JSON.stringify({ statusCode: status, errorCode, message }), 'macp-control-plane', '/x');
-    expect(describeWhatIfError(err(400, 'INVALID_POLICY_DEFINITION', 'rules.voting.threshold: must be ≤ 1'))).toContain(
-      'rules.voting.threshold'
+    const invalid = describeWhatIfError(
+      err(
+        400,
+        'INVALID_POLICY_DEFINITION',
+        'INVALID_POLICY_DEFINITION: invalid policy rules for mode m: rules.voting.threshold'
+      )
     );
+    expect(invalid).toContain('rules.voting.threshold');
+    expect(invalid).not.toContain('INVALID_POLICY_DEFINITION:');
     expect(describeWhatIfError(err(501, 'WHAT_IF_REPLAY_UNSUPPORTED', 'x'))).toMatch(/0\.10/);
     expect(describeWhatIfError(err(404, 'NOT_FOUND', 'x'))).toMatch(/no longer exists/);
     expect(describeWhatIfError(err(500, 'INTERNAL_ERROR', 'integrity'))).toMatch(/bug worth reporting/);
