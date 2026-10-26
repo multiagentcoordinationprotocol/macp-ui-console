@@ -14,6 +14,7 @@ import { RunStoryPanel } from '@/components/runs/run-story-panel';
 import { NodeInspector } from '@/components/runs/node-inspector';
 import { DecisionPanel } from '@/components/runs/decision-panel';
 import { VerificationPanel } from '@/components/runs/verification-panel';
+import { WhatIfPanel } from '@/components/runs/what-if-panel';
 import { PolicyPanel } from '@/components/runs/policy-panel';
 import { RunOverviewCard } from '@/components/runs/run-overview-card';
 import { SignalRail } from '@/components/runs/signal-rail';
@@ -464,6 +465,16 @@ export function RunWorkbench({ runId, liveMode = false }: { runId: string; liveM
           demoMode={demoMode}
           runStatus={runStatus}
           modeName={effectiveState?.run.modeName}
+        />
+      </ErrorBoundary>
+
+      {/* W4.1: replay the session under a candidate policy (shown only when the runtime supports it) */}
+      <ErrorBoundary>
+        <WhatIfPanel
+          runId={runId}
+          demoMode={demoMode}
+          modeName={effectiveState?.run.modeName}
+          recordedPolicyId={projectedState.policy?.policyVersion}
         />
       </ErrorBoundary>
 

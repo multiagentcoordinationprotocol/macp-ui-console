@@ -964,4 +964,45 @@ describe('real mode API client', () => {
       }
     });
   });
+
+  /* ─── W4.1 what-if ─── */
+
+  describe('runWhatIf / getRuntimeCapabilities', () => {
+    it('POSTs the candidate to /runs/:id/what-if and returns the diff', async () => {
+      const result = { runId: RUN_ID_1, firstDivergence: null, entries: [], denials: [] };
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/what-if`, () => ({
+        status: 200,
+        body: result
+      }));
+
+      const { runWhatIf } = await import('@/lib/api/client');
+      const candidate = { rules: { voting: { algorithm: 'unanimous' } }, schemaVersion: 3 as const };
+      await expect(runWhatIf(RUN_ID_1, candidate, REAL)).resolves.toMatchObject({ firstDivergence: null });
+
+      const request = mocker.requests.at(-1)!;
+      expect(request.method).toBe('POST');
+      expect(request.body).toEqual({ candidate });
+    });
+
+    it('surfaces HISTORY_UNAVAILABLE as an ApiError carrying the errorCode', async () => {
+      mocker.on('POST', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/what-if`, () => ({
+        status: 409,
+        body: { statusCode: 409, errorCode: 'HISTORY_UNAVAILABLE', message: 'history compacted' }
+      }));
+      const { runWhatIf } = await import('@/lib/api/client');
+      await expect(runWhatIf(RUN_ID_1, { rules: {} }, REAL)).rejects.toMatchObject({
+        status: 409,
+        errorCode: 'HISTORY_UNAVAILABLE'
+      });
+    });
+
+    it('reads GET /runtime/capabilities', async () => {
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/capabilities', () => ({
+        status: 200,
+        body: { policyRegistry: { whatIfReplay: true } }
+      }));
+      const { getRuntimeCapabilities } = await import('@/lib/api/client');
+      await expect(getRuntimeCapabilities(REAL)).resolves.toEqual({ policyRegistry: { whatIfReplay: true } });
+    });
+  });
 });

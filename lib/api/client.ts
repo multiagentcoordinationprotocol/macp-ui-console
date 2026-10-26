@@ -27,6 +27,8 @@ import {
   MOCK_SCENARIOS,
   MOCK_WEBHOOKS,
   mockRunVerification,
+  mockWhatIf,
+  MOCK_RUNTIME_CAPABILITIES,
   SUSPENDED_RUN_ID
 } from '@/lib/data/mock-data';
 import type {
@@ -66,6 +68,9 @@ import type {
   RuntimeRootDescriptor,
   ScenarioSummary,
   RunVerification,
+  RuntimeCapabilities,
+  WhatIfCandidate,
+  WhatIfResult,
   TraceSummary,
   ValidateRunResponse,
   WebhookSubscription
@@ -547,6 +552,35 @@ export async function getRunTraces(runId: string, demoMode: boolean): Promise<Tr
 export async function getRunVerification(runId: string, demoMode: boolean): Promise<RunVerification> {
   if (demoMode) return maybeDelay(mockRunVerification(runId));
   return fetchJson<RunVerification>('macp-control-plane', `/runs/${runId}/verification`);
+}
+
+/**
+ * W4.1 — replay the run's session under a candidate policy. Read-only at the runtime; the console
+ * proxy gives it its own small per-IP quota. Errors arrive as `ApiError` with the CP's `errorCode`
+ * (`HISTORY_UNAVAILABLE` 409, `INVALID_POLICY_DEFINITION` 400, `WHAT_IF_REPLAY_UNSUPPORTED` 501, …).
+ */
+export async function runWhatIf(runId: string, candidate: WhatIfCandidate, demoMode: boolean): Promise<WhatIfResult> {
+  const path = `/runs/${runId}/what-if`;
+  if (demoMode) {
+    const result = mockWhatIf(runId, candidate);
+    if ('errorCode' in result) {
+      throw new ApiError(
+        result.status,
+        '',
+        JSON.stringify({ statusCode: result.status, errorCode: result.errorCode, message: result.message }),
+        'macp-control-plane',
+        path
+      );
+    }
+    return maybeDelay(result);
+  }
+  return fetchJson<WhatIfResult>('macp-control-plane', path, { method: 'POST', body: JSON.stringify({ candidate }) });
+}
+
+/** `GET /runtime/capabilities` — gates the what-if panel on `policyRegistry.whatIfReplay`. */
+export async function getRuntimeCapabilities(demoMode: boolean): Promise<RuntimeCapabilities> {
+  if (demoMode) return maybeDelay(MOCK_RUNTIME_CAPABILITIES);
+  return fetchJson<RuntimeCapabilities>('macp-control-plane', '/runtime/capabilities');
 }
 
 export interface JaegerSpan {

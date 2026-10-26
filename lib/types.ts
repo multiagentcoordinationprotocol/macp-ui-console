@@ -514,6 +514,93 @@ export interface RunVerification {
   checkedAt: string;
 }
 
+/**
+ * W4.1 — `POST /runs/:id/what-if`: the runtime replays the run's accepted session history under a
+ * candidate policy (RFC-MACP-0012 §8.1) and returns both outcomes side by side. Read-only: nothing
+ * is registered and the session is untouched. Shape is the control plane's camelCase mapping of the
+ * runtime's WhatIfReplay response.
+ */
+export type WhatIfSessionState = 'OPEN' | 'RESOLVED' | 'EXPIRED' | 'CANCELLED' | 'SUSPENDED';
+
+export type WhatIfEntryKind = 'APPLIED' | 'NOT_OPEN' | 'REFUSED' | 'NO_SESSION';
+
+export interface WhatIfDenialReason {
+  code: string;
+  message: string;
+  participants?: string[];
+}
+
+/** Parsed POLICY_DENIED details; `null` on the wire when the runtime sent none. */
+export interface WhatIfDetails {
+  reasons?: string[];
+  denials?: WhatIfDenialReason[];
+}
+
+export interface WhatIfEntryRef {
+  historyIndex: number;
+  messageId: string;
+  messageType: string;
+}
+
+export interface WhatIfOutcome {
+  /** `null` on `candidate` means the candidate refused SessionStart, so no session existed. */
+  state: WhatIfSessionState | null;
+  /** Decoded CommitmentPayload of the resolving Commitment, or `null` when unresolved. */
+  resolution: Record<string, unknown> | null;
+  resolvedBy: WhatIfEntryRef | null;
+}
+
+export interface WhatIfEntryOutcome {
+  kind: WhatIfEntryKind;
+  state: WhatIfSessionState | null;
+  errorCode: string | null;
+  details: WhatIfDetails | null;
+}
+
+export interface WhatIfEntry extends WhatIfEntryRef {
+  recorded: WhatIfEntryOutcome;
+  candidate: WhatIfEntryOutcome;
+}
+
+export interface WhatIfDenial {
+  historyIndex: number;
+  messageId: string;
+  details: WhatIfDetails | null;
+}
+
+export interface WhatIfResult {
+  runId: string;
+  sessionId: string;
+  recordedPolicyId: string;
+  candidatePolicyId: string;
+  recorded: WhatIfOutcome;
+  candidate: WhatIfOutcome;
+  /** History index of the first entry handled differently; `null` means the outcomes are identical. */
+  firstDivergence: number | null;
+  /**
+   * One per accepted history entry, in order (SessionStart = 0). Runtime-internal entries (suspend,
+   * resume, cancel, TTL expiry) are absent and take no index — key on `historyIndex`/`messageId`.
+   */
+  entries: WhatIfEntry[];
+  denials: WhatIfDenial[];
+}
+
+export interface WhatIfCandidate {
+  /** Defaults to the session's mode; otherwise must equal it or be `*`. */
+  mode?: string;
+  rules: Record<string, unknown>;
+  schemaVersion?: PolicySchemaVersion;
+  /** Only echoed back as `candidatePolicyId`; the candidate is never registered. */
+  policyId?: string;
+  description?: string;
+}
+
+/** `GET /runtime/capabilities` — the runtime's Initialize capabilities (camelCase). */
+export interface RuntimeCapabilities {
+  policyRegistry?: { whatIfReplay?: boolean; [key: string]: unknown };
+  [key: string]: unknown;
+}
+
 export interface TraceSummary {
   traceId?: string;
   spanCount: number;

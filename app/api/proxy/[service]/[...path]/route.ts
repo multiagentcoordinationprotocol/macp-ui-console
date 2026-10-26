@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { buildUpstreamUrl, getIntegrationConfig, isProxyService } from '@/lib/server/integrations';
-import { findAllowedRoute } from '@/lib/server/proxy-allowlist';
+import { findAllowedRoute, type RateLimitClass } from '@/lib/server/proxy-allowlist';
 import { getClientIp, proxyRateLimiter, RATE_LIMIT_POLICIES } from '@/lib/server/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -26,9 +26,10 @@ async function forward(request: NextRequest, context: { params: Promise<{ servic
 
   const limitClass = route.limit ?? 'read';
   const ip = getClientIp(request.headers);
-  // Every allowed request draws from the read quota; the launch route additionally draws from its
-  // own, much smaller quota, so read traffic cannot be used to dodge the launch cap or vice versa.
-  for (const bucket of limitClass === 'launch' ? (['read', 'launch'] as const) : (['read'] as const)) {
+  // Every allowed request draws from the read quota; launch and what-if routes additionally draw from
+  // their own, much smaller quota, so read traffic cannot be used to dodge those caps or vice versa.
+  const buckets: RateLimitClass[] = limitClass === 'read' ? ['read'] : ['read', limitClass];
+  for (const bucket of buckets) {
     const result = proxyRateLimiter.check(`${bucket}:${ip}`, RATE_LIMIT_POLICIES[bucket]);
     if (!result.allowed) {
       return Response.json(

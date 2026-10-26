@@ -22,6 +22,11 @@ import type {
   RuntimeRootDescriptor,
   ScenarioSummary,
   RunVerification,
+  RuntimeCapabilities,
+  WhatIfCandidate,
+  WhatIfEntry,
+  WhatIfEntryOutcome,
+  WhatIfResult,
   TraceSummary,
   WebhookSubscription
 } from '@/lib/types';
@@ -2496,3 +2501,118 @@ export const MOCK_RUN_FRAMES: Record<
     { seq: 9, event: MOCK_RUN_EVENTS[COMPLETED_RUN_ID][8], snapshot: completedFrame5 }
   ]
 };
+
+export const MOCK_RUNTIME_CAPABILITIES: RuntimeCapabilities = {
+  policyRegistry: { register: true, list: true, whatIfReplay: true }
+};
+
+/** A demo-mode control-plane error, turned into an `ApiError` by the client. */
+export interface MockApiFailure {
+  status: number;
+  errorCode: string;
+  message: string;
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableJson(v)}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * W4.1 demo what-if. The recorded run is a four-agent decision under `policy.default`. A candidate
+ * whose rules equal the recorded ones replays identically; any other candidate refuses the final
+ * Commitment with POLICY_DENIED (quorum not reached), leaving the session OPEN — enough to show the
+ * diff, the divergence marker and a denial. The failed demo run answers HISTORY_UNAVAILABLE.
+ */
+export function mockWhatIf(runId: string, candidate: WhatIfCandidate): WhatIfResult | MockApiFailure {
+  const state = MOCK_RUN_STATES[runId];
+  if (!state) return { status: 404, errorCode: 'NOT_FOUND', message: `Run ${runId} not found` };
+  if (runId === FAILED_RUN_ID) {
+    return {
+      status: 409,
+      errorCode: 'HISTORY_UNAVAILABLE',
+      message: 'Session history was compacted when the session ended.'
+    };
+  }
+  const mode = state.run.modeName ?? 'macp.mode.decision.v1';
+  if (candidate.mode && candidate.mode !== mode && candidate.mode !== '*') {
+    return {
+      status: 400,
+      errorCode: 'INVALID_POLICY_DEFINITION',
+      message: `rules.mode: candidate mode ${candidate.mode} does not match the session mode ${mode}`
+    };
+  }
+
+  const recordedRules = MOCK_POLICY_DEFINITIONS[0].rules;
+  const identical = stableJson(candidate.rules) === stableJson(recordedRules);
+  const sessionId = state.run.runtimeSessionId ?? `demo-session-${runId.slice(0, 8)}`;
+  const types = [
+    'SessionStart',
+    'Proposal',
+    'Evaluation',
+    'Evaluation',
+    'Evaluation',
+    'Vote',
+    'Vote',
+    'Vote',
+    'Commitment'
+  ];
+  const applied = (open: boolean): WhatIfEntryOutcome => ({
+    kind: 'APPLIED',
+    state: open ? 'OPEN' : 'RESOLVED',
+    errorCode: null,
+    details: null
+  });
+  const denialDetails = {
+    reasons: ['commitment requires a vote quorum'],
+    denials: [
+      {
+        code: 'QUORUM_NOT_REACHED',
+        message: 'Candidate policy needs 4 of 4 approving votes; 3 were cast.',
+        participants: ['fraud-agent', 'growth-agent', 'risk-agent']
+      }
+    ]
+  };
+  const commitIndex = types.length - 1;
+  const entries: WhatIfEntry[] = types.map((messageType, historyIndex) => {
+    const last = historyIndex === commitIndex;
+    const recorded = applied(!last);
+    const candidateOutcome: WhatIfEntryOutcome =
+      last && !identical
+        ? { kind: 'REFUSED', state: 'OPEN', errorCode: 'POLICY_DENIED', details: denialDetails }
+        : applied(!last);
+    return {
+      historyIndex,
+      messageId: `demo-msg-${runId.slice(0, 4)}-${historyIndex}`,
+      messageType,
+      recorded,
+      candidate: candidateOutcome
+    };
+  });
+  const commitment = entries[commitIndex];
+  const resolution = {
+    commitmentId: `demo-commitment-${runId.slice(0, 8)}`,
+    action: state.decision.current?.action ?? 'approve',
+    authorityScope: 'coordinator',
+    reason: state.decision.current?.reasons?.[0] ?? '',
+    outcomePositive: state.decision.current?.outcomePositive ?? true
+  };
+  const resolvedBy = { historyIndex: commitIndex, messageId: commitment.messageId, messageType: 'Commitment' };
+  return {
+    runId,
+    sessionId,
+    recordedPolicyId: 'policy.default',
+    candidatePolicyId: candidate.policyId ?? '',
+    recorded: { state: 'RESOLVED', resolution, resolvedBy },
+    candidate: identical
+      ? { state: 'RESOLVED', resolution, resolvedBy }
+      : { state: 'OPEN', resolution: null, resolvedBy: null },
+    firstDivergence: identical ? null : commitIndex,
+    entries,
+    denials: identical ? [] : [{ historyIndex: commitIndex, messageId: commitment.messageId, details: denialDetails }]
+  };
+}
