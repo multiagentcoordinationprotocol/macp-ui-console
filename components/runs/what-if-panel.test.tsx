@@ -56,6 +56,13 @@ describe('WhatIfPanel (W4.1)', () => {
     expect(screen.getByText(/candidate denials \(1\)/i)).toBeInTheDocument();
   });
 
+  it('prefills from policy.default when the run state names no policy', async () => {
+    renderWithProviders(<WhatIfPanel runId={COMPLETED_RUN_ID} demoMode modeName="macp.mode.decision.v1" />);
+    const rules = await screen.findByLabelText('Candidate rules');
+    await waitFor(() => expect((rules as HTMLTextAreaElement).value).toContain('initiator_only'));
+    expect(screen.getByText(/the runtime default/i)).toBeInTheDocument();
+  });
+
   it('refuses rules that are not a JSON object without calling the control plane', async () => {
     renderPanel();
     const rules = await screen.findByLabelText('Candidate rules');

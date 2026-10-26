@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-26 — What-if prefill falls back to `policy.default`
+
+A run started without a policy has no policy projection in its state, so the What-if editor opened
+empty (`{}`). It now prefills from the runtime's `policy.default`, which is what such a session
+actually ran under, and says so.
+
 ## 2026-10-25 — v0.2.1
 
 Release containing #72 (readiness card shows not-ready from a 503 `/readyz` body), #73 (bare

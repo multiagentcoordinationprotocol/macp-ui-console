@@ -32,6 +32,8 @@ import { cn } from '@/lib/utils/cn';
  * capability answer fails cleanly rather than silently.
  */
 
+const DEFAULT_POLICY_ID = 'policy.default';
+
 type Tone = 'success' | 'danger' | 'warning' | 'neutral' | 'info';
 
 const STATE_TONE: Record<string, Tone> = {
@@ -125,10 +127,12 @@ function WhatIfEditor({
   modeName?: string;
   recordedPolicyId?: string;
 }) {
+  // A session started without a policy runs under the runtime's `policy.default`, and its run state
+  // then carries no policy projection — prefill from that rather than an empty object.
+  const prefillPolicyId = recordedPolicyId || DEFAULT_POLICY_ID;
   const recordedPolicy = useQuery({
-    queryKey: ['runtime-policy', recordedPolicyId, demoMode],
-    queryFn: () => getRuntimePolicy(recordedPolicyId!, demoMode),
-    enabled: Boolean(recordedPolicyId),
+    queryKey: ['runtime-policy', prefillPolicyId, demoMode],
+    queryFn: () => getRuntimePolicy(prefillPolicyId, demoMode),
     retry: false
   });
 
@@ -209,12 +213,11 @@ function WhatIfEditor({
             value={text}
             onChange={(event) => setRulesText(event.target.value)}
           />
-          {recordedPolicyId ? (
-            <span className="muted">
-              Prefilled from the recorded policy <code>{recordedPolicyId}</code>
-              {recordedPolicy.isError ? ' (could not be loaded; start from {} instead)' : ''}.
-            </span>
-          ) : null}
+          <span className="muted">
+            Prefilled from {recordedPolicyId ? 'the recorded policy' : 'the runtime default'}{' '}
+            <code>{prefillPolicyId}</code>
+            {recordedPolicy.isError ? ' (could not be loaded; start from {} instead)' : ''}.
+          </span>
         </div>
         <div className="section-actions">
           <Button onClick={submit} disabled={mutation.isPending}>
