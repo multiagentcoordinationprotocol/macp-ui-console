@@ -19,7 +19,7 @@ The control-plane is optional: set `MACP_CONTROL_PLANE_URL` to register each run
 
 The runtime must be configured to accept JWTs minted by the same auth-service (`MACP_AUTH_ISSUER`, `MACP_AUTH_AUDIENCE`, `MACP_AUTH_JWKS_URL=<auth-service>/.well-known/jwks.json`). For the full setup see [`macp-runtime/docs/getting-started.md` § JWT mode](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/getting-started.md#jwt-mode) and [`macp-auth-service/docs/integration.md`](https://github.com/multiagentcoordinationprotocol/macp-auth-service/blob/main/docs/integration.md).
 
-**Pinned versions.** `docker-compose.fullstack.yml` pins the runtime to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.9.0` and uses locally built `:0.8.0` images for the control-plane, auth-service and playground. Runtime behaviour that matters to operators (`MACP_ALLOW_INSECURE`, JWT algorithm allowlist, `MACP_METRICS_ADDR`, image tags) is documented in [`macp-runtime/docs/deployment.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/deployment.md#environment-variables) and [§ Published image tags](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/deployment.md#published-image-tags). 0.9.0 is a wire break (semantics_rev 4, registry codes in `macp-error-code` metadata on every status, structured policy `denials`, macp-proto 0.1.11) — see [§ Upgrading to 0.9.0](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/deployment.md#upgrading-to-090); this repo's SDK pins (`macp-sdk-typescript` 0.16, `macp-sdk-python` 0.16) are the releases that absorbed it.
+**Pinned versions.** `docker-compose.fullstack.yml` pins the runtime to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.9.0`, pins the control-plane and auth-service to locally built images tagged with their exact commits (`macp-control-plane:778258e`, `macp-auth-service:5270353` — neither sibling publishes semver image tags; build commands are in the compose file's header) and builds the playground from this checkout. Runtime behaviour that matters to operators (`MACP_ALLOW_INSECURE`, JWT algorithm allowlist, `MACP_METRICS_ADDR`, image tags) is documented in [`macp-runtime/docs/deployment.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/deployment.md#environment-variables) and [§ Published image tags](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/deployment.md#published-image-tags). 0.9.0 is a wire break (semantics_rev 4, registry codes in `macp-error-code` metadata on every status, structured policy `denials`, macp-proto 0.1.11) — see [§ Upgrading to 0.9.0](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/deployment.md#upgrading-to-090); this repo's SDK pins (`macp-sdk-typescript` 0.17, `macp-sdk-python` 0.17) both require runtime ≥ 0.9.0; 0.16 was the line that first absorbed it.
 
 **Node.** The service needs Node **22.22.3+** (the NestJS 12 toolchain's floor; NestJS 12 is ESM-only and loaded via `require(esm)`). CI and the shipped image both use Node 26.
 
@@ -76,8 +76,11 @@ Dependency updates are automated by Dependabot (`.github/dependabot.yml`): month
 |---------|-----|---------|
 | Push to `main` | `:latest` | Rolling production tag |
 | Push to `main` / manual dispatch | `:sha-<commit>` | Immutable, for rollback |
+| Push of a `vX.Y.Z` git tag | `:X.Y.Z`, `:X.Y` (and `:sha-<commit>`), `linux/amd64` + `linux/arm64` | Semver pin for self-hosters (W3.7 `macp-runtime/deploy/docker-compose.yml`) |
 
 Pull requests build the image for validation but do not push it. A manual `workflow_dispatch` run pushes a `:sha-<commit>` tag only; `:latest` moves only on `main`.
+
+**Cutting a release.** Bump `version` in `package.json` on `main`, then push the matching tag (`git tag v0.3.0 && git push origin v0.3.0`). The tag run executes every gate, refuses to push when the tag and `package.json` disagree, and never moves `:latest`. The image boots deterministic by default: it carries no LLM key and leaves `PLAYGROUND_ALLOW_LLM` unset.
 
 Images live at:
 ```
@@ -193,7 +196,8 @@ Worker processes inherit the service's environment, so these are set on the play
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENAI_API_KEY` | No | _(empty)_ | Used by the LangGraph / LangChain / CrewAI workers (`gpt-4o-mini`). Empty → each worker uses its deterministic fallback scorer and makes no LLM call. |
+| `PLAYGROUND_ALLOW_LLM` | No | _(unset)_ | Server-side opt-in for LLM-backed agents. **Unset → every `/examples/run` launch is deterministic**: hosting strips `OPENAI_API_KEY` (and every other key in `LLM_PROVIDER_ENV_KEYS`) from each spawned worker, whatever template the request names, so a deployment can hold a key without any anonymous launch spending it. Leave it unset on the hosted deployment; set `1` on a stack you own (`docker-compose.fullstack.yml` does). A template with `agentExecution: deterministic` stays deterministic either way. The resolved mode is returned as `compiled.scenarioMeta.agentExecution`, written to `runDescriptor.session.metadata.agentExecution`, and recorded per agent as `participantMetadata.agentExecution`. |
+| `OPENAI_API_KEY` | No | _(empty)_ | Used by the LangGraph / LangChain / CrewAI workers (`gpt-4o-mini`) **only when `PLAYGROUND_ALLOW_LLM` is set**. Empty, or opt-in unset → each worker uses its deterministic fallback scorer and makes no LLM call. |
 | `RISK_DECIDER_WAIT_ALL_TIMEOUT_MS` | No | `60000` | How long the risk-decider coordinator waits for every specialist before committing with the votes it has. |
 | `RISK_DECIDER_SUSPEND_HOLD_MS` | No | `8000` | How long the suspend/resume demo (`suspend` customerId sentinel) holds the session suspended before resuming. |
 
