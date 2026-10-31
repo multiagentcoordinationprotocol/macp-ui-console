@@ -114,10 +114,10 @@ npm run local:status   # Check health of running services
 | Examples Service | 3100 | `/healthz` |
 | UI Console | 3000 | — |
 
-The stack pins the runtime to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.9.0`
-(override with `MACP_RUNTIME_IMAGE` for local builds). `macp-control-plane` and `macp-playground` pin `0.9.0`
-as well; the stack builds both from source, so their checkouts must include their 0.9.0 alignment
-(control plane #114, playground #124).
+The stack pins the runtime to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.11.0`
+(override with `MACP_RUNTIME_IMAGE` for local builds). It builds `macp-control-plane` and `macp-playground`
+from source, so their checkouts must include their Wave 5 sync (the control plane needs #134 for the
+decision-receipt routes). No receipt signing key is configured, so the runtime issues unsigned receipts.
 The published image does not bake `MACP_ALLOW_INSECURE` — the compose file sets it explicitly, along with
 `MACP_METRICS_ADDR=0.0.0.0:9464` so the runtime exposes per-mode Prometheus counters
 (`macp_messages_*`, `macp_sessions_*`, `macp_commitments_*`, `macp_replay_mismatches_total`)
