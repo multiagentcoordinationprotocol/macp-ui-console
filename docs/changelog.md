@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-31 — Runtime 0.11.0 and SDK 0.21.0 (Wave 5 sync)
+
+`docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.11.0`
+(still overridable with `MACP_RUNTIME_IMAGE`) and sets `MACP_RUNTIME_ID=macp-ui-console-e2e`, so the
+stack's receipts name their issuer. No signing key is configured: the runtime serves unsigned receipts,
+and the Verification panel labels them integrity-only. `macp-sdk-typescript` moves from 0.20.0 to
+0.21.0, which adds optional OpenTelemetry send spans. The console imports only the browser-safe
+`macp-sdk-typescript/receipt` subpath, so nothing changes at runtime.
+
 ## 2026-10-31 — Runtime-signed decision receipts (W5 U1)
 
 When the runtime advertises `capabilities.decisionReceipt.getDecisionReceipt` (macp-runtime 0.11+),

@@ -59,15 +59,15 @@ services:
         condition: service_healthy
 
   runtime:
-    # Pinned to runtime v0.9.0 by its published semver tag. macp-control-plane's
-    # docker-compose.test.yml (#114) and macp-playground's docker-compose.fullstack.yml (#124) pin
-    # 0.9.0 too, so the whole stack runs one runtime version. 0.9.0 requires UPPER_CASE Decision
-    # votes (semantics_rev 4); the control plane and playground built from source below must be at
-    # or after those PRs, or Decision runs fail with INVALID_ENVELOPE.
+    # Pinned to runtime v0.11.0 by its published semver tag: runtime-issued decision receipts
+    # (RFC-MACP-0013 §13), which the Verification panel shows when the runtime advertises
+    # `decision_receipt`. With no signing key configured (as here) receipts are unsigned and the
+    # console labels them integrity-only. The control plane and playground built from source below
+    # must be at or after their Wave 5 sync (CP #134 for the receipt routes).
     #
     # Override with MACP_RUNTIME_IMAGE for local builds
     # (e.g. `export MACP_RUNTIME_IMAGE=macp-runtime:latest`).
-    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.9.0}
+    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.11.0}
     ports:
       - "50051:50051"
       # Runtime Prometheus metrics (opt-in via MACP_METRICS_ADDR below). Harmless until
@@ -83,6 +83,9 @@ services:
       # Expose per-mode runtime counters (macp_messages_*, macp_sessions_*, macp_commitments_*,
       # macp_replay_mismatches_total) as Prometheus text on :9464.
       MACP_METRICS_ADDR: "0.0.0.0:9464"
+      # Receipt issuer is `runtime:<id>` (0.11+). Required only once a signing key is set; set here so
+      # receipts from this stack name it.
+      MACP_RUNTIME_ID: "macp-ui-console-e2e"
       # Static bearer kept so control-plane (tok-cp-observer) still authenticates.
       # JWT bearer added so spawned agents authenticate with auth-service-minted JWTs.
       MACP_AUTH_TOKENS_JSON: '{"tokens":[{"token":"tok-cp-observer","sender":"macp-control-plane","can_start_sessions":false,"is_observer":true,"can_manage_mode_registry":false}]}'
