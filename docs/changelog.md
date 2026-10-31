@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-31 — Runtime-signed decision receipts (W5 U1)
+
+When the runtime advertises `capabilities.decisionReceipt.getDecisionReceipt` (macp-runtime 0.11+),
+the Verification panel's receipt download now fetches the receipt the runtime issued
+(`GET /runs/:id/receipt`) and its key set (`GET /runtime/receipt-keys`) through the control plane,
+verifies it in the browser with `macp-sdk-typescript@0.20.0`'s `verifyReceipt` and
+`trustedKeysFromJwks`, and downloads the runtime's `receiptJson` byte-for-byte. It is labelled
+**Attested**, **Integrity only** (the runtime has no signing key, `decisionReceipt.signed` false), or
+**Verification failed**, shown as an alert, with the file still downloadable for inspection. A
+signature naming an unknown `kid` triggers one key-set refetch. `409 RECEIPT_UNAVAILABLE` and the
+404s show a calm "no receipt for this run" note, `501` says the runtime issues none, and in those
+cases, without the capability, and in demo mode the console-built unsigned receipt (W3.10) is still
+offered. Proxy: both routes are allow-listed on the read quota. Tests:
+`components/runs/verification-panel.test.tsx`, `lib/utils/receipt.test.ts`,
+`lib/api/client.real-mode.test.ts`, the proxy route tests.
+
 ## 2026-10-26 — What-if prefill falls back to `policy.default`
 
 A run started without a policy has no policy projection in its state, so the What-if editor opened

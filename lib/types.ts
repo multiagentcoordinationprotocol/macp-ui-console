@@ -605,8 +605,21 @@ export interface RuntimeCapabilities {
   supportedModes?: string[];
   capabilities?: {
     policyRegistry?: { whatIfReplay?: boolean; [key: string]: unknown };
+    /** RFC-MACP-0013 §13 (macp-runtime 0.11+). `signed` is false when the runtime holds no signing key. */
+    decisionReceipt?: { getDecisionReceipt?: boolean; signed?: boolean; [key: string]: unknown };
     [key: string]: unknown;
   };
+}
+
+/**
+ * `GET /runs/:id/receipt` — the runtime-issued `macp-receipt/1` (RFC-MACP-0013 §13). `receiptJson` is
+ * the runtime's exact text: verify over it and download it unchanged. `receipt` is for display only.
+ */
+export interface RunDecisionReceipt {
+  runId: string;
+  sessionId: string;
+  receiptJson: string;
+  receipt: Record<string, unknown>;
 }
 
 export interface TraceSummary {

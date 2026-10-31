@@ -57,6 +57,7 @@ export const PROXY_ALLOWLIST: readonly ProxyRoute[] = [
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/metrics', note: 'getRunMetrics' },
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/traces', note: 'getRunTraces' },
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/verification', note: 'getRunVerification' },
+  { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/receipt', note: 'getRunReceipt (W5 U1)' },
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/artifacts', note: 'getRunArtifacts' },
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/export', note: 'exportRunBundle' },
   { service: 'macp-control-plane', method: 'GET', path: '/runs/:runId/replay/state', note: 'getTimelineFrame' },
@@ -89,6 +90,8 @@ export const PROXY_ALLOWLIST: readonly ProxyRoute[] = [
   { service: 'macp-control-plane', method: 'GET', path: '/runtime/roots', note: 'getRuntimeRoots' },
   { service: 'macp-control-plane', method: 'GET', path: '/runtime/health', note: 'getRuntimeHealth' },
   { service: 'macp-control-plane', method: 'GET', path: '/runtime/capabilities', note: 'getRuntimeCapabilities' },
+  // Public verification keys only: the CP refuses to serve a key set carrying private members.
+  { service: 'macp-control-plane', method: 'GET', path: '/runtime/receipt-keys', note: 'getReceiptKeys (W5 U1)' },
   { service: 'macp-control-plane', method: 'GET', path: '/runtime/policies', note: 'listRuntimePolicies' },
   { service: 'macp-control-plane', method: 'GET', path: '/runtime/policies/:policyId', note: 'getRuntimePolicy' },
   { service: 'macp-control-plane', method: 'GET', path: '/readyz', note: 'getReadinessProbe' },
