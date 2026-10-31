@@ -3,8 +3,12 @@ import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 import schema from '@/test/fixtures/receipt/macp-decision-receipt.schema.json';
 import vector002 from '@/test/fixtures/receipt/receipt_002_integrity_only.json';
+import vector004 from '@/test/fixtures/receipt/receipt_004_body_tampered.json';
+import signedReceipt from '@/test/fixtures/receipt/decision_receipt.json';
+import receiptKeys from '@/test/fixtures/receipt/receipt_keys.json';
 import {
   buildReceipt,
+  checkRuntimeReceipt,
   commitmentFromProjection,
   projectionHash,
   receiptFilename,
@@ -108,5 +112,50 @@ describe('buildReceipt (RFC-MACP-0013 Appendix A, via the SDK)', () => {
   it('names the file after the session id', () => {
     expect(receiptFilename('0192f1a4-7c3e')).toBe('receipt-0192f1a4-7c3e.json');
     expect(receiptFilename('a/b')).toBe('receipt-a_b.json');
+  });
+});
+
+describe('checkRuntimeReceipt (W5 U1, RFC-MACP-0013 §13)', () => {
+  const signedText = JSON.stringify(signedReceipt, null, 2);
+
+  it('is attested when the signature verifies against the runtime key set', () => {
+    const check = checkRuntimeReceipt(signedText, receiptKeys, true);
+    expect(check).toMatchObject({ verdict: 'attested', verification: { attestations: ['valid'] } });
+    expect(check.reason).toBeUndefined();
+  });
+
+  it('is integrity_only for an unsigned receipt from a runtime that does not sign', () => {
+    const check = checkRuntimeReceipt(JSON.stringify(vector002.receipt), { keys: [] }, false);
+    expect(check.verdict).toBe('integrity_only');
+  });
+
+  it('fails an unsigned receipt from a runtime that advertises signing', () => {
+    const check = checkRuntimeReceipt(JSON.stringify(vector002.receipt), receiptKeys, true);
+    expect(check).toMatchObject({ verdict: 'failed', reason: expect.stringMatching(/carries no signature/) });
+  });
+
+  it('fails a signature that does not cover the body, though the SDK verdict is integrity_only', () => {
+    const check = checkRuntimeReceipt(JSON.stringify(vector004.receipt), receiptKeys, true);
+    expect(check.verification.verdict).toBe('integrity_only');
+    expect(check).toMatchObject({ verdict: 'failed', reason: expect.stringMatching(/did not verify/) });
+  });
+
+  it('fails a signature whose kid the key set lacks', () => {
+    const check = checkRuntimeReceipt(signedText, { keys: [] }, true);
+    expect(check.verification.attestations).toEqual(['unknown_key']);
+    expect(check).toMatchObject({ verdict: 'failed', reason: expect.stringMatching(/does not hold/) });
+  });
+
+  it('fails a receipt whose commitment_hash does not match its commitment', () => {
+    const tampered = { ...signedReceipt, commitment: { ...signedReceipt.commitment, action: 'decision.rejected' } };
+    const check = checkRuntimeReceipt(JSON.stringify(tampered), receiptKeys, true);
+    expect(check).toMatchObject({ verdict: 'failed', reason: expect.stringMatching(/does not match/) });
+  });
+
+  it('fails text that is not a receipt, without throwing', () => {
+    expect(checkRuntimeReceipt('not json', receiptKeys, false)).toMatchObject({
+      verdict: 'failed',
+      reason: expect.stringMatching(/not a macp-receipt\/1/)
+    });
   });
 });

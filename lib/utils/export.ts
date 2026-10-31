@@ -34,6 +34,11 @@ export function exportToJson(data: unknown, filename: string) {
   downloadBlob(blob, filename);
 }
 
+/** Saves `text` byte-for-byte (no re-serialization), e.g. a signed receipt whose bytes must not change. */
+export function exportRawJson(text: string, filename: string) {
+  downloadBlob(new Blob([text], { type: 'application/json' }), filename);
+}
+
 export function flattenRunForCsv(run: RunRecord): Record<string, unknown> {
   return {
     id: run.id,

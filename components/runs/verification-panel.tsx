@@ -1,21 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getRunVerification } from '@/lib/api/client';
-import type { RunVerification, RunVerificationStatus } from '@/lib/types';
-import { exportToJson } from '@/lib/utils/export';
+import { getReceiptKeys, getRunReceipt, getRunVerification, getRuntimeCapabilities } from '@/lib/api/client';
+import { ApiError, describeApiError } from '@/lib/api/fetcher';
+import type { RunDecisionReceipt, RunVerification, RunVerificationStatus } from '@/lib/types';
+import { exportRawJson, exportToJson } from '@/lib/utils/export';
 import { formatDateTime } from '@/lib/utils/format';
 import {
   buildReceipt,
+  checkRuntimeReceipt,
   commitmentFromProjection,
   receiptFilename,
   rfc3339Utc,
-  toCommitmentProjection
+  toCommitmentProjection,
+  type RuntimeReceiptCheck,
+  type RuntimeReceiptVerdict
 } from '@/lib/utils/receipt';
 
 /**
@@ -73,7 +77,7 @@ export function VerificationPanel({
             <div className="muted small">Verification is unavailable for this run.</div>
           </div>
         ) : (
-          <VerificationBody data={query.data} modeName={modeName} />
+          <VerificationBody runId={runId} demoMode={demoMode} data={query.data} modeName={modeName} />
         )}
       </CardContent>
     </Card>
@@ -84,7 +88,17 @@ function isTerminal(status?: string): boolean {
   return status === 'completed' || status === 'failed' || status === 'cancelled';
 }
 
-function VerificationBody({ data, modeName }: { data: RunVerification; modeName?: string }) {
+function VerificationBody({
+  runId,
+  demoMode,
+  data,
+  modeName
+}: {
+  runId: string;
+  demoMode: boolean;
+  data: RunVerification;
+  modeName?: string;
+}) {
   const view = STATUS_VIEW[data.status] ?? STATUS_VIEW.mismatch;
   return (
     <>
@@ -106,7 +120,13 @@ function VerificationBody({ data, modeName }: { data: RunVerification; modeName?
             </div>
           ) : null}
           {data.commitment && data.commitmentHash ? (
-            <ReceiptDownload commitment={data.commitment} commitmentHash={data.commitmentHash} modeName={modeName} />
+            <ReceiptDownload
+              runId={runId}
+              demoMode={demoMode}
+              commitment={data.commitment}
+              commitmentHash={data.commitmentHash}
+              modeName={modeName}
+            />
           ) : null}
         </div>
       )}
@@ -160,12 +180,178 @@ function HashRow({ label, value, testId }: { label: string; value: string | null
 }
 
 /**
+ * W5 U1 — the receipt download. When the runtime advertises `decisionReceipt.getDecisionReceipt`
+ * (RFC-MACP-0013 §13), the console fetches the receipt the runtime issued, verifies it in the browser
+ * against the runtime's key set, and downloads the runtime's exact bytes. Otherwise — no capability,
+ * the runtime answers 501, has no receipt for the run, or the fetch fails — it falls back to the
+ * console-built unsigned receipt (W3.10), labelled as such.
+ */
+function ReceiptDownload(props: {
+  runId: string;
+  demoMode: boolean;
+  commitment: NonNullable<RunVerification['commitment']>;
+  commitmentHash: string;
+  modeName?: string;
+}) {
+  const { runId, demoMode } = props;
+  const capabilities = useQuery({
+    queryKey: ['runtime-capabilities', demoMode],
+    queryFn: () => getRuntimeCapabilities(demoMode),
+    staleTime: 5 * 60_000,
+    retry: false
+  });
+  const receiptCapability = capabilities.data?.capabilities?.decisionReceipt;
+  const runtimeIssues = !demoMode && receiptCapability?.getDecisionReceipt === true;
+  const signed = receiptCapability?.signed === true;
+  const runtime = useQuery({
+    queryKey: ['run-receipt', runId, signed],
+    queryFn: () => loadRuntimeReceipt(runId, signed),
+    enabled: runtimeIssues,
+    retry: false
+  });
+
+  if (capabilities.isLoading || (runtimeIssues && runtime.isLoading)) {
+    return <div className="muted small">Looking for a runtime-issued receipt…</div>;
+  }
+  if (runtimeIssues && runtime.data?.kind === 'receipt') {
+    return <RuntimeReceipt receipt={runtime.data.receipt} check={runtime.data.check} />;
+  }
+
+  let note: ReactNode = null;
+  if (runtimeIssues && runtime.data?.kind === 'unavailable') {
+    note = (
+      <div className="muted small" data-testid="receipt-unavailable">
+        The runtime has no receipt for this run.
+      </div>
+    );
+  } else if (runtimeIssues && runtime.data?.kind === 'unsupported') {
+    note = (
+      <div className="muted small" data-testid="receipt-unsupported">
+        The runtime does not issue decision receipts.
+      </div>
+    );
+  } else if (runtimeIssues && runtime.isError) {
+    note = (
+      <div role="status" className="error-text" data-testid="receipt-fetch-error">
+        Could not fetch the runtime&apos;s receipt: {describeApiError(runtime.error)}
+      </div>
+    );
+  }
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      {note}
+      <ConsoleReceiptDownload {...props} />
+    </div>
+  );
+}
+
+type RuntimeReceiptResult =
+  | { kind: 'receipt'; receipt: RunDecisionReceipt; check: RuntimeReceiptCheck }
+  | { kind: 'unavailable' }
+  | { kind: 'unsupported' };
+
+/**
+ * Receipt first, then keys: reading a receipt signed by a key the control plane's cached key set
+ * lacks drops that cache, so the keys read that follows sees the rotation. If a signature still
+ * names an unknown key, the keys are fetched once more (`fetchJson` is `no-store`, so this reaches
+ * the control plane) before the verdict stands.
+ */
+async function loadRuntimeReceipt(runId: string, signed: boolean): Promise<RuntimeReceiptResult> {
+  let receipt: RunDecisionReceipt;
+  try {
+    receipt = await getRunReceipt(runId);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      // 409 RECEIPT_UNAVAILABLE (not resolved, no Commitment, not issuable); 404 RUN_NOT_FOUND or
+      // NOT_FOUND (no session yet). Neither is a fault: the run simply has no runtime receipt.
+      if (error.status === 409 || error.status === 404) return { kind: 'unavailable' };
+      if (error.status === 501) return { kind: 'unsupported' };
+    }
+    throw error;
+  }
+
+  let keysError: unknown = null;
+  const fetchKeys = async (): Promise<unknown> => {
+    try {
+      return await getReceiptKeys();
+    } catch (error) {
+      keysError = error;
+      return { keys: [] };
+    }
+  };
+  let check = checkRuntimeReceipt(receipt.receiptJson, await fetchKeys(), signed);
+  if (!keysError && check.verification.attestations.includes('unknown_key')) {
+    check = checkRuntimeReceipt(receipt.receiptJson, await fetchKeys(), signed);
+  }
+  if (keysError && check.verdict === 'failed') {
+    check = {
+      ...check,
+      reason: `${check.reason} The runtime's key set could not be fetched: ${describeApiError(keysError)}`
+    };
+  }
+  return { kind: 'receipt', receipt, check };
+}
+
+const RUNTIME_RECEIPT_VIEW: Record<
+  RuntimeReceiptVerdict,
+  { label: string; tone: 'success' | 'danger' | 'neutral'; note: string }
+> = {
+  attested: {
+    label: 'Attested',
+    tone: 'success',
+    note: "Signed by the runtime: macp-receipt/1, and its signature verifies against the runtime's published keys."
+  },
+  integrity_only: {
+    label: 'Integrity only',
+    tone: 'neutral',
+    note: 'Issued by the runtime, unsigned (integrity-only): it pins what was decided; nobody has signed it.'
+  },
+  failed: {
+    label: 'Verification failed',
+    tone: 'danger',
+    note: 'Issued by the runtime, but it did not verify. Download it to inspect; do not rely on it.'
+  }
+};
+
+function RuntimeReceipt({ receipt, check }: { receipt: RunDecisionReceipt; check: RuntimeReceiptCheck }) {
+  const view = RUNTIME_RECEIPT_VIEW[check.verdict];
+  const issuer = typeof receipt.receipt.issuer === 'string' ? receipt.receipt.issuer : null;
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <div className="inline-list" data-testid="receipt-status">
+        <Badge label={view.label} tone={view.tone} />
+        <span className="muted small">{view.note}</span>
+      </div>
+      {check.verdict === 'failed' ? (
+        <div role="alert" className="error-text" data-testid="receipt-failure">
+          {check.reason}
+        </div>
+      ) : null}
+      <div className="inline-list">
+        <Button
+          variant="secondary"
+          onClick={() => exportRawJson(receipt.receiptJson, receiptFilename(receipt.sessionId))}
+        >
+          <Download size={16} />
+          {check.verdict === 'failed' ? 'Download receipt for inspection' : 'Download receipt'}
+        </Button>
+        {issuer ? (
+          <span className="muted small">
+            Issuer <code>{issuer}</code>
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
  * W3.10 — exports an RFC-MACP-0013 Appendix A receipt (`macp-receipt/1`) for the run's Commitment.
  * Unsigned and integrity-only: the console holds no issuer keys, so `attestations` is `[]`. The hash
  * is recomputed from the projection and the download is refused if it disagrees with the control
  * plane's, so the file never records a hash its own `commitment` does not produce.
  */
-function ReceiptDownload({
+function ConsoleReceiptDownload({
   commitment,
   commitmentHash,
   modeName

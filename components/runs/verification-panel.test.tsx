@@ -7,18 +7,32 @@ import { verifyReceipt, type DecisionReceipt } from '@/lib/utils/receipt';
 import { VerificationPanel } from './verification-panel';
 import type { RunVerification } from '@/lib/types';
 import { ApiError } from '@/lib/api/fetcher';
+import signedReceipt from '@/test/fixtures/receipt/decision_receipt.json';
+import receiptKeys from '@/test/fixtures/receipt/receipt_keys.json';
+import vector002 from '@/test/fixtures/receipt/receipt_002_integrity_only.json';
+import vector004 from '@/test/fixtures/receipt/receipt_004_body_tampered.json';
 
 vi.mock('@/lib/api/client', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api/client')>('@/lib/api/client');
-  return { ...actual, getRunVerification: vi.fn() };
+  return {
+    ...actual,
+    getRunVerification: vi.fn(),
+    getRuntimeCapabilities: vi.fn(),
+    getRunReceipt: vi.fn(),
+    getReceiptKeys: vi.fn()
+  };
 });
 
-vi.mock('@/lib/utils/export', () => ({ exportToJson: vi.fn() }));
+vi.mock('@/lib/utils/export', () => ({ exportToJson: vi.fn(), exportRawJson: vi.fn() }));
 
-const { getRunVerification: mockedGet } = await import('@/lib/api/client');
-const { exportToJson: mockedExport } = await import('@/lib/utils/export');
-const exportToJson = vi.mocked(mockedExport);
-const getRunVerification = vi.mocked(mockedGet);
+const client = await import('@/lib/api/client');
+const exports = await import('@/lib/utils/export');
+const exportToJson = vi.mocked(exports.exportToJson);
+const exportRawJson = vi.mocked(exports.exportRawJson);
+const getRunVerification = vi.mocked(client.getRunVerification);
+const getRuntimeCapabilities = vi.mocked(client.getRuntimeCapabilities);
+const getRunReceipt = vi.mocked(client.getRunReceipt);
+const getReceiptKeys = vi.mocked(client.getReceiptKeys);
 
 const HASH = 'sha256:9f58e9d114d11860d48aa2bcb8cda458b9618b1cc8560595a802b68c4af85d41';
 
@@ -69,6 +83,11 @@ describe('VerificationPanel', () => {
   beforeEach(() => {
     getRunVerification.mockReset();
     exportToJson.mockReset();
+    exportRawJson.mockReset();
+    getRunReceipt.mockReset();
+    getReceiptKeys.mockReset();
+    // A runtime without decision receipts (before 0.11): the W3.10 console-built path.
+    getRuntimeCapabilities.mockReset().mockResolvedValue({ capabilities: {} });
   });
 
   it('shows Verified ✓ with the hash, the recompute, the checks and the caveats', async () => {
@@ -208,6 +227,177 @@ describe('VerificationPanel', () => {
 
       expect(await screen.findByText('Awaiting Commitment')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /download receipt/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Runtime-signed receipt (W5 U1)', () => {
+    const SIGNED_TEXT = JSON.stringify(signedReceipt, null, 2);
+
+    function receiptView(receiptJson: string) {
+      return { runId: 'run-1', sessionId: 'sess-1', receiptJson, receipt: JSON.parse(receiptJson) };
+    }
+
+    function cpError(status: number, errorCode: string) {
+      return new ApiError(
+        status,
+        '',
+        JSON.stringify({ statusCode: status, errorCode, message: `${errorCode} from the CP` }),
+        'macp-control-plane',
+        '/runs/run-1/receipt'
+      );
+    }
+
+    function withRuntimeReceipts(signed: boolean) {
+      getRuntimeCapabilities.mockResolvedValue({
+        capabilities: { decisionReceipt: { getDecisionReceipt: true, signed } }
+      });
+    }
+
+    function renderPanel() {
+      getRunVerification.mockResolvedValue(withProjection());
+      return renderWithProviders(
+        <VerificationPanel runId="run-1" demoMode={false} runStatus="completed" modeName="macp.mode.decision.v1" />
+      );
+    }
+
+    it('signed and verified: labels it attested and downloads the runtime bytes unchanged', async () => {
+      withRuntimeReceipts(true);
+      getRunReceipt.mockResolvedValue(receiptView(SIGNED_TEXT));
+      getReceiptKeys.mockResolvedValue(receiptKeys);
+      const user = userEvent.setup();
+      renderPanel();
+
+      const status = await screen.findByTestId('receipt-status');
+      expect(status).toHaveTextContent('Attested');
+      expect(status).toHaveTextContent(/Signed by the runtime/);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByText('runtime:example')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Download receipt' }));
+      expect(exportRawJson).toHaveBeenCalledWith(SIGNED_TEXT, 'receipt-sess-1.json');
+      expect(exportToJson).not.toHaveBeenCalled();
+      expect(getRunReceipt).toHaveBeenCalledWith('run-1');
+      expect(getReceiptKeys).toHaveBeenCalledTimes(1);
+    });
+
+    it('refetches the key set once when the signature names an unknown kid', async () => {
+      withRuntimeReceipts(true);
+      getRunReceipt.mockResolvedValue(receiptView(SIGNED_TEXT));
+      getReceiptKeys.mockResolvedValueOnce({ keys: [] }).mockResolvedValueOnce(receiptKeys);
+      renderPanel();
+
+      expect(await screen.findByTestId('receipt-status')).toHaveTextContent('Attested');
+      expect(getReceiptKeys).toHaveBeenCalledTimes(2);
+    });
+
+    it('fails, prominently, when the kid stays unknown after the one refetch', async () => {
+      withRuntimeReceipts(true);
+      getRunReceipt.mockResolvedValue(receiptView(SIGNED_TEXT));
+      getReceiptKeys.mockResolvedValue({ keys: [] });
+      renderPanel();
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/does not hold/);
+      expect(screen.getByTestId('receipt-status')).toHaveTextContent('Verification Failed');
+      expect(getReceiptKeys).toHaveBeenCalledTimes(2);
+    });
+
+    it('signed but verification failed: shows the failure and still offers the file for inspection', async () => {
+      withRuntimeReceipts(true);
+      const tamperedText = JSON.stringify(vector004.receipt);
+      getRunReceipt.mockResolvedValue(receiptView(tamperedText));
+      getReceiptKeys.mockResolvedValue(receiptKeys);
+      const user = userEvent.setup();
+      renderPanel();
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/signature did not verify/);
+      expect(screen.getByTestId('receipt-status')).toHaveTextContent('Verification Failed');
+      expect(screen.getByTestId('receipt-status')).not.toHaveTextContent('Attested');
+      await user.click(screen.getByRole('button', { name: /download receipt for inspection/i }));
+      expect(exportRawJson).toHaveBeenCalledWith(tamperedText, 'receipt-sess-1.json');
+    });
+
+    it('says why when the key set itself cannot be fetched', async () => {
+      withRuntimeReceipts(true);
+      getRunReceipt.mockResolvedValue(receiptView(SIGNED_TEXT));
+      getReceiptKeys.mockRejectedValue(cpError(502, 'INTERNAL_ERROR'));
+      renderPanel();
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/key set could not be fetched: INTERNAL_ERROR/);
+      expect(getReceiptKeys).toHaveBeenCalledTimes(1);
+    });
+
+    it('unsigned runtime (signed=false): labels the runtime receipt integrity-only', async () => {
+      withRuntimeReceipts(false);
+      const unsignedText = JSON.stringify(vector002.receipt);
+      getRunReceipt.mockResolvedValue(receiptView(unsignedText));
+      getReceiptKeys.mockResolvedValue({ keys: [] });
+      const user = userEvent.setup();
+      renderPanel();
+
+      const status = await screen.findByTestId('receipt-status');
+      expect(status).toHaveTextContent('Integrity Only');
+      expect(status).toHaveTextContent(/unsigned/);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Download receipt' }));
+      expect(exportRawJson).toHaveBeenCalledWith(unsignedText, 'receipt-sess-1.json');
+    });
+
+    it.each([
+      ['409 RECEIPT_UNAVAILABLE', 409, 'RECEIPT_UNAVAILABLE'],
+      ['404 NOT_FOUND (no session yet)', 404, 'NOT_FOUND'],
+      ['404 RUN_NOT_FOUND', 404, 'RUN_NOT_FOUND']
+    ])('unavailable (%s): a calm note, no error, and the console-built fallback', async (_name, status, code) => {
+      withRuntimeReceipts(true);
+      getRunReceipt.mockRejectedValue(cpError(status, code));
+      const user = userEvent.setup();
+      renderPanel();
+
+      expect(await screen.findByTestId('receipt-unavailable')).toHaveTextContent('no receipt for this run');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('receipt-fetch-error')).not.toBeInTheDocument();
+      expect(getReceiptKeys).not.toHaveBeenCalled();
+      expect(screen.getByText(/unsigned \(integrity-only\)/)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /download receipt/i }));
+      await waitFor(() => expect(exportToJson).toHaveBeenCalledTimes(1));
+    });
+
+    it('unsupported (501): says so and falls back to the console-built receipt', async () => {
+      withRuntimeReceipts(true);
+      getRunReceipt.mockRejectedValue(cpError(501, 'DECISION_RECEIPT_UNSUPPORTED'));
+      renderPanel();
+
+      expect(await screen.findByTestId('receipt-unsupported')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /download receipt/i })).toBeEnabled();
+      expect(screen.queryByTestId('receipt-status')).not.toBeInTheDocument();
+    });
+
+    it('a 502 from the receipt route is reported and the console-built receipt stays available', async () => {
+      withRuntimeReceipts(true);
+      getRunReceipt.mockRejectedValue(cpError(502, 'INTERNAL_ERROR'));
+      renderPanel();
+
+      expect(await screen.findByTestId('receipt-fetch-error')).toHaveTextContent(/INTERNAL_ERROR from the CP/);
+      expect(screen.getByRole('button', { name: /download receipt/i })).toBeEnabled();
+    });
+
+    it("without the capability it never calls the receipt routes (today's client-side behaviour)", async () => {
+      renderPanel();
+
+      expect(await screen.findByRole('button', { name: /download receipt/i })).toBeEnabled();
+      expect(getRunReceipt).not.toHaveBeenCalled();
+      expect(getReceiptKeys).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('receipt-status')).not.toBeInTheDocument();
+    });
+
+    it('never calls the receipt routes in demo mode, even if the capability were advertised', async () => {
+      withRuntimeReceipts(true);
+      getRunVerification.mockResolvedValue(withProjection());
+      renderWithProviders(
+        <VerificationPanel runId="run-1" demoMode runStatus="completed" modeName="macp.mode.decision.v1" />
+      );
+
+      expect(await screen.findByRole('button', { name: /download receipt/i })).toBeEnabled();
+      expect(getRunReceipt).not.toHaveBeenCalled();
     });
   });
 });

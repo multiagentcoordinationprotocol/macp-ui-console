@@ -1010,4 +1010,38 @@ describe('real mode API client', () => {
       });
     });
   });
+
+  /* ─── W5 U1 runtime-signed receipts ─── */
+
+  describe('getRunReceipt / getReceiptKeys', () => {
+    it('GETs /runs/:id/receipt and keeps receiptJson verbatim', async () => {
+      const receiptJson = '{"receipt_format":"macp-receipt/1",  "issuer":"runtime:x"}';
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/receipt`, () => ({
+        status: 200,
+        body: { runId: RUN_ID_1, sessionId: 'sess-1', receiptJson, receipt: JSON.parse(receiptJson) }
+      }));
+      const { getRunReceipt } = await import('@/lib/api/client');
+      const result = await getRunReceipt(RUN_ID_1);
+      expect(result.receiptJson).toBe(receiptJson);
+      expect(mocker.requests.at(-1)!.method).toBe('GET');
+    });
+
+    it('surfaces RECEIPT_UNAVAILABLE as a 409 ApiError carrying the errorCode', async () => {
+      mocker.on('GET', `/api/proxy/macp-control-plane/runs/${RUN_ID_1}/receipt`, () => ({
+        status: 409,
+        body: { statusCode: 409, errorCode: 'RECEIPT_UNAVAILABLE', message: 'not resolved' }
+      }));
+      const { getRunReceipt } = await import('@/lib/api/client');
+      await expect(getRunReceipt(RUN_ID_1)).rejects.toMatchObject({ status: 409, errorCode: 'RECEIPT_UNAVAILABLE' });
+    });
+
+    it('reads the JWK Set from GET /runtime/receipt-keys', async () => {
+      mocker.on('GET', '/api/proxy/macp-control-plane/runtime/receipt-keys', () => ({
+        status: 200,
+        body: { keys: [] }
+      }));
+      const { getReceiptKeys } = await import('@/lib/api/client');
+      await expect(getReceiptKeys()).resolves.toEqual({ keys: [] });
+    });
+  });
 });

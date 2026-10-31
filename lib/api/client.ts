@@ -67,6 +67,7 @@ import type {
   RuntimePolicyDescriptor,
   RuntimeRootDescriptor,
   ScenarioSummary,
+  RunDecisionReceipt,
   RunVerification,
   RuntimeCapabilities,
   WhatIfCandidate,
@@ -552,6 +553,26 @@ export async function getRunTraces(runId: string, demoMode: boolean): Promise<Tr
 export async function getRunVerification(runId: string, demoMode: boolean): Promise<RunVerification> {
   if (demoMode) return maybeDelay(mockRunVerification(runId));
   return fetchJson<RunVerification>('macp-control-plane', `/runs/${runId}/verification`);
+}
+
+/**
+ * W5 U1 — the runtime-signed decision receipt (RFC-MACP-0013 §13). Real mode only: demo mode does not
+ * advertise `decisionReceipt`, so the Verification panel never calls this there. Errors arrive as
+ * `ApiError` with the CP's `errorCode` (`RECEIPT_UNAVAILABLE` 409, `RUN_NOT_FOUND` / `NOT_FOUND` 404,
+ * `DECISION_RECEIPT_UNSUPPORTED` 501, `INTERNAL_ERROR` 502).
+ */
+export async function getRunReceipt(runId: string): Promise<RunDecisionReceipt> {
+  return fetchJson<RunDecisionReceipt>('macp-control-plane', `/runs/${runId}/receipt`);
+}
+
+/**
+ * W5 U1 — the runtime's receipt verification keys, a JWK Set (`{"keys":[]}` when unsigned). The CP
+ * caches it for 60 s; `fetchJson` is always `no-store`, so a refetch after an unknown `kid` bypasses
+ * the browser cache and reaches the CP, which drops its own cache when it serves a receipt signed by
+ * a key it does not hold.
+ */
+export async function getReceiptKeys(): Promise<unknown> {
+  return fetchJson<unknown>('macp-control-plane', '/runtime/receipt-keys');
 }
 
 /**
