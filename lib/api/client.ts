@@ -567,9 +567,10 @@ export async function getRunReceipt(runId: string): Promise<RunDecisionReceipt> 
 
 /**
  * W5 U1 — the runtime's receipt verification keys, a JWK Set (`{"keys":[]}` when unsigned). The CP
- * caches it for 60 s; `fetchJson` is always `no-store`, so a refetch after an unknown `kid` bypasses
- * the browser cache and reaches the CP, which drops its own cache when it serves a receipt signed by
- * a key it does not hold.
+ * caches it for 60 s and drops that cache when it serves a receipt signed by a key it does not hold,
+ * which is why the console reads the receipt first. `fetchJson` is always `no-store`, so the one
+ * refetch after an unknown `kid` skips the browser cache; it cannot force the CP past its own cache,
+ * so it only helps when a rotation lands between the two reads.
  */
 export async function getReceiptKeys(): Promise<unknown> {
   return fetchJson<unknown>('macp-control-plane', '/runtime/receipt-keys');

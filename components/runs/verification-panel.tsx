@@ -204,8 +204,8 @@ function ReceiptDownload(props: {
   const runtimeIssues = !demoMode && receiptCapability?.getDecisionReceipt === true;
   const signed = receiptCapability?.signed === true;
   const runtime = useQuery({
-    queryKey: ['run-receipt', runId, signed],
-    queryFn: () => loadRuntimeReceipt(runId, signed),
+    queryKey: ['run-receipt', runId],
+    queryFn: () => loadRuntimeReceipt(runId),
     enabled: runtimeIssues,
     retry: false
   });
@@ -214,7 +214,7 @@ function ReceiptDownload(props: {
     return <div className="muted small">Looking for a runtime-issued receipt…</div>;
   }
   if (runtimeIssues && runtime.data?.kind === 'receipt') {
-    return <RuntimeReceipt receipt={runtime.data.receipt} check={runtime.data.check} />;
+    return <RuntimeReceipt receipt={runtime.data.receipt} check={runtime.data.check} signed={signed} />;
   }
 
   let note: ReactNode = null;
@@ -245,6 +245,8 @@ function ReceiptDownload(props: {
   );
 }
 
+const CALM_RECEIPT_CODES = new Set(['RECEIPT_UNAVAILABLE', 'RUN_NOT_FOUND', 'NOT_FOUND']);
+
 type RuntimeReceiptResult =
   | { kind: 'receipt'; receipt: RunDecisionReceipt; check: RuntimeReceiptCheck }
   | { kind: 'unavailable' }
@@ -256,15 +258,16 @@ type RuntimeReceiptResult =
  * names an unknown key, the keys are fetched once more (`fetchJson` is `no-store`, so this reaches
  * the control plane) before the verdict stands.
  */
-async function loadRuntimeReceipt(runId: string, signed: boolean): Promise<RuntimeReceiptResult> {
+async function loadRuntimeReceipt(runId: string): Promise<RuntimeReceiptResult> {
   let receipt: RunDecisionReceipt;
   try {
     receipt = await getRunReceipt(runId);
   } catch (error) {
     if (error instanceof ApiError) {
       // 409 RECEIPT_UNAVAILABLE (not resolved, no Commitment, not issuable); 404 RUN_NOT_FOUND or
-      // NOT_FOUND (no session yet). Neither is a fault: the run simply has no runtime receipt.
-      if (error.status === 409 || error.status === 404) return { kind: 'unavailable' };
+      // NOT_FOUND (no session yet). Neither is a fault: the run simply has no runtime receipt. Keyed
+      // on the code, so an uncoded 404 (a CP build without the route) is reported, not hidden.
+      if (CALM_RECEIPT_CODES.has(error.errorCode ?? '')) return { kind: 'unavailable' };
       if (error.status === 501) return { kind: 'unsupported' };
     }
     throw error;
@@ -279,14 +282,17 @@ async function loadRuntimeReceipt(runId: string, signed: boolean): Promise<Runti
       return { keys: [] };
     }
   };
-  let check = checkRuntimeReceipt(receipt.receiptJson, await fetchKeys(), signed);
+  let check = checkRuntimeReceipt(receipt.receiptJson, await fetchKeys());
   if (!keysError && check.verification.attestations.includes('unknown_key')) {
-    check = checkRuntimeReceipt(receipt.receiptJson, await fetchKeys(), signed);
+    check = checkRuntimeReceipt(receipt.receiptJson, await fetchKeys());
   }
-  if (keysError && check.verdict === 'failed') {
+  // Without the key set every signature reads as `unknown_key`: that is "not checked", not "failed".
+  // A broken integrity check needs no keys, so it still fails.
+  if (keysError && check.verdict === 'failed' && check.verification.integrity === 'match') {
     check = {
       ...check,
-      reason: `${check.reason} The runtime's key set could not be fetched: ${describeApiError(keysError)}`
+      verdict: 'unchecked',
+      reason: `The runtime's key set could not be fetched, so the signature was not checked: ${describeApiError(keysError)}`
     };
   }
   return { kind: 'receipt', receipt, check };
@@ -294,7 +300,7 @@ async function loadRuntimeReceipt(runId: string, signed: boolean): Promise<Runti
 
 const RUNTIME_RECEIPT_VIEW: Record<
   RuntimeReceiptVerdict,
-  { label: string; tone: 'success' | 'danger' | 'neutral'; note: string }
+  { label: string; tone: 'success' | 'danger' | 'warning' | 'neutral'; note: string }
 > = {
   attested: {
     label: 'Attested',
@@ -306,6 +312,11 @@ const RUNTIME_RECEIPT_VIEW: Record<
     tone: 'neutral',
     note: 'Issued by the runtime, unsigned (integrity-only): it pins what was decided; nobody has signed it.'
   },
+  unchecked: {
+    label: 'Signature not checked',
+    tone: 'warning',
+    note: 'Issued by the runtime; its integrity holds, but its signature could not be checked.'
+  },
   failed: {
     label: 'Verification failed',
     tone: 'danger',
@@ -313,8 +324,17 @@ const RUNTIME_RECEIPT_VIEW: Record<
   }
 };
 
-function RuntimeReceipt({ receipt, check }: { receipt: RunDecisionReceipt; check: RuntimeReceiptCheck }) {
+function RuntimeReceipt({
+  receipt,
+  check,
+  signed
+}: {
+  receipt: RunDecisionReceipt;
+  check: RuntimeReceiptCheck;
+  signed: boolean;
+}) {
   const view = RUNTIME_RECEIPT_VIEW[check.verdict];
+  const unsignedFromSigner = check.verdict === 'integrity_only' && signed;
   const issuer = typeof receipt.receipt.issuer === 'string' ? receipt.receipt.issuer : null;
   return (
     <div className="stack" style={{ gap: 6 }}>
@@ -325,6 +345,16 @@ function RuntimeReceipt({ receipt, check }: { receipt: RunDecisionReceipt; check
       {check.verdict === 'failed' ? (
         <div role="alert" className="error-text" data-testid="receipt-failure">
           {check.reason}
+        </div>
+      ) : null}
+      {check.verdict === 'unchecked' ? (
+        <div role="status" className="muted small" data-testid="receipt-unchecked">
+          {check.reason}
+        </div>
+      ) : null}
+      {unsignedFromSigner ? (
+        <div className="muted small" data-testid="receipt-unsigned-from-signer">
+          The runtime signs receipts now; this one was issued unsigned, before it did.
         </div>
       ) : null}
       <div className="inline-list">

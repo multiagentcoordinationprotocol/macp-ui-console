@@ -7,11 +7,13 @@ the Verification panel's receipt download now fetches the receipt the runtime is
 (`GET /runs/:id/receipt`) and its key set (`GET /runtime/receipt-keys`) through the control plane,
 verifies it in the browser with `macp-sdk-typescript@0.20.0`'s `verifyReceipt` and
 `trustedKeysFromJwks`, and downloads the runtime's `receiptJson` byte-for-byte. It is labelled
-**Attested**, **Integrity only** (the runtime has no signing key, `decisionReceipt.signed` false), or
-**Verification failed**, shown as an alert, with the file still downloadable for inspection. A
-signature naming an unknown `kid` triggers one key-set refetch. `409 RECEIPT_UNAVAILABLE` and the
-404s show a calm "no receipt for this run" note, `501` says the runtime issues none, and in those
-cases, without the capability, and in demo mode the console-built unsigned receipt (W3.10) is still
+**Attested**, **Integrity only** (unsigned; a quiet note when the runtime now advertises
+`decisionReceipt.signed`, since §13 item 6 lets an earlier unsigned receipt stand), **Verification
+failed** (broken integrity or a signature that does not verify or names an unknown key), shown as an
+alert with the file still downloadable for inspection, or **Signature not checked** when the key set
+cannot be fetched. A signature naming an unknown `kid` triggers one key-set refetch.
+`409 RECEIPT_UNAVAILABLE` and the coded 404s (`RUN_NOT_FOUND`, `NOT_FOUND`) show a calm "no receipt
+for this run" note, `501` says the runtime issues none, other errors are reported, and in those cases, without the capability, and in demo mode the console-built unsigned receipt (W3.10) is still
 offered. Proxy: both routes are allow-listed on the read quota. Tests:
 `components/runs/verification-panel.test.tsx`, `lib/utils/receipt.test.ts`,
 `lib/api/client.real-mode.test.ts`, the proxy route tests.

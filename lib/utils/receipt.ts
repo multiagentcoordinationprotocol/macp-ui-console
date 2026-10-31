@@ -81,18 +81,21 @@ export function receiptFilename(sessionId: string): string {
 /**
  * W5 U1 — how the console labels a runtime-issued receipt (RFC-MACP-0013 §13):
  * - `attested`: integrity holds and at least one `jws` attestation verifies against the runtime's key set.
- * - `integrity_only`: integrity holds and the receipt is unsigned, from a runtime that does not sign.
- * - `failed`: anything else — integrity broken, a signature that does not verify or names a key the set
- *   lacks, or no verifiable signature from a runtime that advertises `decisionReceipt.signed`. The SDK
- *   calls a receipt with a bad signature `integrity_only`; the console does not, because a signature
- *   that fails is a different finding from no signature at all.
+ * - `integrity_only`: integrity holds and no signature failed — the receipt is unsigned, or carries only
+ *   attestations this verifier does not support. Also from a runtime that now advertises
+ *   `decisionReceipt.signed`: §13 item 6 lets it keep serving a receipt issued before it had a key.
+ * - `failed`: integrity broken, or a signature that does not verify or names a key the set lacks. The
+ *   SDK calls a receipt with a bad signature `integrity_only`; the console does not, because a
+ *   signature that fails is a different finding from no signature at all.
+ * - `unchecked`: set by the caller, not here — the key set could not be fetched, so a signature could
+ *   not be checked either way.
  */
-export type RuntimeReceiptVerdict = 'attested' | 'integrity_only' | 'failed';
+export type RuntimeReceiptVerdict = 'attested' | 'integrity_only' | 'failed' | 'unchecked';
 
 export interface RuntimeReceiptCheck {
   verdict: RuntimeReceiptVerdict;
   verification: ReceiptVerification;
-  /** Why the verdict is `failed`; absent otherwise. */
+  /** Why the verdict is `failed` or `unchecked`; absent otherwise. */
   reason?: string;
 }
 
@@ -100,7 +103,7 @@ export interface RuntimeReceiptCheck {
  * Verifies the runtime's receipt text against its JWK Set with the SDK. Parses `receiptJson` itself
  * (the exact bytes the runtime issued), never the control plane's pre-parsed copy. Never throws.
  */
-export function checkRuntimeReceipt(receiptJson: string, jwks: unknown, signed: boolean): RuntimeReceiptCheck {
+export function checkRuntimeReceipt(receiptJson: string, jwks: unknown): RuntimeReceiptCheck {
   let parsed: unknown;
   try {
     parsed = JSON.parse(receiptJson);
@@ -125,7 +128,6 @@ export function checkRuntimeReceipt(receiptJson: string, jwks: unknown, signed: 
   if (unknown > 0) {
     return fail(`The receipt is signed with a key the runtime's key set does not hold (${count(unknown)}).`);
   }
-  if (signed) return fail('The runtime advertises signed receipts, but this receipt carries no signature.');
   return { verdict: 'integrity_only', verification };
 }
 

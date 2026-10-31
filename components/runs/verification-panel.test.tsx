@@ -316,14 +316,38 @@ describe('VerificationPanel', () => {
       expect(exportRawJson).toHaveBeenCalledWith(tamperedText, 'receipt-sess-1.json');
     });
 
-    it('says why when the key set itself cannot be fetched', async () => {
+    it('a key set that cannot be fetched is "not checked", not a failure', async () => {
       withRuntimeReceipts(true);
       getRunReceipt.mockResolvedValue(receiptView(SIGNED_TEXT));
       getReceiptKeys.mockRejectedValue(cpError(502, 'INTERNAL_ERROR'));
       renderPanel();
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(/key set could not be fetched: INTERNAL_ERROR/);
+      expect(await screen.findByTestId('receipt-unchecked')).toHaveTextContent(/could not be fetched.*INTERNAL_ERROR/);
+      expect(screen.getByTestId('receipt-status')).toHaveTextContent('Signature Not Checked');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(getReceiptKeys).toHaveBeenCalledTimes(1);
+    });
+
+    it('a tampered commitment still fails when the key set cannot be fetched', async () => {
+      withRuntimeReceipts(true);
+      const broken = { ...signedReceipt, commitment: { ...signedReceipt.commitment, action: 'decision.rejected' } };
+      getRunReceipt.mockResolvedValue(receiptView(JSON.stringify(broken)));
+      getReceiptKeys.mockRejectedValue(cpError(502, 'INTERNAL_ERROR'));
+      renderPanel();
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/does not match/);
+      expect(screen.getByTestId('receipt-status')).toHaveTextContent('Verification Failed');
+    });
+
+    it('an unsigned receipt from a runtime that now signs is integrity-only, with a quiet note', async () => {
+      withRuntimeReceipts(true);
+      getRunReceipt.mockResolvedValue(receiptView(JSON.stringify(vector002.receipt)));
+      getReceiptKeys.mockResolvedValue(receiptKeys);
+      renderPanel();
+
+      expect(await screen.findByTestId('receipt-status')).toHaveTextContent('Integrity Only');
+      expect(screen.getByTestId('receipt-unsigned-from-signer')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
     it('unsigned runtime (signed=false): labels the runtime receipt integrity-only', async () => {
@@ -369,6 +393,17 @@ describe('VerificationPanel', () => {
       expect(await screen.findByTestId('receipt-unsupported')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /download receipt/i })).toBeEnabled();
       expect(screen.queryByTestId('receipt-status')).not.toBeInTheDocument();
+    });
+
+    it('an uncoded 404 (a CP without the route) is reported, not shown as "no receipt"', async () => {
+      withRuntimeReceipts(true);
+      getRunReceipt.mockRejectedValue(
+        new ApiError(404, 'Not Found', 'Cannot GET /runs/run-1/receipt', 'macp-control-plane', '/runs/run-1/receipt')
+      );
+      renderPanel();
+
+      expect(await screen.findByTestId('receipt-fetch-error')).toHaveTextContent(/Cannot GET/);
+      expect(screen.queryByTestId('receipt-unavailable')).not.toBeInTheDocument();
     });
 
     it('a 502 from the receipt route is reported and the console-built receipt stays available', async () => {
