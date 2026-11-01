@@ -231,6 +231,10 @@ npm run lint          # ESLint
 npm run typecheck     # TypeScript check
 ```
 
+### For MACP org members
+
+Agents working in this repo can query the MACP knowledge base through the `macp-kb` MCP server. Setup instructions are in the private `macp-docs` repo (README, "MCP server"). Answers cite the source repo and commit, so check freshness with `kb_status` before relying on one. Outside contributors can ignore this section; the server is limited to org members.
+
 ## Container image (self-host)
 
 `ghcr.io/multiagentcoordinationprotocol/macp-ui-console` is a public Next.js standalone image, built
