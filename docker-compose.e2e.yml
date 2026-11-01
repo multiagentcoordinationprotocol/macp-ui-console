@@ -67,12 +67,15 @@ services:
     #
     # 0.12.0 images are built with `otel,http-listener`, but both stay off here: no OTEL_EXPORTER_OTLP_*
     # endpoint is set (the runtime exports nothing without one) and MACP_HTTP_BIND_ADDR is unset (no
-    # HTTP/JSON socket; the image's EXPOSE 8080 is not published). `docker stop` now drains for up to
-    # MACP_SHUTDOWN_DRAIN_SECS (default 10s) instead of killing the runtime at once.
+    # HTTP/JSON socket; the image's EXPOSE 8080 is not published). SIGTERM now drains for up to
+    # MACP_SHUTDOWN_DRAIN_SECS (default 10s) and then snapshots sessions. The control plane holds
+    # streams open, so the drain runs its full length: stop_grace_period below sits above it so
+    # Docker's SIGKILL does not cut off the final snapshot.
     #
     # Override with MACP_RUNTIME_IMAGE for local builds
     # (e.g. `export MACP_RUNTIME_IMAGE=macp-runtime:latest`).
     image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.12.0}
+    stop_grace_period: 15s
     ports:
       - "50051:50051"
       # Runtime Prometheus metrics (opt-in via MACP_METRICS_ADDR below). Harmless until
@@ -86,7 +89,8 @@ services:
       # The published runtime image does not bake MACP_ALLOW_INSECURE — load-bearing, keep it.
       MACP_ALLOW_INSECURE: "1"
       # Expose per-mode runtime counters (macp_messages_*, macp_sessions_*, macp_commitments_*,
-      # macp_replay_mismatches_total) as Prometheus text on :9464.
+      # macp_replay_mismatches_total) as Prometheus text on :9464. Runtime 0.12 deprecates those in
+      # favour of macp_envelope_processed_total and macp_session_transitions_total (served alongside).
       MACP_METRICS_ADDR: "0.0.0.0:9464"
       # Receipt issuer is `runtime:<id>` (0.11+). Required only once a signing key is set; set here so
       # receipts from this stack name it.
