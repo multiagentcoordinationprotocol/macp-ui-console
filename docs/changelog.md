@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-01 — Runtime 0.12.0 (Wave 5 sync, second pass)
+
+`docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.12.0`
+(still overridable with `MACP_RUNTIME_IMAGE`). The 0.12.0 image is built with OpenTelemetry and the
+HTTP/JSON listener, but the stack leaves both off: it sets no `OTEL_EXPORTER_OTLP_*` endpoint and no
+`MACP_HTTP_BIND_ADDR`. 0.12.0's one breaking change, `WatchPolicies` requiring a credential, does not
+reach the console: neither the console nor the control plane at `main` calls it.
+The runtime's per-mode Prometheus families are deprecated in favour of `macp_envelope_processed_total`
+and `macp_session_transitions_total`; the README says so. No console code changed.
+
 ## 2026-10-31 — Runtime 0.11.0 and SDK 0.21.0 (Wave 5 sync)
 
 `docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.11.0`
