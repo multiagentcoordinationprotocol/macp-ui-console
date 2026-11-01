@@ -59,13 +59,13 @@ services:
         condition: service_healthy
 
   runtime:
-    # Pinned to runtime v0.12.0 by its published semver tag. 0.11.0 added runtime-issued decision
+    # Pinned to runtime v0.13.0 by its published semver tag. 0.11.0 added runtime-issued decision
     # receipts (RFC-MACP-0013 §13), which the Verification panel shows when the runtime advertises
     # `decision_receipt`. With no signing key configured (as here) receipts are unsigned and the
     # console labels them integrity-only. The control plane and playground built from source below
     # must be at or after their Wave 5 sync (CP #134 for the receipt routes).
     #
-    # 0.12.0 images are built with `otel,http-listener`, but both stay off here: no OTEL_EXPORTER_OTLP_*
+    # 0.12.0+ images are built with `otel,http-listener`, but both stay off here: no OTEL_EXPORTER_OTLP_*
     # endpoint is set (the runtime exports nothing without one) and MACP_HTTP_BIND_ADDR is unset (no
     # HTTP/JSON socket; the image's EXPOSE 8080 is not published). SIGTERM now drains for up to
     # MACP_SHUTDOWN_DRAIN_SECS (default 10s) and then snapshots sessions. The control plane holds
@@ -74,7 +74,7 @@ services:
     #
     # Override with MACP_RUNTIME_IMAGE for local builds
     # (e.g. `export MACP_RUNTIME_IMAGE=macp-runtime:latest`).
-    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.12.0}
+    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.13.0}
     stop_grace_period: 15s
     ports:
       - "50051:50051"
