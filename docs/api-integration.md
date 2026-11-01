@@ -184,7 +184,7 @@ Runtime-level semantics (what a "mode" is, what's in a manifest) are documented 
 runtime repo: [`macp-runtime/docs/modes.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/modes.md)
 and [`macp-runtime/docs/API.md`](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/docs/API.md).
 
-Console-relevant notes (the e2e/local stack pins the v0.11.0 runtime image in
+Console-relevant notes (the e2e/local stack pins the v0.12.0 runtime image in
 `docker-compose.e2e.yml`; release notes are in the runtime's
 [changelog](https://github.com/multiagentcoordinationprotocol/macp-runtime/blob/main/CHANGELOG.md)):
 
