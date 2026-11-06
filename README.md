@@ -114,7 +114,7 @@ npm run local:status   # Check health of running services
 | Examples Service | 3100 | `/healthz` |
 | UI Console | 3000 | — |
 
-The stack pins the runtime to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.12.0`
+The stack pins the runtime to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.13.0`
 (override with `MACP_RUNTIME_IMAGE` for local builds). It builds `macp-control-plane` and `macp-playground`
 from source, so their checkouts must include their Wave 5 sync (the control plane needs #134 for the
 decision-receipt routes). No receipt signing key is configured, so the runtime issues unsigned receipts.

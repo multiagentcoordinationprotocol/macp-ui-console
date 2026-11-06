@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-01 — Runtime 0.13.0
+
+`docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.13.0`
+(still overridable with `MACP_RUNTIME_IMAGE`). 0.13.0 has no wire or proto change: it moves the
+runtime's `otel` feature to OpenTelemetry 0.33 / tower-http 0.7, and the stack exports no telemetry.
+The per-mode Prometheus families are still served. No console code changed.
+
 ## 2026-11-01 — Runtime 0.12.0 (Wave 5 sync, second pass)
 
 `docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.12.0`
