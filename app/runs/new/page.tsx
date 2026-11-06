@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -80,11 +80,11 @@ function NewRunPageContent() {
     }
   });
 
-  useEffect(() => {
-    if (!catalogQuery.data?.length) return;
-
-    if (!packSlug) setPackSlug(catalogQuery.data[0].pack.slug);
-  }, [catalogQuery.data, packSlug]);
+  // Selection defaults are adjusted during render, not in effects: same conditions as before, but
+  // without the extra commit (and the cascading render) an effect-driven setState costs. Each set is
+  // guarded so it can only fire once per change and never loops.
+  const firstPackSlug = catalogQuery.data?.[0]?.pack.slug;
+  if (!packSlug && firstPackSlug) setPackSlug(firstPackSlug);
 
   const scenariosForPack = useMemo(
     () => catalogQuery.data?.find((entry) => entry.pack.slug === packSlug)?.scenarios ?? [],
@@ -96,14 +96,18 @@ function NewRunPageContent() {
     [scenarioSlug, scenariosForPack]
   );
 
-  useEffect(() => {
-    if (!selectedScenario) return;
-    if (!scenarioSlug || !scenariosForPack.some((scenario) => scenario.scenario === scenarioSlug)) {
+  if (selectedScenario) {
+    if (
+      (!scenarioSlug || !scenariosForPack.some((scenario) => scenario.scenario === scenarioSlug)) &&
+      scenarioSlug !== selectedScenario.scenario
+    ) {
       setScenarioSlug(selectedScenario.scenario);
     }
-    if (!version) setVersion(selectedScenario.versions[0] ?? '1.0.0');
-    if (!templateId) setTemplateId(selectedScenario.templates[0] ?? 'default');
-  }, [scenarioSlug, scenariosForPack, selectedScenario, templateId, version]);
+    const defaultVersion = selectedScenario.versions[0] ?? '1.0.0';
+    if (!version && defaultVersion) setVersion(defaultVersion);
+    const defaultTemplateId = selectedScenario.templates[0] ?? 'default';
+    if (!templateId && defaultTemplateId) setTemplateId(defaultTemplateId);
+  }
 
   const schemaQuery = useQuery({
     queryKey: ['launch-schema', packSlug, selectedScenario?.scenario, version, templateId, demoMode],
@@ -111,12 +115,16 @@ function NewRunPageContent() {
     enabled: Boolean(packSlug && selectedScenario?.scenario && version)
   });
 
-  useEffect(() => {
-    if (!schemaQuery.data) return;
-
-    setFormValues(schemaQuery.data.defaults ?? {});
-    setJsonText(JSON.stringify(schemaQuery.data.defaults ?? {}, null, 2));
-  }, [schemaQuery.data]);
+  // Reset the inputs to the schema's defaults whenever a new schema arrives (including one already
+  // cached on mount, hence the `undefined` start). Tracked during render, not in an effect.
+  const [defaultsAppliedFor, setDefaultsAppliedFor] = useState<typeof schemaQuery.data>(undefined);
+  if (schemaQuery.data !== defaultsAppliedFor) {
+    setDefaultsAppliedFor(schemaQuery.data);
+    if (schemaQuery.data) {
+      setFormValues(schemaQuery.data.defaults ?? {});
+      setJsonText(JSON.stringify(schemaQuery.data.defaults ?? {}, null, 2));
+    }
+  }
 
   const effectiveInputs = useMemo(() => {
     if (inputMode === 'form') return { value: formValues, error: '' };

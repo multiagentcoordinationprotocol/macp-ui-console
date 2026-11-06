@@ -106,17 +106,6 @@ export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoS
     });
   }, []);
 
-  const resetHeartbeatTimer = useCallback(() => {
-    if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
-    heartbeatTimerRef.current = setTimeout(() => {
-      // No heartbeat received — treat as connection failure
-      eventSourceRef.current?.close();
-      eventSourceRef.current = null;
-      attemptReconnect();
-    }, HEARTBEAT_TIMEOUT_MS);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const attemptReconnect = useCallback(() => {
     const attempt = reconnectAttemptRef.current;
     if (attempt >= MAX_RECONNECT_ATTEMPTS) {
@@ -135,6 +124,18 @@ export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoS
       connectSSERef.current();
     }, delay);
   }, []);
+
+  // Declared after `attemptReconnect`, which it calls. `attemptReconnect` never changes identity
+  // (empty deps), so neither does this.
+  const resetHeartbeatTimer = useCallback(() => {
+    if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+    heartbeatTimerRef.current = setTimeout(() => {
+      // No heartbeat received — treat as connection failure
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
+      attemptReconnect();
+    }, HEARTBEAT_TIMEOUT_MS);
+  }, [attemptReconnect]);
 
   const connectSSE = useCallback(() => {
     // Clean up any existing connection
@@ -209,15 +210,24 @@ export function useLiveRun({ runId, demoMode, initialState, initialEvents, autoS
     connectSSERef.current = connectSSE;
   }, [connectSSE]);
 
+  // The status a (re)started stream begins in. The effect below starts a stream whenever this key
+  // changes to a non-null value (`connectSSE` and `appendEvent` change only with `runId`, or never),
+  // so the status is adjusted during render on the same transitions rather than by a synchronous
+  // setState in that effect. Demo mode went 'connecting' -> 'live' inside one effect tick, so it
+  // starts at 'live'.
+  const streamKey = autoStart && !paused ? `${demoMode ? 'demo' : 'sse'}:${runId}` : null;
+  const [startedStreamKey, setStartedStreamKey] = useState<string | null>(null);
+  if (streamKey !== startedStreamKey) {
+    setStartedStreamKey(streamKey);
+    if (streamKey !== null) setConnectionStatus(demoMode ? 'live' : 'connecting');
+  }
+
   useEffect(() => {
     if (!autoStart || paused) return;
-
-    setConnectionStatus('connecting');
 
     if (demoMode) {
       const frames = getMockFrames(runId);
       let index = 0;
-      setConnectionStatus('live');
       const interval = window.setInterval(() => {
         const frame = frames[index];
         if (!frame) {
