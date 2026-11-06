@@ -182,7 +182,7 @@ describe('useLiveRun', () => {
 
     const { result } = renderHook(() => useLiveRun({ runId: 'run-1', demoMode: true }));
 
-    // The effect sets 'connecting' then immediately 'live' (synchronously in the effect)
+    // A demo stream starts at 'live' (it used to pass through 'connecting' within one effect tick)
     expect(result.current.connectionStatus).toBe('live');
 
     // Consume first frame
