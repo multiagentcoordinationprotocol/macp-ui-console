@@ -50,7 +50,16 @@ This project turns the MACP product blueprint into a working UI scaffold that ca
 
 ## Quick start
 
-### 1. Copy environment variables
+### 1. Configuration
+
+With Doppler access (project `macp-ui-console`, see [Secrets and configuration](#secrets-and-configuration-doppler)):
+
+```bash
+doppler setup --project macp-ui-console --config dev   # once per checkout
+doppler run -- npm run dev
+```
+
+Without it, copy the example and fill it in:
 
 ```bash
 cp .env.example .env.local
@@ -130,6 +139,29 @@ Plane's own `/metrics`, not the runtime's.
 ## Environment variables
 
 See `.env.example`.
+
+### Secrets and configuration (Doppler)
+
+Doppler is the source of truth. The project is `macp-ui-console`:
+
+| Config | Holds |
+|---|---|
+| `dev` | Local development values (`.env` + `.env.local`, LLM keys included) |
+| `dev_e2e` | `dev` with the `.env.e2e` values on top, for the full-stack E2E environment |
+| `dev_personal` | Your own overrides of `dev` |
+| `stg` | `prd`'s non-secret config only; there is no staging deployment |
+| `prd` | The Vercel production environment (team `zer07labs`, project `ui-console`) |
+
+The real-LLM E2E stack reads `OPENAI_API_KEY` from the shell, so `doppler run -c dev_e2e -- env PLAYGROUND_ALLOW_LLM=1 docker compose -f docker-compose.e2e.yml up -d --build --wait` works; a gitignored `.env` next to the compose file is the fallback.
+
+To change production, edit Doppler `macp-ui-console/prd`, then:
+
+```bash
+deploy/doppler-sync.sh           # dry run: key names, changed/unchanged
+deploy/doppler-sync.sh --apply   # push the changed keys to Vercel production, then rebuild it
+```
+
+The script manages only the keys in [deploy/doppler-keys.txt](deploy/doppler-keys.txt), only in the Production environment. It never removes a Vercel variable, leaves Preview and Development alone, never prints a value, and refuses a dirty tree. `NEXT_PUBLIC_*` values are inlined at build time, so a change rebuilds the latest production deployment. Vercel holds no Doppler token.
 
 Important values:
 
