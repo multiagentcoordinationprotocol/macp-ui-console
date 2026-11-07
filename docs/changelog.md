@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-07 — Runtime 0.14.0, SDK 0.23.1
+
+`docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.14.0`
+(still overridable with `MACP_RUNTIME_IMAGE`), and `macp-sdk-typescript` moves from 0.21.0 to 0.23.1.
+0.14.0 tightens Handoff Commitments (a positive Commitment needs an accepted offer; a negative one only
+with no offers or all declined, else `INVALID_ENVELOPE`), refuses `SessionCancel`/`SessionSuspend`/`SessionResume`
+sent via `Send` (`FORBIDDEN`), and reports a denied Task reassignment as `INVALID_ENVELOPE` rather than
+`POLICY_DENIED`. The console originates no envelopes, so none of this reaches it. The console uses only the
+SDK's `macp-sdk-typescript/receipt` subpath; 0.22.0's breaking change (`watchPolicies()` requires auth) does
+not apply. No console code changed.
+
 ## 2026-11-01 — Runtime 0.13.0
 
 `docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.13.0`
