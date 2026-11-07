@@ -1,0 +1,15 @@
+# Keys deploy/doppler-sync.sh pushes from Doppler (macp-ui-console/prd) into
+# the Vercel project zer07labs/ui-console, Production environment. Doppler
+# owns exactly these; the script never touches any other Vercel variable,
+# never removes one, and leaves Preview and Development alone.
+
+# config (NEXT_PUBLIC_* are inlined at build time)
+MACP_CONTROL_PLANE_BASE_URL
+MACP_PLAYGROUND_BASE_URL
+NEXT_PUBLIC_MACP_ENVIRONMENT_LABEL
+NEXT_PUBLIC_MACP_HOSTED
+NEXT_PUBLIC_MACP_UI_DEMO_MODE
+
+# secret
+MACP_CONTROL_PLANE_API_KEY
+MACP_PLAYGROUND_API_KEY
