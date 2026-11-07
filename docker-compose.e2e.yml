@@ -1,7 +1,8 @@
 # Full-stack E2E environment for the MACP UI Console.
-# Starts every backend service so the console can be checked by hand (or smoke-tested) against real
+# Starts every backend service so the console can be checked by hand or by the live suite against real
 # APIs. There is no automated browser suite: the console runs in `dev:e2e` mode, which loads the
-# tracked `.env.e2e` and points it at the localhost ports published below.
+# tracked `.env.e2e` and points it at the localhost ports published below, and
+# `MACP_UI_BASE_URL=http://localhost:3000 npm run test:live` drives the scenarios through it.
 #
 # Usage:
 #   export NODE_AUTH_TOKEN=$(gh auth token)       # GitHub Packages token for the image builds

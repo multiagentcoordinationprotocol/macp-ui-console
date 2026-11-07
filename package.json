@@ -17,6 +17,7 @@
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
+    "test:live": "vitest run --config vitest.live.config.ts",
     "dev:demo": "NEXT_PUBLIC_MACP_UI_DEMO_MODE=true next dev",
     "dev:real": "NEXT_PUBLIC_MACP_UI_DEMO_MODE=false next dev",
     "dev:e2e": "npx env-cmd -f .env.e2e next dev",
