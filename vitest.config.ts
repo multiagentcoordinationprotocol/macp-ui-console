@@ -17,7 +17,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./test/setup.ts'],
     include: ['**/*.test.{ts,tsx}'],
-    exclude: ['node_modules', '.next'],
+    // test/integration runs under its own node-environment config (`npm run test:integration`, its own CI
+    // job); test/live needs a running console (`npm run test:live`). Neither belongs in the jsdom unit run.
+    exclude: ['node_modules', '.next', 'test/integration/**', 'test/live/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],

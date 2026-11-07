@@ -245,12 +245,33 @@ The UI references — but does not duplicate — the docs from the backend repos
 ## Testing
 
 ```bash
-npm test              # Run all tests
-npm run test:watch    # Watch mode
-npm run test:coverage # With coverage report
+npm test                  # Unit tests (jsdom)
+npm run test:watch        # Watch mode
+npm run test:coverage     # With coverage report
+npm run test:integration  # Integration tests (node): real proxy route + API client vs in-process mock backends
+npm run test:live         # Live end-to-end suite against a running console (skipped unless MACP_UI_BASE_URL is set)
 ```
 
-Tests use Vitest + React Testing Library. Test files are co-located with source (`.test.ts` / `.test.tsx`). Integration tests covering the UI ↔ Docker-backed Control Plane + Playground flow live under `test/integration/`.
+Tests use Vitest + React Testing Library. Unit test files are co-located with source (`.test.ts` / `.test.tsx`).
+
+- `test/integration/` drives the real `/api/proxy` route handler (allow-list, rate limit, credential
+  injection) and `lib/api/client.ts` against mock control-plane and playground servers on real sockets.
+  No Docker stack and no secrets; CI runs it as its own job on every PR.
+- `test/live/` launches playground scenarios through a running console's proxy, exactly as the New run
+  page does, follows each run to `completed` in the control plane, checks the `run.suspended` /
+  `run.resumed` pair for `suspend-demo`, and fetches the decision receipt and verification. Point it at
+  the local stack or a deployed console:
+
+  ```bash
+  # local: backends from docker-compose.e2e.yml, console from `npm run dev:e2e`
+  MACP_UI_BASE_URL=http://localhost:3000 npm run test:live
+  # deployed console
+  MACP_UI_BASE_URL=https://console.multiagentcoordinationprotocol.io npm run test:live
+  ```
+
+  By default it launches four scenarios, which fits the proxy's launch quota (5 per 10 minutes per client
+  IP). `MACP_UI_LIVE_SCENARIOS` takes a comma list of `pack/scenario@version:template`, or `all`; past the
+  quota the suite waits out the 429's `retry-after`. It never runs in CI.
 
 ## Development workflow
 
@@ -296,7 +317,7 @@ docker run -p 3000:3000 \
 
 ## CI/CD
 
-GitHub Actions CI runs on every PR and push to `main`: format check, lint, typecheck, tests, and production build.
+GitHub Actions CI runs on every PR and push to `main`: format check, lint, typecheck, unit tests and production build, then the integration tests as a second job.
 
 Production deploys are handled by Vercel's native Git integration (auto-deploy on push to `main`).
 

@@ -10,11 +10,6 @@ on:
   # rejects the caller at workflow-load time.
   workflow_call:
   workflow_dispatch:
-    inputs:
-      run_integration_tests:
-        description: 'Run integration tests'
-        type: boolean
-        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -81,9 +76,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: ci
-    if: >-
-      github.event_name == 'workflow_dispatch' && github.event.inputs.run_integration_tests == 'true' ||
-      contains(github.event.pull_request.labels.*.name, 'run-integration-tests')
+    # Runs on every push and PR. The suite drives the real proxy route handler and API client against
+    # in-process mock backends (test/integration/helpers/mock-backend.ts): no stack, no secrets, about a
+    # second. It used to be opt-in (workflow_dispatch input or a `run-integration-tests` label) and so
+    # never ran here; the files only ran by accident inside `npm test`, under jsdom instead of the node
+    # environment vitest.integration.config.ts sets. vitest.config.ts now excludes them from that run.
     steps:
       - name: Checkout
         uses: actions/checkout@v7
