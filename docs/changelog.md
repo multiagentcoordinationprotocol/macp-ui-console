@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-07 — Proxy sends the visitor IP upstream
+
+The console proxy now sends the end user's IP to macp-playground and macp-control-plane as
+`X-MACP-Client-IP`, so both can rate-limit per visitor behind the console's shared server-held key. The IP
+comes from Vercel's trusted headers (`x-real-ip`, else the first hop of `x-vercel-forwarded-for`, else the
+rightmost `x-forwarded-for`). A client-supplied `X-MACP-Client-IP` is stripped, never passed through. The
+console's own per-IP limits (300 reads/min, 5 launches and 5 what-ifs per 10 min) are unchanged.
+
 ## 2026-11-07 — Runtime 0.14.0, SDK 0.23.1
 
 `docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.14.0`

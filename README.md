@@ -312,7 +312,8 @@ docker run -p 3000:3000 \
   `--build-arg NEXT_PUBLIC_MACP_UI_DEMO_MODE=true` (or `NEXT_PUBLIC_MACP_ENVIRONMENT_LABEL`,
   `NEXT_PUBLIC_JAEGER_BASE_URL`) to change them.
 - The proxy allow-list and per-IP rate limit work unchanged. The limiter keys on `x-real-ip`, then the
-  rightmost `x-forwarded-for`; if you expose the console publicly, put it behind a reverse proxy that
+  first hop of `x-vercel-forwarded-for`, then the rightmost `x-forwarded-for`, and the proxy sends that IP
+  upstream as `X-MACP-Client-IP` (a client-supplied one is stripped); if you expose the console publicly, put it behind a reverse proxy that
   sets `x-real-ip`, otherwise a client can choose its own bucket.
 
 ## CI/CD

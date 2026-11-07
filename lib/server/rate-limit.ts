@@ -87,27 +87,53 @@ export class FixedWindowRateLimiter {
 export const proxyRateLimiter = new FixedWindowRateLimiter();
 
 /**
- * Best-effort client IP from the standard forwarded headers.
+ * Best-effort client IP from the trusted forwarded headers.
  *
  * - `x-real-ip` first: Vercel (the production host) sets it to the connecting client and does not
  *   let the client override it.
- * - Otherwise the RIGHTMOST `x-forwarded-for` entry: each proxy appends the address it saw, so the
- *   last entry is the one written by our own edge. The leftmost entry is client-controlled and
- *   trivially spoofable, which would let one client mint unlimited quotas. (Vercel overwrites
- *   `x-forwarded-for` with a single client address, so rightmost is correct there too.)
+ * - Then the FIRST hop of `x-vercel-forwarded-for`: also written by Vercel's edge (a client-sent
+ *   value is overwritten), and its first entry is the client Vercel saw.
+ * - Otherwise the RIGHTMOST `x-forwarded-for` entry (non-Vercel hosts, local dev): each proxy appends
+ *   the address it saw, so the last entry is the one written by our own edge. The leftmost entry is
+ *   client-controlled and trivially spoofable, which would let one client mint unlimited quotas.
  * - Falls back to a shared `unknown` bucket — fail closed into one quota rather than no quota.
  */
 export function getClientIp(headers: Headers): string {
   const realIp = headers.get('x-real-ip')?.trim();
   if (realIp) return realIp;
+  const vercelFirstHop = firstEntry(headers.get('x-vercel-forwarded-for'));
+  if (vercelFirstHop) return vercelFirstHop;
   const forwarded = headers.get('x-forwarded-for');
   if (forwarded) {
-    const entries = forwarded
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
+    const entries = splitEntries(forwarded);
     const last = entries[entries.length - 1];
     if (last) return last;
   }
   return 'unknown';
+}
+
+function splitEntries(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function firstEntry(value: string | null): string | undefined {
+  return value ? splitEntries(value)[0] : undefined;
+}
+
+/**
+ * Header the proxy sets on every upstream call to the end user's IP (from {@link getClientIp}), so
+ * macp-playground and macp-control-plane can rate-limit per visitor behind the console's shared
+ * server-held key. A client-supplied value is always stripped before forwarding.
+ */
+export const CLIENT_IP_HEADER = 'x-macp-client-ip';
+
+/** Plausible IPv4/IPv6 literal (incl. IPv4-mapped IPv6). Anything else is not forwarded. */
+const IP_LITERAL = /^[0-9A-Fa-f:.]{2,45}$/;
+
+/** The value to send upstream in {@link CLIENT_IP_HEADER}, or `undefined` when no usable IP is known. */
+export function upstreamClientIp(clientIp: string): string | undefined {
+  return clientIp !== 'unknown' && IP_LITERAL.test(clientIp) ? clientIp : undefined;
 }
