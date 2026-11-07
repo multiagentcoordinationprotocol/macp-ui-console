@@ -170,6 +170,53 @@ describe('Proxy Forwarding (integration)', () => {
     });
   });
 
+  describe('X-MACP-Client-IP (per-visitor upstream rate limiting)', () => {
+    it('sends the Vercel x-real-ip to the playground and strips a client-supplied value', async () => {
+      pgBackend.on('POST', '/examples/run', () => ({ status: 202, body: { runId: 'r-1' } }));
+
+      await callProxy('macp-playground', '/examples/run', {
+        method: 'POST',
+        body: { scenarioRef: 'x' },
+        headers: { 'x-real-ip': '203.0.113.7', 'x-macp-client-ip': '6.6.6.6' }
+      });
+
+      expect(pgBackend.requests).toHaveLength(1);
+      expect(pgBackend.requests[0].headers['x-macp-client-ip']).toBe('203.0.113.7');
+    });
+
+    it('falls back to the first hop of x-vercel-forwarded-for, and sends it to the control plane', async () => {
+      cpBackend.on('GET', '/runs', () => ({ status: 200, body: runsListResponse(1) }));
+
+      await callProxy('macp-control-plane', '/runs', {
+        headers: { 'x-vercel-forwarded-for': '198.51.100.4, 10.0.0.1' }
+      });
+
+      expect(cpBackend.requests[0].headers['x-macp-client-ip']).toBe('198.51.100.4');
+    });
+
+    it('sends no X-MACP-Client-IP upstream when the caller only supplies its own', async () => {
+      pgBackend.on('GET', '/packs', () => ({ status: 200, body: [] }));
+
+      await callProxy('macp-playground', '/packs', { headers: { 'x-macp-client-ip': '6.6.6.6' } });
+
+      expect(pgBackend.requests[0].headers['x-macp-client-ip']).toBeUndefined();
+    });
+
+    it('keeps the console launch cap at 5 per IP even when X-MACP-Client-IP varies', async () => {
+      pgBackend.on('POST', '/examples/run', () => ({ status: 202, body: { runId: 'r' } }));
+      const launch = (spoof: string) =>
+        callProxy('macp-playground', '/examples/run', {
+          method: 'POST',
+          body: {},
+          headers: { 'x-real-ip': '203.0.113.50', 'x-macp-client-ip': spoof }
+        });
+
+      for (let i = 0; i < 5; i++) expect((await launch(`10.0.0.${i}`)).status).toBe(202);
+      expect((await launch('10.0.0.99')).status).toBe(429);
+      expect(pgBackend.requests).toHaveLength(5);
+    });
+  });
+
   describe('Error forwarding', () => {
     it('forwards 404 from upstream', async () => {
       cpBackend.on('GET', '/runs/nonexistent', () => ({ status: 404, body: { error: 'Run not found' } }));

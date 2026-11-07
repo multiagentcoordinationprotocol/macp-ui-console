@@ -265,3 +265,78 @@ describe('proxy route method/path allow-list and rate limiting', () => {
     );
   });
 });
+
+/**
+ * Per-visitor rate limiting upstream: the proxy sends the end user's IP, derived from Vercel's trusted
+ * headers, in X-MACP-Client-IP, and never passes a client-supplied value through.
+ */
+describe('proxy route X-MACP-Client-IP forwarding', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    process.env.MACP_CONTROL_PLANE_BASE_URL = 'http://cp.test';
+    process.env.MACP_CONTROL_PLANE_API_KEY = 'cp-secret';
+    process.env.MACP_PLAYGROUND_BASE_URL = 'http://pg.test';
+    process.env.MACP_PLAYGROUND_API_KEY = 'pg-secret';
+    fetchMock.mockReset().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    proxyRateLimiter.reset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MACP_CONTROL_PLANE_BASE_URL;
+    delete process.env.MACP_CONTROL_PLANE_API_KEY;
+    delete process.env.MACP_PLAYGROUND_BASE_URL;
+    delete process.env.MACP_PLAYGROUND_API_KEY;
+  });
+
+  const forwardedHeaders = async (service: string, path: string[], headers: Record<string, string>, method = 'GET') => {
+    const handler = method === 'POST' ? POST : GET;
+    await handler(new NextRequest(`http://console.test/api/proxy/${service}/${path.join('/')}`, { method, headers }), {
+      params: Promise.resolve({ service, path })
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    return fetchMock.mock.calls[0][1].headers as Headers;
+  };
+
+  it('sends x-real-ip to the playground as X-MACP-Client-IP', async () => {
+    const headers = await forwardedHeaders('macp-playground', ['packs'], { 'x-real-ip': '203.0.113.7' });
+    expect(headers.get('x-macp-client-ip')).toBe('203.0.113.7');
+  });
+
+  it('sends it to the control plane too', async () => {
+    const headers = await forwardedHeaders('macp-control-plane', ['runs'], { 'x-real-ip': '203.0.113.7' });
+    expect(headers.get('x-macp-client-ip')).toBe('203.0.113.7');
+  });
+
+  it('uses the first hop of x-vercel-forwarded-for when x-real-ip is absent', async () => {
+    const headers = await forwardedHeaders(
+      'macp-playground',
+      ['examples', 'run'],
+      {
+        'x-vercel-forwarded-for': '198.51.100.4, 10.0.0.1'
+      },
+      'POST'
+    );
+    expect(headers.get('x-macp-client-ip')).toBe('198.51.100.4');
+  });
+
+  it('replaces a client-supplied X-MACP-Client-IP with the derived one', async () => {
+    const headers = await forwardedHeaders('macp-playground', ['packs'], {
+      'x-macp-client-ip': '1.1.1.1',
+      'x-real-ip': '203.0.113.7'
+    });
+    expect(headers.get('x-macp-client-ip')).toBe('203.0.113.7');
+  });
+
+  it('strips a client-supplied X-MACP-Client-IP even when no trusted IP is known', async () => {
+    const headers = await forwardedHeaders('macp-playground', ['packs'], { 'X-MACP-Client-IP': '1.1.1.1' });
+    expect(headers.get('x-macp-client-ip')).toBeNull();
+  });
+
+  it('does not forward a derived value that is not an IP literal', async () => {
+    const headers = await forwardedHeaders('macp-control-plane', ['runs'], { 'x-real-ip': 'not an ip' });
+    expect(headers.get('x-macp-client-ip')).toBeNull();
+  });
+});

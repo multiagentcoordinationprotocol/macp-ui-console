@@ -1,7 +1,13 @@
 import { NextRequest } from 'next/server';
 import { buildUpstreamUrl, getIntegrationConfig, isProxyService } from '@/lib/server/integrations';
 import { findAllowedRoute, type RateLimitClass } from '@/lib/server/proxy-allowlist';
-import { getClientIp, proxyRateLimiter, RATE_LIMIT_POLICIES } from '@/lib/server/rate-limit';
+import {
+  CLIENT_IP_HEADER,
+  getClientIp,
+  proxyRateLimiter,
+  RATE_LIMIT_POLICIES,
+  upstreamClientIp
+} from '@/lib/server/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,9 +57,14 @@ async function forward(request: NextRequest, context: { params: Promise<{ servic
 
   const headers = new Headers();
   request.headers.forEach((value, key) => {
-    if (['host', 'connection', 'content-length'].includes(key.toLowerCase())) return;
+    // A client-supplied X-MACP-Client-IP is never passed through: upstreams key their per-visitor
+    // rate limits on it, so only the value derived below from Vercel's trusted headers is sent.
+    if (['host', 'connection', 'content-length', CLIENT_IP_HEADER].includes(key.toLowerCase())) return;
     headers.set(key, value);
   });
+
+  const forwardedIp = upstreamClientIp(ip);
+  if (forwardedIp) headers.set(CLIENT_IP_HEADER, forwardedIp);
 
   if (config.authToken) {
     if (config.authHeaderName === 'authorization') {

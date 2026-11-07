@@ -172,9 +172,14 @@ The generic proxy handler (`app/api/proxy/[service]/[...path]/route.ts`):
   hosted deployment.
 - rate limits per client IP (`lib/server/rate-limit.ts`): 300 requests/min across allowed routes, and
   5 launches per 10 min on the launch route; over quota returns `429` with `retry-after`. The client IP
-  is `x-real-ip`, else the rightmost `x-forwarded-for` entry. Counters are in-memory per instance, so on
-  a multi-instance deployment the effective cap scales with instance count.
-- forwards method, headers (minus `host` / `connection` / `content-length`), query string, and body
+  is `x-real-ip`, else the first hop of `x-vercel-forwarded-for`, else the rightmost `x-forwarded-for`
+  entry. Counters are in-memory per instance, so on a multi-instance deployment the effective cap scales
+  with instance count.
+- sends that client IP upstream as `X-MACP-Client-IP` (both services), so macp-playground and
+  macp-control-plane can rate-limit per visitor behind the console's shared key. A client-supplied
+  `X-MACP-Client-IP` is always stripped; nothing is sent when no IP literal is known.
+- forwards method, headers (minus `host` / `connection` / `content-length` / `x-macp-client-ip`), query
+  string, and body
 - injects auth when configured (`x-api-key` for Examples Service, `authorization: Bearer` for Control Plane)
 - strips `content-encoding` on the response and streams the body unchanged
 - appends `x-macp-ui-proxy: <service>` to every response for observability
