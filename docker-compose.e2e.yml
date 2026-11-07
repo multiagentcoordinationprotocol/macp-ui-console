@@ -1,10 +1,20 @@
-# Full-stack E2E test environment for the MACP UI Console.
-# Starts all backend services so Playwright can test the UI against real APIs.
+# Full-stack E2E environment for the MACP UI Console.
+# Starts every backend service so the console can be checked by hand (or smoke-tested) against real
+# APIs. There is no automated browser suite: the console runs in `dev:e2e` mode, which loads the
+# tracked `.env.e2e` and points it at the localhost ports published below.
 #
 # Usage:
+#   export NODE_AUTH_TOKEN=$(gh auth token)       # GitHub Packages token for the image builds
 #   docker compose -f docker-compose.e2e.yml up -d --build --wait
-#   npm run test:e2e
-#   docker compose -f docker-compose.e2e.yml down -v
+#   npm run dev:e2e                               # console on http://localhost:3000
+#   docker compose -f docker-compose.e2e.yml down -v --remove-orphans
+# `npm run local:up` / `npm run local:down` do the same with docker-compose.local.yml layered on
+# (pre-built images); the LLM opt-in below applies there too.
+#
+# LLM agents (opt-in, off by default): the playground runs every launch with deterministic fallback
+# agents unless PLAYGROUND_ALLOW_LLM is truthy (1/true/yes/on). To use real LLM agents, set both in
+# your shell or in a gitignored `.env` next to this file (Compose reads it for interpolation):
+#   PLAYGROUND_ALLOW_LLM=1 OPENAI_API_KEY=... docker compose -f docker-compose.e2e.yml up -d --build --wait
 
 services:
   auth-service:
@@ -214,7 +224,9 @@ services:
       MACP_AUTH_SERVICE_URL: "http://auth-service:3200"
       MACP_AUTH_SERVICE_TIMEOUT_MS: "5000"
       MACP_AUTH_TOKEN_TTL_SECONDS: "3600"
-      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      # LLM opt-in (see the header). Default 0 keeps every launch deterministic even when a key is set.
+      PLAYGROUND_ALLOW_LLM: "${PLAYGROUND_ALLOW_LLM:-0}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       AUTH_API_KEYS: ""
       LOG_LEVEL: info
       REGISTRY_CACHE_TTL_MS: "0"
