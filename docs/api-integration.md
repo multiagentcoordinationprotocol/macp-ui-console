@@ -94,6 +94,7 @@ The UI calls the following subset:
   **When the field is absent, the run is not necessarily unreachable.** With `SESSION_DISCOVERY_ENABLED` (default **true**), the CP registers runs it observes directly from the runtime, and those it keys **by session id** — so `/runs/live/<sessionId>` starts resolving once discovery has seen the session. Discovery is neither instant nor guaranteed: if the submission reached the CP and only the reply was lost, a run already exists under a different id and discovery finds it by session id, so no session-keyed run is ever created and that route stays dead. The console therefore does not redirect; it reports that the Example Service did not register the run, declines to attribute a cause, and offers the session route as a link that may or may not resolve.
 
   For local real-mode work both `MACP_CONTROL_PLANE_URL` and `MACP_CONTROL_PLANE_API_KEY` must be set on the playground service — the CP's auth guard rejects a *missing* Authorization header before it reaches the empty-`AUTH_API_KEYS` bypass, so an unset key silently yields the omitted field. `docker-compose.e2e.yml` sets both.
+- The auth-service's `POST /tokens` requires a shared token-issuer key (`TOKEN_ISSUER_KEYS`; the auth-service image refuses to boot without it). The control-plane and playground send it as `MACP_AUTH_SERVICE_API_KEY`. `docker-compose.e2e.yml` gives all three the same local placeholder (`local-e2e-token-issuer-key`, override with `TOKEN_ISSUER_KEY`). The console itself never calls the auth-service.
 
 ---
 
