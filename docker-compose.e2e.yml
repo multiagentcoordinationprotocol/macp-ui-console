@@ -69,7 +69,7 @@ services:
         condition: service_healthy
 
   runtime:
-    # Pinned to runtime v0.13.0 by its published semver tag. 0.11.0 added runtime-issued decision
+    # Pinned to runtime v0.14.0 by its published semver tag. 0.11.0 added runtime-issued decision
     # receipts (RFC-MACP-0013 §13), which the Verification panel shows when the runtime advertises
     # `decision_receipt`. With no signing key configured (as here) receipts are unsigned and the
     # console labels them integrity-only. The control plane and playground built from source below
@@ -84,7 +84,7 @@ services:
     #
     # Override with MACP_RUNTIME_IMAGE for local builds
     # (e.g. `export MACP_RUNTIME_IMAGE=macp-runtime:latest`).
-    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.13.0}
+    image: ${MACP_RUNTIME_IMAGE:-ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.14.0}
     stop_grace_period: 15s
     ports:
       - "50051:50051"
