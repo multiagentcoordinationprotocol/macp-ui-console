@@ -31,6 +31,10 @@ services:
       MACP_AUTH_MAX_TTL_SECONDS: "3600"
       MACP_AUTH_DEFAULT_TTL_SECONDS: "300"
       # MACP_AUTH_SIGNING_KEY_JSON: unset → ephemeral key (dev only)
+      # LOCAL PLACEHOLDER, not a secret. The image runs NODE_ENV=production, so the
+      # auth-service refuses to boot without a token-issuer key; the control-plane and
+      # playground below send the same value as MACP_AUTH_SERVICE_API_KEY.
+      TOKEN_ISSUER_KEYS: "${TOKEN_ISSUER_KEY:-local-e2e-token-issuer-key}"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3200/healthz"]
       interval: 3s
@@ -147,6 +151,7 @@ services:
       # JWT for sender=control-plane via auth-service. RUNTIME_BEARER_TOKEN
       # remains as a fallback for the rare case auth-service is unreachable.
       MACP_AUTH_SERVICE_URL: "http://auth-service:3200"
+      MACP_AUTH_SERVICE_API_KEY: "${TOKEN_ISSUER_KEY:-local-e2e-token-issuer-key}"
       MACP_AUTH_SERVICE_TIMEOUT_MS: "5000"
       MACP_AUTH_TOKEN_TTL_SECONDS: "3600"
       MACP_AUTH_TOKEN_SENDER: "macp-control-plane"
@@ -223,6 +228,7 @@ services:
       MACP_RUNTIME_TLS: "false"
       MACP_RUNTIME_ALLOW_INSECURE: "true"
       MACP_AUTH_SERVICE_URL: "http://auth-service:3200"
+      MACP_AUTH_SERVICE_API_KEY: "${TOKEN_ISSUER_KEY:-local-e2e-token-issuer-key}"
       MACP_AUTH_SERVICE_TIMEOUT_MS: "5000"
       MACP_AUTH_TOKEN_TTL_SECONDS: "3600"
       # LLM opt-in (see the header). Default 0 keeps every launch deterministic even when a key is set.
