@@ -300,13 +300,13 @@ docker run -p 3000:3000 \
   -e MACP_CONTROL_PLANE_BASE_URL=http://macp-control-plane:3001 \
   -e MACP_CONTROL_PLANE_API_KEY=... \
   -e MACP_PLAYGROUND_BASE_URL=http://macp-playground:3000 \
-  ghcr.io/multiagentcoordinationprotocol/macp-ui-console:v0.2.0
+  ghcr.io/multiagentcoordinationprotocol/macp-ui-console:v0.3.0
 ```
 
 - **Port** `3000` (`PORT` / `HOSTNAME` override it). The container has a healthcheck on `GET /`.
 - **Runtime env** (read by the server-side proxy per request, so one image fits any stack):
   `MACP_CONTROL_PLANE_BASE_URL` and `MACP_PLAYGROUND_BASE_URL` are required (production refuses to
-  fall back); `MACP_CONTROL_PLANE_API_KEY` (Bearer) and `MACP_PLAYGROUND_API_KEY` (`x-api-key`) are optional.
+  fall back); `MACP_PLAYGROUND_API_KEY` (`x-api-key`) is optional; `MACP_CONTROL_PLANE_API_KEY` (Bearer) is required against control plane 0.8.0+ in production (it refuses unauthenticated requests).
 - **Build-time only**: `NEXT_PUBLIC_*` values are inlined into the browser bundle. The image is built
   with demo mode **off** and the environment label `self-hosted`; rebuild with
   `--build-arg NEXT_PUBLIC_MACP_UI_DEMO_MODE=true` (or `NEXT_PUBLIC_MACP_ENVIRONMENT_LABEL`,

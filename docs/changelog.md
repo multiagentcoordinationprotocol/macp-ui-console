@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-11-07 — v0.3.0
+
+Minor release (0.x convention) because the proxy's upstream behaviour changed. It contains #95 (the
+proxy sends the visitor IP upstream as `X-MACP-Client-IP` and strips client-supplied values), #93
+(Doppler as the source of truth, `deploy/doppler-sync.sh`), #94 (integration tests in CI, live scenario
+suite), #91 (SDK 0.23.1, runtime 0.14.0 e2e pin), #96 (token-issuer key in the e2e stack), #86 (arm64
+image built on a native runner), #78 (runtime-signed decision receipts), #77 (what-if prefill from
+`policy.default`), and the dependency and docs syncs since v0.2.1.
+
+### Upgrading
+
+- **Proxy headers.** Every request the proxy forwards to macp-control-plane and macp-playground now
+  carries `X-MACP-Client-IP` (the visitor IP from `x-real-ip`, else the first hop of
+  `x-vercel-forwarded-for`, else the rightmost `x-forwarded-for`; set only when it is an IP literal). A
+  client-supplied `X-MACP-Client-IP` is dropped. If something in front of the console or the upstreams
+  keyed on that header, it now sees the console-derived value.
+- **Control plane 0.8.0 needs a key.** macp-control-plane 0.8.0 requires `AUTH_API_KEYS` (unless its
+  `NODE_ENV` is `development`/`test`) and puts `GET /metrics` behind the key, so set
+  `MACP_CONTROL_PLANE_API_KEY` on the console to one of those keys. It is still optional against a
+  development control plane. The control plane throttles per key plus `X-MACP-Client-IP`. When the
+  control plane mints runtime JWTs (`MACP_AUTH_SERVICE_URL`), it also needs `MACP_AUTH_SERVICE_API_KEY`
+  (an auth-service `TOKEN_ISSUER_KEYS` entry); the console itself never calls the auth-service.
+- **Tests.** `npm run test:integration` runs against mock backends; the e2e stack
+  (`docker-compose.e2e.yml`) sets `TOKEN_ISSUER_KEYS` / `MACP_AUTH_SERVICE_API_KEY` to a local placeholder.
+  When running the control plane's own suite alongside, it reads only `TEST_DATABASE_URL` (default: its
+  5433 `macp_control_plane_test` database).
+- **Runtime.** Tested against macp-runtime 0.14.0 (e2e default); the control plane's tested range is
+  `>=0.8.0 <0.15.0`.
+
 ## 2026-11-07 — Proxy sends the visitor IP upstream
 
 The console proxy now sends the end user's IP to macp-playground and macp-control-plane as
