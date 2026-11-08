@@ -53,32 +53,39 @@ keys_file="$repo/deploy/doppler-keys.txt"
 keys="$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$keys_file" | grep -v '^$' || true)"
 [ -n "$keys" ] || die "no keys in $keys_file"
 
-vercel_token() {
-  if [ -n "${VERCEL_TOKEN:-}" ]; then printf '%s' "$VERCEL_TOKEN"; return; fi
-  local f
+# Resolved once, in this shell, so a missing token stops the run here.
+vercel_token=""
+if [ -n "${VERCEL_TOKEN:-}" ]; then
+  vercel_token="$VERCEL_TOKEN"
+else
   for f in "$HOME/Library/Application Support/com.vercel.cli/auth.json" \
     "${XDG_DATA_HOME:-$HOME/.local/share}/com.vercel.cli/auth.json"; do
-    [ -f "$f" ] && { jq -r '.token' "$f"; return; }
+    if [ -f "$f" ]; then vercel_token="$(jq -r '.token // empty' "$f")" || vercel_token=""; break; fi
   done
-  die "no Vercel token (set VERCEL_TOKEN or run vercel login)"
-}
+fi
+[ -n "$vercel_token" ] || die "no Vercel token (set VERCEL_TOKEN or run vercel login)"
+# The token reaches curl as a header file (printf is a builtin, so it is on
+# no process's argv, and never visible in ps).
 vercel_api() {
-  curl -fsS "https://api.vercel.com$1" -H "Authorization: Bearer $(vercel_token)"
+  curl -fsS "https://api.vercel.com$1" -H @<(printf 'Authorization: Bearer %s\n' "$vercel_token")
 }
 
-# The Production entries as {KEY: {value, shared}}: the list endpoint returns
-# encrypted values, so each entry is read back decrypted by id. shared is true
-# when the entry also targets Preview or Development.
+# The Production entries as {KEY: {value, type, shared}}: the list endpoint
+# returns encrypted values, so each non-sensitive entry is read back decrypted
+# by id (a sensitive one cannot be read back). shared is true when the entry
+# also targets Preview or Development. Every read must succeed and parse; any
+# failure returns non-zero (fail closed), never an empty map.
 vercel_vars() {
-  local entries id
+  local entries
   entries="$(vercel_api "/v9/projects/$VERCEL_PROJECT_ID/env?teamId=$VERCEL_TEAM_ID" |
-    jq -c '[.envs[] | select((.target // []) | index("production")) | select(.gitBranch == null)
-            | {id, key, type, shared: ((.target | length) > 1)}]')"
+    jq -ce '[.envs[] | select((.target // []) | index("production")) | select(.gitBranch == null)
+             | {id, key, type, shared: ((.target | length) > 1)}]')" || return 1
   {
-    for id in $(jq -r '.[].id' <<<"$entries"); do
-      vercel_api "/v1/projects/$VERCEL_PROJECT_ID/env/$id?teamId=$VERCEL_TEAM_ID" | jq -c '{id, value}'
+    for id in $(printf '%s' "$entries" | jq -r '.[] | select(.type != "sensitive") | .id'); do
+      vercel_api "/v1/projects/$VERCEL_PROJECT_ID/env/$id?teamId=$VERCEL_TEAM_ID" |
+        jq -ce '{id, value}' || exit 1
     done
-  } | jq -sc --argjson e "$entries" '
+  } | jq -sce --argjson e "$entries" '
     (map({(.id): .value}) | add // {}) as $v |
     $e | map({(.key): {value: $v[.id], type, shared}}) | add // {}'
 }
@@ -86,9 +93,18 @@ doppler_vars() {
   doppler secrets download --no-file --format json --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG"
 }
 
-# One line per key: "<KEY> <state>". Values stay inside jq.
+# One line per key: "<KEY> <state>". Both sides are read into shell variables
+# first, each with its own check, so a failed read (non-2xx, network error,
+# unparsable JSON) stops the run instead of looking like "no entry" (set -e
+# does not see a failure inside a process substitution). Values reach jq only
+# through printf pipes, never argv or disk.
 plan() {
-  jq -nr --slurpfile d <(doppler_vars) --slurpfile v <(vercel_vars) --arg keys "$keys" '
+  local d v
+  d="$(doppler_vars)" || die "reading Doppler $DOPPLER_PROJECT/$DOPPLER_CONFIG failed; nothing changed"
+  v="$(vercel_vars)" || die "reading Vercel environment variables failed; nothing changed"
+  printf '%s' "$d" | jq -e 'type == "object"' >/dev/null 2>&1 || die "unexpected Doppler response; nothing changed"
+  printf '%s' "$v" | jq -e 'type == "object"' >/dev/null 2>&1 || die "unexpected Vercel response; nothing changed"
+  jq -nr --slurpfile d <(printf '%s' "$d") --slurpfile v <(printf '%s' "$v") --arg keys "$keys" '
     $d[0] as $d | $v[0] as $v |
     $keys | split("\n")[] | . as $k |
     if ($d | has($k) | not) then "\($k) missing-in-doppler"
@@ -124,7 +140,7 @@ if grep -qv ' unchanged$' <<<"$after"; then
   die "Vercel does not match Doppler after --apply; not redeploying"
 fi
 latest="$(vercel_api "/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_TEAM_ID&target=production&state=READY&limit=1" |
-  jq -r '.deployments[0].uid // empty')"
+  jq -r '.deployments[0].uid // empty')" || die "listing production deployments failed; variables are set, rebuild production to apply them"
 [ -n "$latest" ] || die "variables match Doppler, but no production deployment to rebuild; deploy to apply them"
 say "variables match Doppler; rebuilding production ($latest), NEXT_PUBLIC_* are build-time"
 vercel redeploy "$latest" --target production --scope "$VERCEL_TEAM" --cwd "$repo" >/dev/null
