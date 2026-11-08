@@ -51,9 +51,9 @@ function NewRunPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const demoMode = usePreferencesStore((state) => state.demoMode);
-  // Set on the hosted deployment only. The hosted playground always runs deterministic agents (it
-  // decides server-side from PLAYGROUND_ALLOW_LLM; the console sends no opt-in), so the launch
-  // screen says so and points operators at the local quickstart for LLM agents.
+  // Set on the hosted deployment only. The hosted playground runs LLM agents (PLAYGROUND_ALLOW_LLM=1,
+  // decided server-side; the console sends no opt-in) within its per-IP LLM launch limits, and falls
+  // back to deterministic agents over a limit. The launch screen says so and links the local quickstart.
   const hosted = process.env.NEXT_PUBLIC_MACP_HOSTED === 'true';
   const [packSlug, setPackSlug] = useState(searchParams.get('pack') ?? '');
   const [scenarioSlug, setScenarioSlug] = useState(searchParams.get('scenario') ?? '');
@@ -279,12 +279,12 @@ function NewRunPageContent() {
             Control Plane.
           </p>
           {hosted ? (
-            <p className="muted small" data-testid="hosted-deterministic-note">
-              Hosted runs use deterministic agents;{' '}
+            <p className="muted small" data-testid="hosted-agents-note">
+              Hosted runs use LLM agents within a per-visitor limit, then fall back to deterministic agents;{' '}
               <a href={LOCAL_QUICKSTART_URL} target="_blank" rel="noreferrer">
                 bring your own key locally
               </a>{' '}
-              for LLM agents.
+              for unlimited LLM runs.
             </p>
           ) : null}
         </div>

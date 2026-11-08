@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-08 — Hosted launch note: LLM agents within a per-visitor limit
+
+The `/runs/new` note on the hosted console said "Hosted runs use deterministic agents" (decision 1b),
+but the hosted playground runs with `PLAYGROUND_ALLOW_LLM=1`. It now reads "Hosted runs use LLM agents
+within a per-visitor limit, then fall back to deterministic agents; bring your own key locally for
+unlimited LLM runs." The limits are the playground's `LLM_LIMIT_*` settings (see
+`docs-content/macp-playground/deployment.md` § LLM launch limits). Test id renamed
+`hosted-deterministic-note` → `hosted-agents-note`. Test: `app/runs/new/page.test.tsx`.
+
 ## 2026-11-08 — Hosted Settings page; docs sync stops committing a gitlink
 
 - `/settings` on the hosted console showed only an error panel: it requested `GET /webhooks` and
