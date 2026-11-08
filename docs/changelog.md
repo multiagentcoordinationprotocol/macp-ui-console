@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-08 — Runtime 0.14.1 e2e pin
+
+`docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.14.1`
+(still overridable with `MACP_RUNTIME_IMAGE`). 0.14.1 fixes `WhatIfReplay` and `GetSession` answering
+`SESSION_NOT_FOUND` for finished sessions evicted from the runtime's memory (older than
+`MACP_SESSION_RETENTION_SECS`), a bug since 0.10.0 that made the console's what-if 404 on older runs. No
+wire change and no console code changed.
+
 ## 2026-11-07 — v0.3.0
 
 Minor release (0.x convention) because the proxy's upstream behaviour changed. It contains #95 (the
