@@ -205,17 +205,19 @@ describe('NewRunPage control-plane registration', () => {
   });
 });
 
-describe('NewRunPage hosted deterministic note', () => {
+describe('NewRunPage hosted agents note', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it('tells hosted operators runs are deterministic and links the local quickstart', async () => {
+  it('tells hosted operators runs use rate-limited LLM agents with a deterministic fallback and links the local quickstart', async () => {
     vi.stubEnv('NEXT_PUBLIC_MACP_HOSTED', 'true');
     renderWithProviders(<NewRunPage />);
 
-    const note = await screen.findByTestId('hosted-deterministic-note', {}, { timeout: 5000 });
-    expect(note).toHaveTextContent('Hosted runs use deterministic agents; bring your own key locally for LLM agents.');
+    const note = await screen.findByTestId('hosted-agents-note', {}, { timeout: 5000 });
+    expect(note).toHaveTextContent(
+      'Hosted runs use LLM agents within a per-visitor limit, then fall back to deterministic agents; bring your own key locally for unlimited LLM runs.'
+    );
     expect(screen.getByRole('link', { name: /bring your own key locally/i })).toHaveAttribute(
       'href',
       'https://github.com/multiagentcoordinationprotocol/multiagentcoordinationprotocol/blob/main/docs/quickstart.md'
@@ -225,6 +227,6 @@ describe('NewRunPage hosted deterministic note', () => {
   it('stays hidden off the hosted deployment', async () => {
     renderWithProviders(<NewRunPage />);
     await screen.findByRole('button', { name: /^submit run$/i }, { timeout: 5000 });
-    expect(screen.queryByTestId('hosted-deterministic-note')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('hosted-agents-note')).not.toBeInTheDocument();
   });
 });
