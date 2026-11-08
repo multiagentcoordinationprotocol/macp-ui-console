@@ -76,9 +76,9 @@ Dependency updates are automated by Dependabot (`.github/dependabot.yml`): month
 |---------|-----|---------|
 | Push to `main` | `:latest` | Rolling production tag |
 | Push to `main` / manual dispatch | `:sha-<commit>` | Immutable, for rollback |
-| Push of a `vX.Y.Z` git tag | `:X.Y.Z`, `:X.Y` (and `:sha-<commit>`), `linux/amd64` + `linux/arm64` | Semver pin for self-hosters (W3.7 `macp-runtime/deploy/docker-compose.yml`) |
+| Push of a `vX.Y.Z` git tag | `:X.Y.Z`, `:X.Y` (and `:sha-<commit>`) | Semver pin for self-hosters (W3.7 `macp-runtime/deploy/docker-compose.yml`) |
 
-Pull requests build the image for validation but do not push it. A manual `workflow_dispatch` run pushes a `:sha-<commit>` tag only; `:latest` moves only on `main`.
+Every pushed tag is a multi-arch manifest (`linux/amd64` + `linux/arm64`, arm64 built under QEMU); a container runtime pulls its own platform. Pull requests build the image (`linux/amd64` only) for validation but do not push it. A manual `workflow_dispatch` run pushes a `:sha-<commit>` tag only; `:latest` moves only on `main`.
 
 **Cutting a release.** Bump `version` in `package.json` on `main`, then push the matching tag (`git tag v0.3.0 && git push origin v0.3.0`). The tag run executes every gate, refuses to push when the tag and `package.json` disagree, and never moves `:latest`. The image boots deterministic by default: it carries no LLM key and leaves `PLAYGROUND_ALLOW_LLM` unset.
 
@@ -110,7 +110,8 @@ flyctl apps create macp-playground
 flyctl deploy --image ghcr.io/multiagentcoordinationprotocol/macp-playground:latest
 flyctl secrets set \
   MACP_RUNTIME_ADDRESS=runtime.internal:50051 \
-  MACP_AUTH_SERVICE_URL=http://auth-service.internal:3200
+  MACP_AUTH_SERVICE_URL=http://auth-service.internal:3200 \
+  MACP_AUTH_SERVICE_API_KEY=<the auth-service's TOKEN_ISSUER_KEYS value>
 ```
 
 ### AWS ECS
@@ -162,6 +163,7 @@ This is the canonical env-var reference. The tables mirror `AppConfigService` (`
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `MACP_AUTH_SERVICE_URL` | **Yes** | _(empty)_ | Base URL of the auth-service. Startup fails with `INVALID_CONFIG` if unset. Not contacted at boot, so any valid URL lets the process start. |
+| `MACP_AUTH_SERVICE_API_KEY` | **Yes against a production auth-service** | _(empty)_ | The auth-service's shared token-issuer key (one of its `TOKEN_ISSUER_KEYS`), sent as `Authorization: Bearer <key>` on `POST /tokens`. Without it a production auth-service answers 401 and every agent spawn fails with `AUTH_MINT_FAILED`. Production logs a warning when it is unset; empty only works against a dev auth-service with no keys. |
 | `MACP_AUTH_SERVICE_TIMEOUT_MS` | No | `5000` | HTTP timeout for `POST /tokens`. |
 | `MACP_AUTH_TOKEN_TTL_SECONDS` | No | `3600` | TTL requested from auth-service on every mint. Must exceed the agent's gRPC stream lifetime (SDKs bind auth once at stream open). Capped by auth-service `MACP_AUTH_MAX_TTL_SECONDS`. |
 | `MACP_AUTH_SCOPES_JSON` | No | _(empty)_ | Per-sender scope overrides, JSON `{"sender":{"can_start_sessions":true,...}}`. Deep-merged onto role-derived defaults; explicit `null` clears a key. |
@@ -273,6 +275,7 @@ docker build --build-arg NODE_AUTH_TOKEN="$GITHUB_TOKEN" -t macp-playground .
 docker run -p 3000:3000 \
   -e AUTH_API_KEYS=change-me \
   -e MACP_AUTH_SERVICE_URL=http://host.docker.internal:3200 \
+  -e MACP_AUTH_SERVICE_API_KEY=change-me-token-issuer-key \
   -e MACP_RUNTIME_ADDRESS=host.docker.internal:50051 \
   -e MACP_RUNTIME_TLS=false -e MACP_RUNTIME_ALLOW_INSECURE=true \
   macp-playground
