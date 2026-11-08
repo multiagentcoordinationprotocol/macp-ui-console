@@ -50,6 +50,11 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Doppler sync script tests (offline)
+        run: |
+          shellcheck deploy/doppler-sync.sh
+          python3 scripts/test_doppler_sync.py
+
       - name: Build
         run: npm run build
         env:
