@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-08 — Hosted Settings page; docs sync stops committing a gitlink
+
+- `/settings` on the hosted console showed only an error panel: it requested `GET /webhooks` and
+  `GET /audit`, which the hosted proxy refuses (403) by design. With `NEXT_PUBLIC_MACP_HOSTED=true` (and
+  demo mode off) the page no longer requests them and renders a note in place of the webhook and audit
+  sections. Local and demo behaviour is unchanged.
+- `sync-examples-docs.yml` committed its `macp-playground-repo` checkout as a gitlink with no
+  `.gitmodules` entry (so `git submodule status` failed). The workflow now commits only
+  `docs-content/macp-playground`, the gitlink is removed, and the path is ignored.
+
 ## 2026-11-08 — Runtime 0.14.1 e2e pin
 
 `docker-compose.e2e.yml` now defaults to `ghcr.io/multiagentcoordinationprotocol/macp-runtime:0.14.1`

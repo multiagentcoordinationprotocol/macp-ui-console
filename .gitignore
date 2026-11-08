@@ -48,3 +48,5 @@ plans/
 
 .env
 temp/
+# sync-examples-docs.yml checks macp-playground out here; never commit it
+/macp-playground-repo/
